@@ -40,17 +40,9 @@ Cost composition at list price: 5-minute cache writes 60%, cache reads 36%, 1-ho
 1. **One percent of the Max 20x week bought ~$21 of Opus 5.5 at API prices; a full month ≈ $9,060 for $200.** That is 45.3× ± 1.0.
 2. **The number may depend on the kind of work.** Long historical interactive sessions on the same account (Sep 28–30, mostly Sonnet 5.5) came out at ~62× (28 full steps, 61.6–61.8× over the whole span). There, 78% of the API cost was cache reads and 18% 1-hour cache writes. That data comes from private sessions and is not published here, and it is not in the table: it predates this run, so it may not reflect the current meter. Read together, Anthropic's meter appears to charge cache reads at less than their API weight: long sessions that mostly re-read cached context get more out of the plan than many short parallel sessions that keep writing new cache.
 
-## Other Claude plans (derived)
+## Other Claude plans
 
-Only Max 20x was measured. Anthropic describes its plans' allowances relative to Pro: Pro 1×, Max 5x 5×, Max 20x 20×. Taking that at face value:
-
-| Plan | Price | Allowance | Multiplier |
-|---|---|---|---|
-| Max 20x (measured) | $200 | 20× | 45.3× ± 1.0 |
-| Max 5x (derived) | $100 | 5× | 45.3 × 5/20 × 200/100 = **22.7× ± 0.5** |
-| Pro (derived) | $20 | 1× | 45.3 × 1/20 × 200/20 = **22.7× ± 0.5** |
-
-These rows are only as good as the stated allowance ratios; they were not measured.
+Not derived. Anthropic describes Max 5x and Max 20x as 5× and 20× the Pro plan's **per-session** (5-hour) allowance ([What is the Max plan?](https://support.claude.com/en/articles/11049741-what-is-the-max-plan)); the weekly limit, which is what this experiment measures, is stated separately and without a ratio. Third-party reports put the Max 20x / Max 5x weekly ratio at roughly 1.5–2×, which would make Max 5x worth about the same as or more than Max 20x per dollar — but that is not an official figure, so no row is published for it. (An earlier version of this set derived Max 5x at 22.7× from a 5:20 weekly ratio; that ratio was wrong.)
 
 ## Caveats
 
