@@ -66,7 +66,7 @@ Only High Usage was measured. Muse describes its plans' monthly allowances relat
 | Power Usage · standard (derived) | $50 | 20× | 9.25 × 1.2 = **11.1× ± 0.5** |
 | High Usage · contributor vs its own API price (measured) | $15 | 5× | 5.8× ± 0.6 |
 | Power Usage · contributor vs its own API price (derived) | $50 | 20× | 5.84 × 1.2 = **7.0× ± 0.7** |
-| Power Usage · contributor vs standard API price (derived) | $50 | 20× | 113.9 × 1.2 ≈ 137× |
+| Power Usage · contributor vs standard API price (derived) | $50 | 20× | 113.9 × 1.2 = **137× ± 15** |
 
 These rows are only as good as the stated allowance ratios; they were not measured.
 
