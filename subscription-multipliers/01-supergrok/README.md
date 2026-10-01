@@ -6,36 +6,42 @@ How much Grok API usage does the SuperGrok weekly allowance buy, priced at xAI's
 
 ## Method
 
-- **Plan:** SuperGrok, $30/month. The CLI's billing call reports one weekly period (`USAGE_PERIOD_TYPE_WEEKLY`) and `isUnifiedBillingUser: true` — the allowance is shared with grok.com. Other Grok use was paused for the run.
-- **Client:** Grok Build CLI 1.0.44, driven over ACP (`grok agent --reasoning-effort xhigh -m grok-4.6 stdio`, via the public [`grok_acp.py`](../../five-models-three-harnesses/harness/grok_acp.py)). The session itself reported `grok-4.7` as the served model (the CLI's default; the `-m` flag is inert on this path). The CLI updated itself to 1.0.46 during the run.
-- **Meter:** the ACP extension method `_x.ai/billing` returns `config.creditUsagePercent` without running a model turn. [`bench/grok_meter.py`](bench/grok_meter.py) calls it; [`bench/grok_poll.sh`](bench/grok_poll.sh) did so every ~30 s, and each worker also read it after every prompt.
-- **Workload:** [`bench/grok_worker.py`](bench/grok_worker.py), 5 workers in parallel, each prompt a fresh session (so context is not reused between prompts) asking for detailed descriptions of 20 local images (~400 personal screenshots and photos; not published). Prompt, verbatim:
-
-  ```
-  Open and look at each of these image files one by one with your file-reading tool (view the actual image, do not guess from the filename). For each, write a detailed description: everything visible, all text in it transcribed verbatim, layout, colours. Read-only: do not modify or create any files.
-  <20 image paths>
-  ```
-- **Spend:** every `shell.turn.inference_done` record in the CLI's log (`~/.grok/logs/unified.jsonl`): prompt, cached-prompt and completion tokens per model call (completion includes reasoning tokens). Priced at xAI's list price for Grok 4.7: **$2.00 / M input, $0.50 / M cached input, $6.00 / M output**, doubled for prompts ≥200K tokens (no call reached that).
+- **Plan:** SuperGrok, $30/month. The CLI's billing call reports one weekly period (`USAGE_PERIOD_TYPE_WEEKLY`) and `isUnifiedBillingUser: true` — the allowance is shared with grok.com. Other Grok use was paused, except one interactive session on the same machine during the text run (26 calls, $0.37), which is in the log and priced in.
+- **Client:** Grok Build CLI 1.0.44 → 1.0.46 (it updated itself), driven over ACP (`grok agent --reasoning-effort xhigh -m grok-4.6 stdio`, via the public [`grok_acp.py`](../../five-models-three-harnesses/harness/grok_acp.py)). The session reported `grok-4.7` as the served model (the CLI's default; the `-m` flag is inert on this path).
+- **Meter:** the ACP extension method `_x.ai/billing` returns `config.creditUsagePercent` without running a model turn. [`bench/grok_meter.py`](bench/grok_meter.py) calls it; [`bench/grok_poll.sh`](bench/grok_poll.sh) did so every ~30 s, and every worker also read it after every prompt.
+- **Two workloads, run on the same day, 5 parallel workers each, every prompt in a fresh session:**
+  1. **Images** (meter 25% → 27%), [`bench/grok_worker.py`](bench/grok_worker.py): detailed descriptions of 20 local images per prompt (~400 personal screenshots and photos; not published). Prompt, verbatim:
+     ```
+     Open and look at each of these image files one by one with your file-reading tool (view the actual image, do not guess from the filename). For each, write a detailed description: everything visible, all text in it transcribed verbatim, layout, colours. Read-only: do not modify or create any files.
+     <20 image paths>
+     ```
+  2. **Text only** (meter 27% → 29%), [`bench/grok_text_worker.py`](bench/grok_text_worker.py): every prompt gets **freshly generated random-word files** that no model has seen before, so nothing can be served from cache across prompts. Alternating an output-heavy task (rewrite an ~8,000-word file shifting every letter to the next one) and an input-heavy task (read five ~8,000-word files and report word frequencies). Prompts verbatim in the script.
+- **Spend:** every `shell.turn.inference_done` record in the CLI's log (`~/.grok/logs/unified.jsonl`): prompt, cached-prompt and completion tokens per model call (completion includes reasoning). The CLI's log is size-capped and drops its oldest lines, so copies were taken during the runs; `calls.csv` is their union. Priced at xAI's list price for Grok 4.7: **$2.00 / M input, $0.50 / M cached input, $6.00 / M output**, doubled for prompts ≥200K tokens.
 
 ## Results
 
-`results/readings.csv` (301 meter readings), `results/calls.csv` (969 model calls, $32.59 at list price), `results/analysis.txt`:
+`results/readings.csv` (646 meter readings), `results/calls.csv` (1,694 model calls, $68.86 at list price), `results/analysis.txt`:
 
-| Step | Floor | Ceiling | Multiplier bracket |
-|---|---|---|---|
-| 25% → 26% | $11.68 | $12.35 | 169.3× – 179.0× |
-| 26% → 27% | $11.09 | $12.16 | 160.7× – 176.3× |
-| **Whole run 25% → 27%** | **$11.60 / pt** | **$12.04 / pt** | **168.2× – 174.5× → 171× ± 3** |
-| Max floor … min ceiling (consistency check) | | | 169.3× – 174.5× (intersect) |
+| Step | Workload | Floor | Ceiling | Multiplier bracket |
+|---|---|---|---|---|
+| 25% → 26% | images | $11.68 | $12.35 | 169.3× – 179.0× |
+| 26% → 27% | images | $11.09 | $12.16 | 160.7× – 176.3× |
+| 27% → 28% | mixed: end of the image run, idle afternoon, start of the text run | $12.75 | $14.51 | 184.8× – 210.3× |
+| 28% → 29% | text only | $13.37 | $14.86 | 193.8× – 215.4× |
+| Whole run 25% → 29% | both | $12.77 / pt | $12.92 / pt | 185.1× – 187.3× |
+
+The step brackets do **not** intersect: image points and text points cost measurably different amounts.
+
+**Reported: 190× ± 21** — the range the image and text workloads span (≈169× to ≈210×). Unlike the other rows of this set, Grok's ± expresses the workload range, not only the meter-reading bracket; the whole-run bracket (185–187×) is the average over this particular mix.
 
 ## Findings
 
-1. **One percent of SuperGrok's week bought ~$11.80 of Grok 4.7 at API prices; a full month of allowance ≈ $5,130 for $30.** That is 171× ± 3.
-2. **Grok's meter was the most linear of the plans measured.** Both full steps and the whole run agree inside a 5-point band.
+1. **One percent of SuperGrok's week bought $11–15 of Grok 4.7 at API prices; a full month of allowance ≈ $5,700 for $30.** That is 190× ± 21.
+2. **Text work stretched the plan further than image work** (≈195–215× vs ≈161–179× per point). The text prompts were ~93% cached input; cached tokens are cheap on the API ($0.50 / M) but appear to cost the meter even less, so cache-heavy work gets more API-equivalent value per percent. The same direction showed up on Claude (see 02).
 
 ## Caveats
 
-- **Only 2 full steps are reproducible from the published log.** The CLI rewrote its log when it self-updated mid-run, which deleted the calls behind the earlier part of the test. Two earlier measurements made from that log before it was lost were consistent — one step at 177–181×, and a 3-point stretch of text-only repository work at ≈169× — but they cannot be re-checked here, so they are not in the table.
-- The allowance is shared with grok.com; any unlogged use during the run would make the plan look less generous, not more.
+- **The 27% → 28% step crosses an idle afternoon** in which one other session ran ($3.85, logged) and the CLI's log has a 38-minute hole (11:50–12:28 local) not covered by any copy. Any usage hidden there would raise that step further, not lower it.
+- **A historical inconsistency remains unexplained.** The meter read 18% on Sep 30 23:16 UTC with only ~$13 of logged Grok usage since Sep 29; at these rates 18% is ~$230. The difference is either Grok usage off this machine (grok.com, X and other devices share the allowance) between Sep 27 and Sep 29, or a meter that is not proportional to API dollars at that point. It cannot be checked from here.
 - The CLI also prints its own per-prompt cost (`costUsdTicks`). It comes to exactly one third of list price and is not what an API user pays, so it is not used.
-- One run, image-description work at xhigh. Other workloads may meter differently.
+- The letter-shift prompts did not produce full-length outputs (Grok shortened them), so the text workload ended up input- and cache-heavy rather than output-heavy.
