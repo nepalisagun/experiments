@@ -56,6 +56,20 @@ Consistency check: the contributor brackets do **not** all intersect. The three 
    - Result: **114×** against what the same work costs on the private-data API; **5.8×** against contributor's own API price. If you are willing to share your data, paying per token for contributor is the better deal; if you are not, contributor is not an option on the API at standard price, and standard on the plan is 9.3×.
 3. **The 5-hour window is the real limit on standard.** It rose 22 points while the weekly rose 6: a full 5-hour window was worth ~$10 of standard API usage. On contributor it was ~$5–6 at contributor price.
 
+## Other Muse Code plans (derived)
+
+Only High Usage was measured. Muse describes its plans' monthly allowances relative to Everyday Usage ($5): High Usage ($15) = 5×, Power Usage ($50) = 20×. Taking that at face value, Power Usage gets 4× High Usage's allowance for 3.33× the price, i.e. 1.2× the multiplier:
+
+| Plan · model | Price | Allowance | Multiplier |
+|---|---|---|---|
+| High Usage · standard (measured) | $15 | 5× | 9.3× ± 0.4 |
+| Power Usage · standard (derived) | $50 | 20× | 9.25 × 1.2 = **11.1× ± 0.5** |
+| High Usage · contributor vs its own API price (measured) | $15 | 5× | 5.8× ± 0.6 |
+| Power Usage · contributor vs its own API price (derived) | $50 | 20× | 5.84 × 1.2 = **7.0× ± 0.7** |
+| Power Usage · contributor vs standard API price (derived) | $50 | 20× | 113.9 × 1.2 ≈ 137× |
+
+These rows are only as good as the stated allowance ratios; they were not measured.
+
 ## Caveats
 
 - **Contributor's range is wide because the run mixed three different workloads**, and at contributor prices cached tokens ($0.002) are 50× cheaper than uncached ($0.10), so the dollar value of a point swings with how much context is re-read. Standard was one homogeneous phase and came out tight. A repeat of contributor with standard's exact workload would make the two directly comparable.
