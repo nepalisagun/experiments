@@ -1,0 +1,7 @@
+02-claude-max/results: 111 readings, 1403 calls, 4 full steps
+  step 6->7% from 2026-10-01T11:59:26+00:00: $19.47-$21.57/pt = 42.3x-46.9x
+  step 7->8% from 2026-10-01T11:59:58+00:00: $16.59-$21.54/pt = 36.1x-46.8x
+  step 8->9% from 2026-10-01T12:00:32+00:00: $20.58-$25.75/pt = 44.7x-56.0x
+  step 9->10% from 2026-10-01T12:01:10+00:00: $19.38-$21.96/pt = 42.1x-47.7x
+  span 6->10%: $20.41-$21.29/pt = 44.4x-46.3x
+  max floor / min ceiling: 44.7x - 46.3x  (brackets intersect)

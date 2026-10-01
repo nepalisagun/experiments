@@ -1,0 +1,7 @@
+03-codex/results: 324 readings, 329 calls, 4 full steps
+  step 8->9% from 2026-10-01T11:12:22+00:00: $2.33-$2.39/pt = 10.1x-10.4x
+  step 9->10% from 2026-10-01T11:19:29+00:00: $2.35-$2.40/pt = 10.2x-10.4x
+  step 10->11% from 2026-10-01T11:31:09+00:00: $2.41-$2.46/pt = 10.5x-10.7x
+  step 11->12% from 2026-10-01T11:45:49+00:00: $2.24-$2.29/pt = 9.7x-9.9x
+  span 8->12%: $2.35-$2.36/pt = 10.2x-10.3x
+  max floor 10.5x > min ceiling 9.9x: brackets do NOT intersect, per-point value not constant; steps span 9.7x-10.7x
