@@ -34,6 +34,18 @@ Consistency check: the step brackets do **not** all intersect (highest floor 10.
 1. **One percent of the week bought ~$2.35 of GPT-6.1 Sol at API prices; a full month ≈ $1,025 for $100.** That is 10.25× on average.
 2. **Single points vary by about ±5%** (9.7–10.7×). A separate week of mixed use on the same account measured 10.7–10.8× over 19 full steps, consistent with that spread.
 
+## Other ChatGPT plans (derived)
+
+Only the $100 plan was measured. OpenAI describes the Codex allowance as proportional to price: Plus ($20) 1×, Pro $100 5×, Pro $200 10×. Taking that at face value, every tier has the same multiplier:
+
+| Plan | Price | Allowance | Multiplier |
+|---|---|---|---|
+| $100 plan (measured) | $100 | 5× | 10.25× ± 0.03 |
+| $200 plan (derived) | $200 | 10× | 10.25 × 10/5 × 100/200 = **10.25× ± 0.03** |
+| Plus (derived) | $20 | 1× | 10.25 × 1/5 × 100/20 = **10.25× ± 0.03** |
+
+These rows are only as good as the stated allowance ratios; they were not measured.
+
 ## Caveats
 
 - OpenAI lists cache writes for this model at $2.50 / M; Codex's logs don't separate cache writes from ordinary input, so they are priced at $2.00. If anything this understates the multiplier slightly.

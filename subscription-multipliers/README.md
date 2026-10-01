@@ -13,6 +13,7 @@ How much API usage does an AI coding subscription actually buy? For each plan we
 | [Claude Max 5x · Opus 5.5 · Claude Code — *derived, not measured*](02-claude-max/#other-claude-plans-derived) | $100 | *22.7×* | ± 0.5 |
 | [Muse Code Power Usage · Spark 1.3 standard · Muse Code CLI — *derived, not measured*](04-muse-code/#other-muse-code-plans-derived) | $50 | *11.1×* | ± 0.5 |
 | [ChatGPT $100 plan · GPT-6.1 Sol · Codex CLI](03-codex/) | $100 | **10.25×** | ± 0.03 |
+| [ChatGPT $200 plan · GPT-6.1 Sol · Codex CLI — *derived, not measured*](03-codex/#other-chatgpt-plans-derived) | $200 | *10.25×* | ± 0.03 |
 | [Muse Code High Usage · Spark 1.3 standard · Muse Code CLI](04-muse-code/) | $15 | **9.3×** | ± 0.4 |
 | [Muse Code High Usage · Spark 1.3 contributor · Muse Code CLI — vs its own API price](04-muse-code/) | $15 | **5.8×** | ± 0.6 |
 
