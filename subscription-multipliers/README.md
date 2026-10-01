@@ -9,11 +9,14 @@ How much API usage does an AI coding subscription actually buy? For each plan we
 | [SuperGrok · Grok 4.7 · Grok Build CLI](01-supergrok/) | $30 | **171×** | ± 3 |
 | [Muse Code High Usage · Spark 1.3 contributor · Muse Code CLI — vs standard API price](04-muse-code/) | $15 | **114×** | ± 12 |
 | [Claude Max 20x · Opus 5.5 · Claude Code](02-claude-max/) | $200 | **45.3×** | ± 1.0 |
+| [Claude Max 5x · Opus 5.5 · Claude Code — *derived, not measured*](02-claude-max/#other-claude-plans-derived) | $100 | *22.7×* | ± 0.5 |
 | [ChatGPT $100 plan · GPT-6.1 Sol · Codex CLI](03-codex/) | $100 | **10.25×** | ± 0.03 |
 | [Muse Code High Usage · Spark 1.3 standard · Muse Code CLI](04-muse-code/) | $15 | **9.3×** | ± 0.4 |
 | [Muse Code High Usage · Spark 1.3 contributor · Muse Code CLI — vs its own API price](04-muse-code/) | $15 | **5.8×** | ± 0.6 |
 
 Measured Oct 1, 2026, each plan on its own, with other usage of that plan paused.
+
+**Claude Max 5x is derived, not measured:** Anthropic describes Max 5x as 5× and Max 20x as 20× the Pro allowance, so Max 5x gets a quarter of Max 20x's usage for half the price: 45.3× × ¼ × 2 = 22.7×. Claude Pro ($20, 1×) works out the same. OpenAI says its Codex allowance scales with price (Plus 1×, Pro $100 5×, Pro $200 10×), so every ChatGPT tier comes out at the measured 10.25×.
 
 **Uncertainty** is the bracket on the run's average, explained below. Individual percent points can vary more than that (Codex's ranged 9.7–10.7×); every point is listed in each folder.
 
