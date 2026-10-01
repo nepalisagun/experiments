@@ -24,7 +24,7 @@ Measured Oct 1, 2026, each plan on its own, with other usage of that plan paused
 | # | Plan | What was run | Headline |
 |---|---|---|---|
 | [01](01-supergrok/) | SuperGrok ($30) | Grok Build CLI, Grok 4.7 at xhigh, 5 parallel sessions describing images, weekly meter read every ~30 s | **171× ± 3** — a percent of the week is worth ~$11.80 of API usage |
-| [02](02-claude-max/) | Claude Max 20x ($200) | Claude Code `-p`, Opus 5.5, 6 parallel read-only sessions | **45.3× ± 1.0**; a long-session week measured separately came out at ~62× (cache reads dominate there) |
+| [02](02-claude-max/) | Claude Max 20x ($200) | Claude Code `-p`, Opus 5.5, 6 parallel read-only sessions | **45.3× ± 1.0**; long historical sessions (Sep 28–30) came out at ~62× — not in the table because the meter may have changed since |
 | [03](03-codex/) | ChatGPT $100 plan | Codex CLI, GPT-6.1 Sol at high, 6 parallel read-only sessions | **10.25× ± 0.03**; single points 9.7–10.7× |
 | [04](04-muse-code/) | Muse Code High Usage ($15) | Muse Code, Spark 1.3 standard and contributor, up to 8 parallel sessions | standard **9.3× ± 0.4**; contributor **5.8×** vs its own API price, **114×** vs standard's |
 
@@ -45,7 +45,7 @@ Readings from parallel sessions can arrive out of order; a reading lower than on
 ## Caveats that apply to the whole set
 
 - **A multiplier assumes you can use the whole week.** Claude and Muse also have a 5-hour window. On Muse standard it binds hard: a full 5-hour window was worth only ~$10 of API usage.
-- **Workload moves the number.** Vendors don't meter exactly in API dollars. On Claude, the same plan measured 45× on short parallel sessions (60% of API cost was 5-minute cache writes) and ~62× over a week of long sessions (78% cache reads). Read each multiplier as "for this kind of work".
+- **Workload moves the number.** Vendors don't meter exactly in API dollars. On Claude, the same plan measured 45× on short parallel sessions (60% of API cost was 5-minute cache writes) and ~62× on long historical sessions from Sep 28–30 (78% cache reads). The historical figure is not in the table because it predates the dedicated runs and the meter may have changed since. Read each multiplier as "for this kind of work".
 - **Usage off the machine is invisible.** Claude's and Grok's meters are shared with their web apps and other devices; those were paused for the runs, but a stray use would make a plan look *less* generous, never more.
 - **One run per plan, a few points each** (2–6 full steps). The brackets say how tight each measurement is; they don't say the vendor won't change its meter next week.
 - **List price is what an API user would pay**, so internal per-call cost fields some clients print (Grok's is one third of list) are not used.

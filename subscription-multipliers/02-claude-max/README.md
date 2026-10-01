@@ -38,7 +38,7 @@ Cost composition at list price: 5-minute cache writes 60%, cache reads 36%, 1-ho
 ## Findings
 
 1. **One percent of the Max 20x week bought ~$21 of Opus 5.5 at API prices; a full month ≈ $9,060 for $200.** That is 45.3× ± 1.0.
-2. **The number depends on the kind of work.** The same account measured over a week of long interactive sessions, mostly Sonnet 5.5, came out at ~62× (28 full steps, 61.6–61.8× over the whole span). There, 78% of the API cost was cache reads and 18% 1-hour cache writes. That data comes from private sessions and is not published here. Read together, Anthropic's meter appears to charge cache reads at less than their API weight: long sessions that mostly re-read cached context get more out of the plan than many short parallel sessions that keep writing new cache.
+2. **The number may depend on the kind of work.** Long historical interactive sessions on the same account (Sep 28–30, mostly Sonnet 5.5) came out at ~62× (28 full steps, 61.6–61.8× over the whole span). There, 78% of the API cost was cache reads and 18% 1-hour cache writes. That data comes from private sessions and is not published here, and it is not in the table: it predates this run, so it may not reflect the current meter. Read together, Anthropic's meter appears to charge cache reads at less than their API weight: long sessions that mostly re-read cached context get more out of the plan than many short parallel sessions that keep writing new cache.
 
 ## Caveats
 
