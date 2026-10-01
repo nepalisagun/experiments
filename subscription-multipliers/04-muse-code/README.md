@@ -30,8 +30,8 @@ How much Muse Spark API usage does the Muse Code High Usage weekly allowance buy
 | 16% → 17% | $0.23 | $0.67 | 6.7× – 19.4× |
 | 17% → 18% | $0.23 | $0.50 | 6.5× – 14.5× |
 | 18% → 19% | $0.31 | $0.33 | 8.9× – 9.7× |
-| Whole run 14% → 19% | $0.31 / pt | $0.33 / pt | 8.9× – 9.6× |
-| **Max floor … min ceiling** | | | **8.9× – 9.3× → 9.1× ± 0.2** |
+| **Whole run 14% → 19%** | **$0.31 / pt** | **$0.33 / pt** | **8.9× – 9.6× → 9.3× ± 0.4** |
+| Max floor … min ceiling (consistency check) | | | 8.9× – 9.3× (intersect) |
 
 ### Contributor — `results/contributor/` (175 readings, 1,178 calls; $1.57 at contributor price, $30.75 at standard price)
 
@@ -45,15 +45,15 @@ How much Muse Spark API usage does the Muse Code High Usage weekly allowance buy
 | 12% → 13% | 4.3× – 4.7× | 79× – 86× |
 | **Whole run 6% → 13%** | **5.2× – 6.4× → 5.8× ± 0.6** | **102× – 126× → 114× ± 12** |
 
-The contributor brackets do **not** all intersect: the three cleanly read steps (4.0–5.0× at contributor price) sit below the whole-run bracket. The table reports the whole-run bracket.
+Consistency check: the contributor brackets do **not** all intersect. The three cleanly read steps (4.0–5.0× at contributor price) sit below the whole-run bracket, so points varied; the uncertainty above is on the run's average.
 
 ## Findings
 
-1. **Standard: one percent of the week bought ~$0.32 of Spark 1.3 at API prices; a month ≈ $137 for $15.** That is 9.1× ± 0.2.
+1. **Standard: one percent of the week bought ~$0.32 of Spark 1.3 at API prices; a month ≈ $140 for $15.** That is 9.3× ± 0.4.
 2. **Contributor comes with two discounts that pull in opposite directions.**
    - *Plan discount:* a percent of the week buys **~12× more tokens** on contributor than on standard (valued at the same standard price: $3.51–4.35 vs $0.31–0.33 per point).
    - *API discount:* Meta also sells contributor tokens **~20× cheaper** on its API (for this run's token mix: $30.75 at standard price vs $1.57 at contributor price).
-   - Result: **114×** against what the same work costs on the private-data API; **5.8×** against contributor's own API price. If you are willing to share your data, paying per token for contributor is the better deal; if you are not, contributor is not an option on the API at standard price, and standard on the plan is 9.1×.
+   - Result: **114×** against what the same work costs on the private-data API; **5.8×** against contributor's own API price. If you are willing to share your data, paying per token for contributor is the better deal; if you are not, contributor is not an option on the API at standard price, and standard on the plan is 9.3×.
 3. **The 5-hour window is the real limit on standard.** It rose 22 points while the weekly rose 6: a full 5-hour window was worth ~$10 of standard API usage. On contributor it was ~$5–6 at contributor price.
 
 ## Caveats

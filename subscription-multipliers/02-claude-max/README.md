@@ -30,14 +30,14 @@ How much Claude API usage does the Max 20x weekly allowance buy, priced at Anthr
 | 7% → 8% | $16.59 | $21.54 | 36.1× – 46.8× |
 | 8% → 9% | $20.58 | $25.75 | 44.7× – 56.0× |
 | 9% → 10% | $19.38 | $21.96 | 42.1× – 47.7× |
-| Whole run 6% → 10% | $20.41 / pt | $21.29 / pt | 44.4× – 46.3× |
-| **Max floor … min ceiling** | | | **44.7× – 46.3× → 45.5× ± 0.8** |
+| **Whole run 6% → 10%** | **$20.41 / pt** | **$21.29 / pt** | **44.4× – 46.3× → 45.3× ± 1.0** |
+| Max floor … min ceiling (consistency check) | | | 44.7× – 46.3× (intersect) |
 
 Cost composition at list price: 5-minute cache writes 60%, cache reads 36%, 1-hour cache writes 4%, output 1%, uncached input <1%.
 
 ## Findings
 
-1. **One percent of the Max 20x week bought ~$21 of Opus 5.5 at API prices; a full month ≈ $9,100 for $200.** That is 45.5× ± 0.8.
+1. **One percent of the Max 20x week bought ~$21 of Opus 5.5 at API prices; a full month ≈ $9,060 for $200.** That is 45.3× ± 1.0.
 2. **The number depends on the kind of work.** The same account measured over a week of long interactive sessions, mostly Sonnet 5.5, came out at ~62× (28 full steps, 61.6–61.8× over the whole span). There, 78% of the API cost was cache reads and 18% 1-hour cache writes. That data comes from private sessions and is not published here. Read together, Anthropic's meter appears to charge cache reads at less than their API weight: long sessions that mostly re-read cached context get more out of the plan than many short parallel sessions that keep writing new cache.
 
 ## Caveats

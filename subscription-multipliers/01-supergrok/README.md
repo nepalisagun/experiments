@@ -25,12 +25,12 @@ How much Grok API usage does the SuperGrok weekly allowance buy, priced at xAI's
 |---|---|---|---|
 | 25% → 26% | $11.68 | $12.35 | 169.3× – 179.0× |
 | 26% → 27% | $11.09 | $12.16 | 160.7× – 176.3× |
-| Whole run 25% → 27% | $11.60 / pt | $12.04 / pt | 168.2× – 174.5× |
-| **Max floor … min ceiling** | | | **169.3× – 174.5× → 172× ± 3** |
+| **Whole run 25% → 27%** | **$11.60 / pt** | **$12.04 / pt** | **168.2× – 174.5× → 171× ± 3** |
+| Max floor … min ceiling (consistency check) | | | 169.3× – 174.5× (intersect) |
 
 ## Findings
 
-1. **One percent of SuperGrok's week bought ~$11.90 of Grok 4.7 at API prices; a full month of allowance ≈ $5,150 for $30.** That is 172× ± 3.
+1. **One percent of SuperGrok's week bought ~$11.80 of Grok 4.7 at API prices; a full month of allowance ≈ $5,130 for $30.** That is 171× ± 3.
 2. **Grok's meter was the most linear of the plans measured.** Both full steps and the whole run agree inside a 5-point band.
 
 ## Caveats
