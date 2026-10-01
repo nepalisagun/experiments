@@ -1,5 +1,7 @@
-01-supergrok/results: 301 readings, 969 calls, 2 full steps
+01-supergrok/results: 646 readings, 1694 calls, 4 full steps
   step 25->26% from 2026-10-01T09:14:09+00:00: $11.68-$12.35/pt = 169.3x-179.0x
   step 26->27% from 2026-10-01T09:27:57+00:00: $11.09-$12.16/pt = 160.7x-176.3x
-  span 25->27%: $11.60-$12.04/pt = 168.2x-174.5x
-  max floor / min ceiling: 169.3x - 174.5x  (brackets intersect)
+  step 27->28% from 2026-10-01T09:41:21+00:00: $12.75-$14.51/pt = 184.8x-210.3x
+  step 28->29% from 2026-10-01T15:10:43+00:00: $13.37-$14.86/pt = 193.8x-215.4x
+  span 25->29%: $12.77-$12.92/pt = 185.1x-187.3x
+  max floor 193.8x > min ceiling 176.3x: brackets do NOT intersect, per-point value not constant; steps span 160.7x-215.4x

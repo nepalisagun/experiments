@@ -15,23 +15,28 @@ def write(run, readings, calls, call_fields):
     print(run, len(readings), "readings", len(calls), "calls", f"${sum(c[-1] for c in calls):.2f}")
 
 def grok():
+    """Morning image run + afternoon text run. Call log = union of the CLI log copies (the CLI's log is size-capped
+    and drops its oldest lines; copies were taken at 11:50 local and every minute during the text run)."""
+    lines = set()
+    for f in [os.path.join(HERE, "grok_unified_snapshot.jsonl"), os.path.expanduser("~/.grok/logs/unified.jsonl")] + glob.glob(os.path.join(HERE, "grok_log_snaps", "*.jsonl")):
+        for l in open(f, encoding="utf-8"):
+            if "inference_done" in l: lines.add(l.strip())
     calls = []
-    for l in open(os.path.join(HERE, "grok_unified_snapshot.jsonl"), encoding="utf-8"):
-        d = json.loads(l)
-        if d.get("msg") == "shell.turn.inference_done":
-            c = d["ctx"]; p, ca, o, r = c["prompt_tokens"], c["cached_prompt_tokens"], c["completion_tokens"], c["reasoning_tokens"]
-            m = 2 if p >= 200000 else 1
-            calls.append((iso(d["ts"]), p, ca, o, r, m * ((p - ca) * 2 + ca * 0.5 + o * 6) / 1e6))
+    for l in lines:
+        d = json.loads(l); c = d["ctx"]; p, ca, o, r = c["prompt_tokens"], c["cached_prompt_tokens"], c["completion_tokens"], c["reasoning_tokens"]
+        m = 2 if p >= 200000 else 1
+        calls.append((iso(d["ts"]), p, ca, o, r, m * ((p - ca) * 2 + ca * 0.5 + o * 6) / 1e6))
     t0 = min(c[0] for c in calls)
     rd = []
-    for l in open(os.path.join(HERE, "grok_poll2.txt")):
-        t, _, v = l.partition(' {"creditUsagePercent": ')
-        if v.strip(): rd.append((datetime.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S%z").timestamp(), float(v)))
-    for f in glob.glob(os.path.join(HERE, "grok_images*.jsonl")):
+    for pf in ("grok_poll2.txt", "grok_poll3.txt"):
+        for l in open(os.path.join(HERE, pf)):
+            t, _, v = l.partition(' {"creditUsagePercent": ')
+            if v.strip(): rd.append((datetime.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S%z").timestamp(), float(v)))
+    for f in glob.glob(os.path.join(HERE, "grok_images*.jsonl")) + glob.glob(os.path.join(HERE, "grok_text_w*.jsonl")):
         for l in open(f):
             d = json.loads(l)
             if d.get("pct") is not None: rd.append((d["ts"], d["pct"]))
-    rd = [r for r in rd if r[0] >= t0]  # only readings inside the period the call log covers
+    rd = [r for r in rd if r[0] >= t0 and r[1] <= 29]
     write("grok-supergrok", rd, calls, ["prompt_tokens", "cached_prompt_tokens", "completion_tokens_incl_reasoning", "reasoning_tokens"])
 
 def muse():
