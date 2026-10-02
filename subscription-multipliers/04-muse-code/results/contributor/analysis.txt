@@ -6,7 +6,8 @@
   step 11->12% from 2026-10-01T10:31:11+00:00: $0.09-$0.65/pt = 2.7x-18.8x
   step 12->13% from 2026-10-01T10:35:05+00:00: $0.15-$0.16/pt = 4.3x-4.7x
   span 6->13%: $0.18-$0.22/pt = 5.2x-6.4x
-  max floor 5.2x > min ceiling 4.5x: brackets do NOT intersect, per-point value not constant; steps span 1.0x-18.8x
+  max floor / min ceiling: do NOT intersect (points differed); interval 4.48x-6.43x
+  reported: 5.84x +/- 1.35
 
 # same readings, calls valued at the STANDARD model's API price:
 04-muse-code/results/contributor: 175 readings, 1178 calls, 6 full steps
@@ -17,4 +18,5 @@
   step 11->12% from 2026-10-01T10:31:11+00:00: $1.52-$13.66/pt = 44.2x-395.9x
   step 12->13% from 2026-10-01T10:35:05+00:00: $2.72-$2.97/pt = 78.9x-86.2x
   span 6->13%: $3.51-$4.35/pt = 101.8x-126.0x
-  max floor 101.8x > min ceiling 81.0x: brackets do NOT intersect, per-point value not constant; steps span 16.3x-395.9x
+  max floor / min ceiling: do NOT intersect (points differed); interval 81.02x-126.00x
+  reported: 113.91x +/- 32.89

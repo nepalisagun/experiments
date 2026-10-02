@@ -9,23 +9,30 @@ Method:
         floor   = spend(hi_k  .. lo_k+1)   (certainly inside the step)
         ceiling = spend(lo_k  .. hi_k+1)   (certainly covers the step)
     divided by the points between the ticks. The same is computed for the whole span.
-  * If every point is worth the same, the true value lies inside every bracket:
-        [max(all floors), min(all ceilings)]  = the measurement-uncertainty interval.
-    If max floor > min ceiling the brackets do not intersect: per-point value is not constant
-    and the spread of steps is reported instead.
+  * Reported value = midpoint of the whole-span bracket (the run's average value per point).
+  * Uncertainty (one rule for every plan):
+      - if [max(all floors), min(all ceilings)] is non-empty, every point is consistent with one
+        value and the uncertainty is the whole-span bracket;
+      - if max floor > min ceiling, points certainly differed: some point was worth at most the
+        min ceiling, another at least the max floor. The interval is widened to cover that range.
+    The +/- is the larger distance from the reported value to either end of the interval.
   * Multiplier = $/point x 100 points x (30.4375 / 7) weeks per month / monthly price.
+  * --step N counts ticks only every N points. Used when a single point passes faster than the
+    meter is read (SuperGrok Lite: ~30 s per point, meter polled every 30 s), where 1-point
+    steps measure the polling, not the meter.
 Readings from parallel processes can arrive out of order; they are made monotone (a reading
 lower than one already seen is a stale observation and is dropped).
-usage: python analyze.py <run_folder> <monthly_price_usd> [cost_column]
+usage: python analyze.py <run_folder> <monthly_price_usd> [cost_column] [--step N]
 """
 import bisect, csv, datetime, sys
 
 def ts(s): return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
 
-def load(folder, cost_col="list_cost_usd"):
+def load(folder, cost_col="list_cost_usd", step=1):
     rd = sorted((ts(r["utc"]), float(r["weekly_pct"])) for r in csv.DictReader(open(f"{folder}/readings.csv")))
     mono, mx = [], -1.0
     for t, v in rd:
+        v = (v // step) * step
         if v >= mx: mono.append((t, v)); mx = v
     calls = sorted((ts(r["utc"]), float(r[cost_col])) for r in csv.DictReader(open(f"{folder}/calls.csv")))
     return mono, calls
@@ -38,7 +45,7 @@ def brackets(readings, calls):
     steps = []
     for (lo0, hi0, v0), (lo1, hi1, v1) in zip(ticks, ticks[1:]):
         pts = v1 - v0
-        steps.append(dict(start_utc=datetime.datetime.fromtimestamp(hi0, datetime.UTC).isoformat(timespec="seconds"),
+        steps.append(dict(start_utc=datetime.datetime.fromtimestamp(hi0, datetime.timezone.utc).isoformat(timespec="seconds"),
                           from_pct=v0, to_pct=v1, floor=spend(hi0, lo1) / pts, ceiling=spend(lo0, hi1) / pts))
     span = None
     if len(ticks) >= 2:
@@ -47,18 +54,27 @@ def brackets(readings, calls):
                     floor=spend(ticks[0][1], ticks[-1][0]) / pts, ceiling=spend(ticks[0][0], ticks[-1][1]) / pts)
     return steps, span
 
+def reported(steps, span):
+    """(value, plus_minus, lo, hi, intersect) in $/point, by the single rule above."""
+    F = max([s["floor"] for s in steps] + [span["floor"]]); C = min([s["ceiling"] for s in steps] + [span["ceiling"]])
+    mid = (span["floor"] + span["ceiling"]) / 2
+    lo, hi = min(span["floor"], F, C), max(span["ceiling"], F, C)
+    return mid, max(mid - lo, hi - mid), lo, hi, F <= C
+
 if __name__ == "__main__":
-    folder, price = sys.argv[1], float(sys.argv[2])
-    col = sys.argv[3] if len(sys.argv) > 3 else "list_cost_usd"
+    args = sys.argv[1:]; step = 1
+    if "--step" in args:
+        i = args.index("--step"); step = float(args[i + 1]); del args[i:i + 2]
+    folder, price = args[0], float(args[1])
+    col = args[2] if len(args) > 2 else "list_cost_usd"
     k = 100 * 30.4375 / 7 / price
-    readings, calls = load(folder, col)
+    readings, calls = load(folder, col, step)
     steps, span = brackets(readings, calls)
-    print(f"{folder}: {len(readings)} readings, {len(calls)} calls, {len(steps)} full steps")
+    print(f"{folder}: {len(readings)} readings, {len(calls)} calls, {len(steps)} full steps" + (f" of {step:g} points" if step != 1 else ""))
     for s in steps:
         print(f"  step {s['from_pct']:g}->{s['to_pct']:g}% from {s['start_utc']}: ${s['floor']:.2f}-${s['ceiling']:.2f}/pt = {s['floor']*k:.1f}x-{s['ceiling']*k:.1f}x")
     if span:
         print(f"  span {span['from_pct']:g}->{span['to_pct']:g}%: ${span['floor']:.2f}-${span['ceiling']:.2f}/pt = {span['floor']*k:.1f}x-{span['ceiling']*k:.1f}x")
-        lo = max([s["floor"] for s in steps] + [span["floor"]]); hi = min([s["ceiling"] for s in steps] + [span["ceiling"]])
-        if lo <= hi: print(f"  max floor / min ceiling: {lo*k:.1f}x - {hi*k:.1f}x  (brackets intersect)")
-        else: print(f"  max floor {lo*k:.1f}x > min ceiling {hi*k:.1f}x: brackets do NOT intersect, per-point value not constant;"
-                    f" steps span {min(s['floor'] for s in steps)*k:.1f}x-{max(s['ceiling'] for s in steps)*k:.1f}x")
+        mid, u, lo, hi, ok = reported(steps, span)
+        print(f"  max floor / min ceiling: {'intersect' if ok else 'do NOT intersect (points differed)'}; interval {lo*k:.2f}x-{hi*k:.2f}x")
+        print(f"  reported: {mid*k:.2f}x +/- {u*k:.2f}")

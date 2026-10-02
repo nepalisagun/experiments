@@ -43,9 +43,9 @@ How much Muse Spark API usage does the Muse Code High Usage weekly allowance buy
 | 9% → 11% | 1.0× – 9.1× | 16× – 193× |
 | 11% → 12% | 2.7× – 18.8× | 44× – 396× |
 | 12% → 13% | 4.3× – 4.7× | 79× – 86× |
-| **Whole run 6% → 13%** | **5.2× – 6.4× → 5.8× ± 0.6** | **102× – 126× → 114× ± 12** |
+| **Whole run 6% → 13%** | **5.2× – 6.4× → 5.8× ± 1.3** | **102× – 126× → 114× ± 33** |
 
-Consistency check: the contributor brackets do **not** all intersect. The three cleanly read steps (4.0–5.0× at contributor price) sit below the whole-run bracket, so points varied; the uncertainty above is on the run's average.
+Consistency check: the contributor brackets do **not** all intersect. The three cleanly read steps (4.0–5.0× at contributor price) sit below the whole-run bracket, so points varied; by the set's single rule the uncertainty is widened to cover max floor … min ceiling (4.5×–6.4× at contributor price, 81×–126× at standard price).
 
 ## Findings
 
@@ -64,9 +64,9 @@ Only High Usage was measured. Muse describes its plans' monthly allowances relat
 |---|---|---|---|
 | High Usage · standard (measured) | $15 | 5× | 9.3× ± 0.4 |
 | Power Usage · standard (derived) | $50 | 20× | 9.25 × 1.2 = **11.1× ± 0.5** |
-| High Usage · contributor vs its own API price (measured) | $15 | 5× | 5.8× ± 0.6 |
-| Power Usage · contributor vs its own API price (derived) | $50 | 20× | 5.84 × 1.2 = **7.0× ± 0.7** |
-| Power Usage · contributor vs standard API price (derived) | $50 | 20× | 113.9 × 1.2 = **137× ± 15** |
+| High Usage · contributor vs its own API price (measured) | $15 | 5× | 5.8× ± 1.3 |
+| Power Usage · contributor vs its own API price (derived) | $50 | 20× | 5.84 × 1.2 = **7.0× ± 1.6** |
+| Power Usage · contributor vs standard API price (derived) | $50 | 20× | 113.9 × 1.2 = **137× ± 39** |
 
 These rows are only as good as the stated allowance ratios; they were not measured.
 

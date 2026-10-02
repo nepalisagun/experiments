@@ -25,7 +25,7 @@ How much GPT-6.1 Sol API usage does the $100 ChatGPT plan's Codex allowance buy,
 | 9% → 10% | $2.35 | $2.40 | 10.2× – 10.4× |
 | 10% → 11% | $2.41 | $2.46 | 10.5× – 10.7× |
 | 11% → 12% | $2.24 | $2.29 | 9.7× – 9.9× |
-| **Whole run 8% → 12%** | **$2.35 / pt** | **$2.36 / pt** | **10.22× – 10.28× → 10.25× ± 0.03** |
+| **Whole run 8% → 12%** | **$2.35 / pt** | **$2.36 / pt** | **10.22× – 10.28× → 10.25× ± 0.3** |
 
 Consistency check: the step brackets do **not** all intersect (highest floor 10.5×, lowest ceiling 9.9×), so individual points are worth slightly different amounts. The uncertainty above is on the run's average.
 
@@ -40,9 +40,9 @@ Only the $100 plan was measured. OpenAI describes the Codex allowance as proport
 
 | Plan | Price | Allowance | Multiplier |
 |---|---|---|---|
-| $100 plan (measured) | $100 | 5× | 10.25× ± 0.03 |
-| $200 plan (derived) | $200 | 10× | 10.25 × 10/5 × 100/200 = **10.25× ± 0.03** |
-| Plus (derived) | $20 | 1× | 10.25 × 1/5 × 100/20 = **10.25× ± 0.03** |
+| $100 plan (measured) | $100 | 5× | 10.25× ± 0.3 |
+| $200 plan (derived) | $200 | 10× | 10.25 × 10/5 × 100/200 = **10.25× ± 0.3** |
+| Plus (derived) | $20 | 1× | 10.25 × 1/5 × 100/20 = **10.25× ± 0.3** |
 
 These rows are only as good as the stated allowance ratios; they were not measured.
 

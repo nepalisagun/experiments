@@ -42,7 +42,7 @@ Cost composition at list price: 5-minute cache writes 60%, cache reads 36%, 1-ho
 
 ## Other Claude plans
 
-Not derived. Anthropic describes Max 5x and Max 20x as 5× and 20× the Pro plan's **per-session** (5-hour) allowance ([What is the Max plan?](https://support.claude.com/en/articles/11049741-what-is-the-max-plan)); the weekly limit, which is what this experiment measures, is stated separately and without a ratio. Third-party reports put the Max 20x / Max 5x weekly ratio at roughly 1.5–2×, which would make Max 5x worth about the same as or more than Max 20x per dollar — but that is not an official figure, so no row is published for it. (An earlier version of this set derived Max 5x at 22.7× from a 5:20 weekly ratio; that ratio was wrong.)
+**Claude Pro is measured, not derived: 42.0× ± 4.5** ([05](../05-claude-pro/)). Its weekly point was worth ~$1.93 of Opus 5.5 against ~$21 here, so Max 20x's weekly allowance is about 10–11× Pro's for 10× the price. Anthropic describes Max 5x and Max 20x as 5× and 20× Pro's **per-session** (5-hour) allowance ([What is the Max plan?](https://support.claude.com/en/articles/11049741-what-is-the-max-plan)); the weekly limit is stated separately and without a ratio, so Max 5x is not derived. (An earlier version of this set derived Max 5x at 22.7× from a 5:20 weekly ratio; that ratio was wrong.)
 
 ## Caveats
 

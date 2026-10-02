@@ -4,4 +4,5 @@
   step 27->28% from 2026-10-01T09:41:21+00:00: $12.75-$14.51/pt = 184.8x-210.3x
   step 28->29% from 2026-10-01T15:10:43+00:00: $13.37-$14.86/pt = 193.8x-215.4x
   span 25->29%: $12.77-$12.92/pt = 185.1x-187.3x
-  max floor 193.8x > min ceiling 176.3x: brackets do NOT intersect, per-point value not constant; steps span 160.7x-215.4x
+  max floor / min ceiling: do NOT intersect (points differed); interval 176.26x-193.79x
+  reported: 186.20x +/- 9.94

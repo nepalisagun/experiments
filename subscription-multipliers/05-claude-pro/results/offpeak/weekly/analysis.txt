@@ -1,0 +1,12 @@
+05-claude-pro/results/offpeak/weekly: 97 readings, 233 calls, 8 full steps
+  step 7->8% from 2026-10-02T18:17:30+00:00: $1.84-$2.18/pt = 39.9x-47.4x
+  step 8->9% from 2026-10-02T18:25:02+00:00: $1.97-$2.24/pt = 42.8x-48.7x
+  step 9->10% from 2026-10-02T18:32:17+00:00: $2.04-$2.23/pt = 44.3x-48.5x
+  step 10->11% from 2026-10-02T18:39:39+00:00: $1.67-$1.95/pt = 36.2x-42.5x
+  step 11->12% from 2026-10-02T18:40:46+00:00: $1.78-$2.08/pt = 38.6x-45.2x
+  step 12->13% from 2026-10-02T18:41:20+00:00: $1.70-$1.88/pt = 36.9x-41.0x
+  step 13->14% from 2026-10-02T18:42:09+00:00: $1.47-$1.73/pt = 31.9x-37.5x
+  step 14->15% from 2026-10-02T18:42:58+00:00: $1.51-$1.99/pt = 32.8x-43.3x
+  span 7->15%: $1.85-$1.93/pt = 40.3x-41.9x
+  max floor / min ceiling: do NOT intersect (points differed); interval 37.54x-44.32x
+  reported: 41.10x +/- 3.56

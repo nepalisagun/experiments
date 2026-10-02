@@ -32,14 +32,16 @@ How much Grok API usage does the SuperGrok weekly allowance buy, priced at xAI's
 
 The step brackets do **not** intersect: image points and text points cost measurably different amounts.
 
-**Reported: 190× ± 21** — the range the image and text workloads span (≈169× to ≈210×). Unlike the other rows of this set, Grok's ± expresses the workload range, not only the meter-reading bracket; the whole-run bracket (185–187×) is the average over this particular mix.
+**Reported: 186× ± 10.** The whole-run average is 186×; because the per-step brackets do not intersect (image points and text points cost different amounts), the uncertainty is widened by the set's single rule to cover max floor … min ceiling, 176×–194×. (An earlier version reported 190× ± 21 from a separate workload-range rule; every row now uses the same rule.)
 
 ## Findings
 
-1. **One percent of SuperGrok's week bought $11–15 of Grok 4.7 at API prices; a full month of allowance ≈ $5,700 for $30.** That is 190× ± 21.
+1. **One percent of SuperGrok's week bought $11–15 of Grok 4.7 at API prices; a full month of allowance ≈ $5,600 for $30.** That is 186× ± 10.
 2. **Text work stretched the plan further than image work** (≈195–215× vs ≈161–179× per point). The text prompts were ~93% cached input; cached tokens are cheap on the API ($0.50 / M) but appear to cost the meter even less, so cache-heavy work gets more API-equivalent value per percent. The same direction showed up on Claude (see 02).
 
 ## Caveats
+
+- **This account also has X Premium+ ($40/month), which includes SuperGrok.** xAI's billing call reports a single tier, `"subscription_tier": "SuperGrok"`, and an unchanged prepaid balance throughout, but it does not say whether the X Premium+ entitlement adds to the allowance. If the two stack, SuperGrok alone would be ~93×; if the allowance is X Premium+'s, the price basis would be $40 (140×); paid for both, $70 (80×). Under investigation with a SuperGrok-only account. For comparison, SuperGrok Lite on a clean account measured 15.7× ([06](../06-supergrok-lite/)).
 
 - **The 27% → 28% step crosses an idle afternoon** in which one other session ran ($3.85, logged) and the CLI's log has a 38-minute hole (11:50–12:28 local) not covered by any copy. Any usage hidden there would raise that step further, not lower it.
 - **A historical inconsistency remains unexplained.** The meter read 18% on Sep 30 23:16 UTC with only ~$13 of logged Grok usage since Sep 29; at these rates 18% is ~$230. The difference is either Grok usage off this machine (grok.com, X and other devices share the allowance) between Sep 27 and Sep 29, or a meter that is not proportional to API dollars at that point. It cannot be checked from here.

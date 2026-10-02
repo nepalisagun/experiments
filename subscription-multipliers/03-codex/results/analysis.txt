@@ -4,4 +4,5 @@
   step 10->11% from 2026-10-01T11:31:09+00:00: $2.41-$2.46/pt = 10.5x-10.7x
   step 11->12% from 2026-10-01T11:45:49+00:00: $2.24-$2.29/pt = 9.7x-9.9x
   span 8->12%: $2.35-$2.36/pt = 10.2x-10.3x
-  max floor 10.5x > min ceiling 9.9x: brackets do NOT intersect, per-point value not constant; steps span 9.7x-10.7x
+  max floor / min ceiling: do NOT intersect (points differed); interval 9.94x-10.46x
+  reported: 10.25x +/- 0.31

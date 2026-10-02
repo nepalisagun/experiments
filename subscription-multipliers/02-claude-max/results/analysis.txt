@@ -4,4 +4,5 @@
   step 8->9% from 2026-10-01T12:00:32+00:00: $20.58-$25.75/pt = 44.7x-56.0x
   step 9->10% from 2026-10-01T12:01:10+00:00: $19.38-$21.96/pt = 42.1x-47.7x
   span 6->10%: $20.41-$21.29/pt = 44.4x-46.3x
-  max floor / min ceiling: 44.7x - 46.3x  (brackets intersect)
+  max floor / min ceiling: intersect; interval 44.38x-46.30x
+  reported: 45.34x +/- 0.96

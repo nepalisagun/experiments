@@ -5,4 +5,5 @@
   step 17->18% from 2026-10-01T10:52:51+00:00: $0.23-$0.50/pt = 6.5x-14.5x
   step 18->19% from 2026-10-01T10:54:10+00:00: $0.31-$0.33/pt = 8.9x-9.7x
   span 14->19%: $0.31-$0.33/pt = 8.9x-9.6x
-  max floor / min ceiling: 8.9x - 9.3x  (brackets intersect)
+  max floor / min ceiling: intersect; interval 8.87x-9.63x
+  reported: 9.25x +/- 0.38
