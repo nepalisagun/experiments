@@ -6,7 +6,7 @@ How much API usage does an AI coding subscription actually buy? For each plan we
 
 | Subscription · model | Price / month | Multiplier | Uncertainty |
 |---|---|---|---|
-| [SuperGrok · Grok 4.7 · Grok Build CLI — account also has X Premium+, impact under investigation](01-supergrok/) | $30 | **186×** | ± 10 |
+| [SuperGrok · Grok 4.7 · Grok Build CLI — account also has X Premium+, which grants SuperGrok-level Grok access; impact under investigation](01-supergrok/) | $30 | **186×** | ± 10 |
 | [Muse Code Power Usage · Spark 1.3 contributor · Muse Code CLI — vs standard API price, *derived, not measured*](04-muse-code/#other-muse-code-plans-derived) | $50 | *137×* | ± 39 |
 | [Muse Code High Usage · Spark 1.3 contributor · Muse Code CLI — vs standard API price](04-muse-code/) | $15 | **114×** | ± 33 |
 | [Claude Max 20x · Opus 5.5 · Claude Code](02-claude-max/) | $200 | **45.3×** | ± 1.0 |
@@ -22,7 +22,7 @@ Measured Oct 1–2, 2026, each plan on its own, with other usage of that plan pa
 
 **Uncertainty** follows one rule for every row (method step 5): the bracket on the run's average, widened wherever individual percent points certainly differed from each other. Each folder lists every step.
 
-**Same vendor, very different tiers.** SuperGrok's weekly allowance is ~36× SuperGrok Lite's for 3× the price; Claude Max 20x's is ~10–11× Pro's for 10× the price (the "20×" describes the 5-hour window). The SuperGrok account also has X Premium+ ($40/month), which includes SuperGrok; if xAI stacks the two, SuperGrok alone would be ~93× — this is being checked on a SuperGrok-only account.
+**Same vendor, very different tiers.** SuperGrok's weekly allowance is ~36× SuperGrok Lite's for 3× the price; Claude Max 20x's is ~10–11× Pro's for 10× the price (the "20×" describes the 5-hour window). The SuperGrok account also has X Premium+ ($40/month), which grants SuperGrok-level Grok access, including Grok Build, when the X account is linked; if xAI stacks the two, SuperGrok alone would be ~93× — this is being checked on a SuperGrok-only account.
 
 **Peak hours shrink Claude's 5-hour window, not its week.** On Pro, the same work filled a 5-hour window at ≈ $11.6 of API value at peak (weekdays 14:00–20:00 CEST) and ≈ $16 off-peak, while the weekly meter charged it at about the same rate ([05](05-claude-pro/)).
 

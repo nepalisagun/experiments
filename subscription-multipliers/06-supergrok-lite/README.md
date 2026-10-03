@@ -36,6 +36,6 @@ Max floor 16.5× just above min ceiling 16.0×; by the set's rule the interval i
 
 ## Caveats
 
-- **The SuperGrok account also has X Premium+ ($40/month), which includes SuperGrok.** If xAI stacks the two entitlements, SuperGrok on its own would be worth half of what [01](../01-supergrok/) measured (~93×) — still ~6× Lite's value per dollar. This is being investigated with a SuperGrok-only account.
+- **The SuperGrok account also has X Premium+ ($40/month), which grants SuperGrok-level Grok access, including Grok Build, when the X account is linked.** If xAI stacks the two entitlements, SuperGrok on its own would be worth half of what [01](../01-supergrok/) measured (~93×) — still ~6× Lite's value per dollar. This is being investigated with a SuperGrok-only account.
 - One run, one workload (input- and cache-heavy text; the letter-shift prompts again came back shorter than asked).
 - A first launch failed on an outdated CLI (1.0.5: `426 Upgrade Required`) before any usage was recorded; the CLI was updated and the run restarted.
