@@ -1,4 +1,6 @@
-# 01 — SuperGrok ($30/month) · Grok 4.7
+# 01 — SuperGrok ($30/month) on an account with X Premium+ ($40/month) linked · Grok 4.7
+
+> **Read with [07](../07-supergrok-no-x/).** The same plan on a fresh account with no X account linked measured **18.0×**. This account got ~10× that allowance. Priced at the $70 it pays for SuperGrok and X Premium+ together, it is **80× ± 4**; against the SuperGrok price alone, 186× ± 10.
 
 ## Question
 
@@ -41,7 +43,7 @@ The step brackets do **not** intersect: image points and text points cost measur
 
 ## Caveats
 
-- **This account also has X Premium+ ($40/month), which grants SuperGrok-level Grok access, including Grok Build, when the X account is linked** (xAI: "With your X Premium+ or SuperGrok subscription…", [Use Grok in Kilo Code](https://x.ai/news/grok-kilocode)). xAI's billing call reports a single tier, `"subscription_tier": "SuperGrok"`, and an unchanged prepaid balance throughout, but it does not say whether the X Premium+ entitlement adds to the allowance. If the two stack, SuperGrok alone would be ~93×; if the allowance is X Premium+'s, the price basis would be $40 (140×); paid for both, $70 (80×). Under investigation with a SuperGrok-only account. For comparison, SuperGrok Lite on a clean account measured 15.7× ([06](../06-supergrok-lite/)).
+- **This account also has X Premium+ ($40/month) linked, which grants SuperGrok-level Grok access, including Grok Build** (xAI: "With your X Premium+ or SuperGrok subscription…", [Use Grok in Kilo Code](https://x.ai/news/grok-kilocode)). xAI's billing call reports a single tier, `"subscription_tier": "SuperGrok"`, and an unchanged prepaid balance throughout. A SuperGrok account with no X account linked measured 18.0× on the same workload ([07](../07-supergrok-no-x/)), so this account's allowance is ~10× a plain SuperGrok week. The multiplier is therefore reported against the $70 the account pays for both (80×), with 186× against the SuperGrok price alone.
 
 - **The 27% → 28% step crosses an idle afternoon** in which one other session ran ($3.85, logged) and the CLI's log has a 38-minute hole (11:50–12:28 local) not covered by any copy. Any usage hidden there would raise that step further, not lower it.
 - **A historical inconsistency remains unexplained.** The meter read 18% on Sep 30 23:16 UTC with only ~$13 of logged Grok usage since Sep 29; at these rates 18% is ~$230. The difference is either Grok usage off this machine (grok.com, X and other devices share the allowance) between Sep 27 and Sep 29, or a meter that is not proportional to API dollars at that point. It cannot be checked from here.

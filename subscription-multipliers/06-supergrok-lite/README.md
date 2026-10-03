@@ -31,11 +31,11 @@ Max floor 16.5× just above min ceiling 16.0×; by the set's rule the interval i
 ## Findings
 
 1. **One percent of Lite's week bought ~$0.36 of Grok 4.7 at API prices; a full week ≈ $36, a month ≈ $155 for $10.** That is **15.7× ± 0.8**.
-2. **SuperGrok's allowance is ~36× Lite's for 3× the price.** On SuperGrok's text-only steps a point was worth $13.4–14.9; here $0.35–0.37. Per dollar, SuperGrok buys ~12× more.
+2. **Clean SuperGrok's allowance is ~3.5× Lite's for 3× the price** ([07](../07-supergrok-no-x/): ~$1.24 per point vs ~$0.36 here). The X-linked SuperGrok account in [01](../01-supergrok/) got ~36× Lite's.
 3. The whole allowance went in **67 minutes** with 12 parallel sessions.
 
 ## Caveats
 
-- **The SuperGrok account also has X Premium+ ($40/month), which grants SuperGrok-level Grok access, including Grok Build, when the X account is linked.** If xAI stacks the two entitlements, SuperGrok on its own would be worth half of what [01](../01-supergrok/) measured (~93×) — still ~6× Lite's value per dollar. This is being investigated with a SuperGrok-only account.
+- **The comparison with [01](../01-supergrok/) was misleading on its own.** That SuperGrok account has X Premium+ linked. SuperGrok on a clean account ([07](../07-supergrok-no-x/), this same account upgraded) measured 18.0× — ~3.5× Lite's weekly allowance for 3× the price.
 - One run, one workload (input- and cache-heavy text; the letter-shift prompts again came back shorter than asked).
 - A first launch failed on an outdated CLI (1.0.5: `426 Upgrade Required`) before any usage was recorded; the CLI was updated and the run restarted.

@@ -1,0 +1,14 @@
+07-supergrok-no-x/results: 241 readings, 1432 calls, 4 full steps of 20 points
+  step 20->40% from 2026-10-03T18:01:47+00:00: $1.26-$1.31/pt = 18.3x-19.0x
+  step 40->60% from 2026-10-03T18:12:55+00:00: $1.24-$1.42/pt = 18.0x-20.6x
+  step 60->80% from 2026-10-03T18:18:29+00:00: $0.97-$1.26/pt = 14.1x-18.3x
+  step 80->100% from 2026-10-03T18:22:32+00:00: $1.13-$1.31/pt = 16.3x-19.1x
+  span 20->100%: $1.23-$1.25/pt = 17.8x-18.1x
+  max floor / min ceiling: do NOT intersect (points differed); interval 17.85x-18.27x
+  reported: 17.95x +/- 0.32
+
+# for reference, 1-point steps (a point lasted ~30 s, the meter polling interval):
+07-supergrok-no-x/results: 241 readings, 1432 calls, 68 full steps
+  span 1->100%: $1.24-$1.25/pt = 18.0x-18.2x
+  max floor / min ceiling: do NOT intersect (points differed); interval 12.74x-19.95x
+  reported: 18.10x +/- 5.36
