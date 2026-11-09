@@ -1,0 +1,1456 @@
+diff --git a/e2e/notes.spec.ts b/e2e/notes.spec.ts
+new file mode 100644
+index 0000000..e13aef0
+--- /dev/null
++++ b/e2e/notes.spec.ts
+@@ -0,0 +1,250 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 800, mobile: false },
++  { name: 'mobile', width: 375, height: 740, mobile: true },
++]
++
++for (const size of sizes) {
++  test.describe(`${size.name} ${size.width}px`, () => {
++    test.use({ viewport: { width: size.width, height: size.height } })
++
++    const shot = (page: Page, name: string) => page.screenshot({ path: `shots/${size.name}-${name}.png` })
++    const items = (page: Page) => page.getByTestId('note-item')
++    const backToList = async (page: Page) => {
++      if (size.mobile) await page.getByRole('button', { name: 'Back to notes' }).click()
++    }
++    const newNote = async (page: Page, title: string, body: string) => {
++      await page.getByRole('button', { name: '+ New' }).click()
++      await page.getByLabel('Note title').fill(title)
++      await page.getByLabel('Markdown source').fill(body)
++      await backToList(page)
++    }
++
++    test.beforeEach(async ({ page }) => {
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++    })
++
++    test('layout, welcome note and live preview', async ({ page }) => {
++      // Loading the page is not an edit: no "Saving…" flash.
++      await expect(page.getByTestId('save-status')).toHaveText('✓ Saved', { timeout: 100 })
++      await expect(items(page)).toHaveCount(1)
++      await expect(items(page).first()).toContainText('Welcome')
++      await shot(page, '01-start')
++      await items(page).first().click()
++
++      const editor = page.getByLabel('Markdown source')
++      const preview = page.getByTestId('preview')
++      await expect(editor).toBeVisible()
++      await expect(preview).toBeVisible()
++
++      // Side by side on desktop, stacked on mobile.
++      const e = (await editor.boundingBox())!
++      const p = (await preview.boundingBox())!
++      if (size.mobile) {
++        expect(p.y).toBeGreaterThanOrEqual(e.y + e.height - 1)
++        expect(Math.abs(p.x - e.x)).toBeLessThan(2)
++        await expect(page.getByRole('complementary', { name: 'Notes' })).toBeHidden()
++      } else {
++        expect(p.x).toBeGreaterThanOrEqual(e.x + e.width - 1)
++        expect(Math.abs(p.y - e.y)).toBeLessThan(2)
++        await expect(page.getByRole('complementary', { name: 'Notes' })).toBeVisible()
++      }
++      // No horizontal page scroll.
++      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width)
++
++      await editor.fill(
++        '# Head\n## Sub\n**bold** and *ital*\n\n- one\n- two\n\n1. first\n\n[link](https://example.com)\n\n```\ncode **here**\n```\n\n- [ ] task',
++      )
++      await expect(preview.locator('h1')).toHaveText('Head')
++      await expect(preview.locator('h2')).toHaveText('Sub')
++      await expect(preview.locator('strong')).toHaveText('bold')
++      await expect(preview.locator('em')).toHaveText('ital')
++      await expect(preview.locator('ul > li').first()).toHaveText('one')
++      await expect(preview.locator('ol > li')).toHaveText('first')
++      await expect(preview.locator('a')).toHaveAttribute('href', 'https://example.com')
++      await expect(preview.locator('pre code')).toHaveText('code **here**')
++      await expect(preview.locator('input[type=checkbox]')).toHaveCount(1)
++      await shot(page, '02-editor')
++
++      // A short note on mobile: the preview sits directly under the editor, no gap.
++      await editor.fill('short')
++      const e2 = (await editor.boundingBox())!
++      const p2 = (await preview.boundingBox())!
++      if (size.mobile) expect(Math.abs(p2.y - (e2.y + e2.height))).toBeLessThan(2)
++    })
++
++    test('create, rename, delete with confirmation', async ({ page }) => {
++      await page.getByRole('button', { name: '+ New' }).click()
++      const title = page.getByLabel('Note title')
++      await expect(title).toBeFocused()
++      await expect(title).toHaveValue('Untitled note')
++      await page.keyboard.type('Groceries') // title text is selected, so typing replaces it
++      await expect(title).toHaveValue('Groceries')
++      await backToList(page)
++      await expect(items(page)).toHaveCount(2)
++      await expect(items(page).first()).toContainText('Groceries')
++
++      // Rename
++      await items(page).first().click()
++      await title.fill('Weekly groceries')
++      await backToList(page)
++      await expect(items(page).first()).toContainText('Weekly groceries')
++
++      // Delete → cancel keeps it
++      await items(page).first().click()
++      await page.getByRole('button', { name: 'Delete' }).click()
++      const dialog = page.getByRole('alertdialog')
++      await expect(dialog).toContainText('Weekly groceries')
++      await shot(page, '03-confirm')
++      await dialog.getByRole('button', { name: 'Cancel' }).click()
++      await expect(dialog).toBeHidden()
++      await page.getByRole('button', { name: 'Delete' }).click()
++      await page.keyboard.press('Escape')
++      await expect(dialog).toBeHidden()
++      await expect(title).toHaveValue('Weekly groceries')
++
++      // Delete → confirm removes it
++      await page.getByRole('button', { name: 'Delete' }).click()
++      await dialog.getByRole('button', { name: 'Delete' }).click()
++      await backToList(page).catch(() => {})
++      await expect(items(page)).toHaveCount(1)
++      await expect(items(page).first()).not.toContainText('groceries')
++    })
++
++    test('clicking a preview checkbox toggles the source', async ({ page }) => {
++      await items(page).first().click()
++      const editor = page.getByLabel('Markdown source')
++      await editor.fill('# List\n\n- [ ] alpha\n- [x] beta\n\n```\n- [ ] not a task\n```')
++      const boxes = page.getByTestId('preview').locator('input[type=checkbox]')
++      await expect(boxes).toHaveCount(2)
++      await boxes.nth(0).click()
++      await expect(editor).toHaveValue('# List\n\n- [x] alpha\n- [x] beta\n\n```\n- [ ] not a task\n```')
++      await expect(boxes.nth(0)).toBeChecked()
++      await boxes.nth(1).click()
++      await expect(editor).toHaveValue('# List\n\n- [x] alpha\n- [ ] beta\n\n```\n- [ ] not a task\n```')
++      // Clicking the label text works too
++      await page.getByTestId('preview').getByText('alpha').click()
++      await expect(editor).toHaveValue(/- \[ \] alpha/)
++    })
++
++    test('search highlights matches in titles and contents', async ({ page }) => {
++      await newNote(page, 'Recipes', 'Pancakes need flour and milk')
++      await newNote(page, 'Travel', 'Pack the passport')
++      const search = page.getByLabel('Search notes')
++      await search.fill('MILK')
++      await expect(items(page)).toHaveCount(1)
++      await expect(items(page).first()).toContainText('Recipes')
++      await expect(items(page).first().locator('mark')).toHaveText(['milk'])
++      await search.fill('trav')
++      await expect(items(page)).toHaveCount(1)
++      await expect(items(page).first().locator('mark')).toHaveText(['Trav'])
++      await search.fill('pa')
++      await expect(items(page)).toHaveCount(2) // Pancakes, passport
++      await shot(page, '04-search')
++      await search.fill('zzz')
++      await expect(page.getByText('No notes match your search.')).toBeVisible()
++      await search.fill('')
++      await expect(items(page)).toHaveCount(3)
++    })
++
++    test('pinning and last-edited ordering', async ({ page }) => {
++      await newNote(page, 'A', 'a')
++      await newNote(page, 'B', 'b')
++      const titles = () => page.getByTestId('note-title').allInnerTexts()
++      await expect.poll(titles).toEqual(['B', 'A', 'Welcome'])
++
++      // Pin Welcome (oldest) → goes to top
++      await items(page).nth(2).click()
++      await page.getByRole('button', { name: 'Pin', exact: true }).click()
++      await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible()
++      await backToList(page)
++      await expect.poll(titles).toEqual(['Welcome', 'B', 'A'])
++      await expect(items(page).first().getByLabel('Pinned')).toBeVisible()
++
++      // Editing A moves it above B, still below pinned
++      await items(page).nth(2).click()
++      await page.getByLabel('Markdown source').fill('a edited')
++      await backToList(page)
++      await expect.poll(titles).toEqual(['Welcome', 'A', 'B'])
++      await shot(page, '05-pinned')
++
++      // Order survives reload
++      await page.waitForTimeout(600)
++      await page.reload()
++      await expect.poll(titles).toEqual(['Welcome', 'A', 'B'])
++
++      // Unpin → back into last-edited order
++      await items(page).first().click()
++      await page.getByRole('button', { name: 'Unpin' }).click()
++      await backToList(page)
++      await expect.poll(titles).toEqual(['A', 'B', 'Welcome'])
++    })
++
++    test('autosave indicator, word count and reload persistence', async ({ page }) => {
++      await items(page).first().click()
++      const status = page.getByTestId('save-status')
++      const editor = page.getByLabel('Markdown source')
++      await editor.fill('')
++      await expect(page.getByTestId('word-count')).toHaveText('0 words')
++      await editor.pressSequentially('Hello brave new', { delay: 20 })
++      await expect(status).toHaveText('Saving…')
++      await expect(status).toHaveText('✓ Saved')
++      await expect(page.getByTestId('word-count')).toHaveText('3 words')
++      await editor.press('End')
++      await editor.pressSequentially(' world')
++      await expect(page.getByTestId('word-count')).toHaveText('4 words')
++      await expect(status).toHaveText('✓ Saved')
++      await page.getByLabel('Note title').fill('Persisted')
++
++      // Reload immediately (before the debounce) — the pagehide flush must save it.
++      await page.reload()
++      await expect(items(page).first()).toContainText('Persisted')
++      await items(page).first().click()
++      await expect(page.getByLabel('Markdown source')).toHaveValue('Hello brave new world')
++    })
++
++    test('theme toggle is remembered', async ({ page }) => {
++      const html = page.locator('html')
++      const startDark = await html.evaluate((el) => el.classList.contains('dark'))
++      await page.getByRole('button', { name: /Switch to (dark|light) theme/ }).click()
++      await expect(html).toHaveClass(startDark ? /^(?!.*dark)/ : /dark/)
++      const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
++      await page.reload()
++      await expect(html).toHaveClass(startDark ? /^(?!.*dark)/ : /dark/)
++      expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(bg)
++      await items(page).first().click()
++      await shot(page, '06-theme-toggled')
++      await page.getByRole('button', { name: /Switch to (dark|light) theme/ }).click()
++      await page.reload()
++      await expect(html).toHaveClass(startDark ? /dark/ : /^(?!.*dark)/)
++    })
++
++    test('raw HTML in a note does not run scripts', async ({ page }) => {
++      let dialogs = 0
++      page.on('dialog', (d) => {
++        dialogs++
++        void d.dismiss()
++      })
++      await page.evaluate(() => ((window as unknown as { pwned: number }).pwned = 0))
++      await items(page).first().click()
++      await page
++        .getByLabel('Markdown source')
++        .fill(
++          '<script>window.pwned=1;alert(1)</script>\n\n<img src=x onerror="window.pwned=2">\n\n' +
++            '<svg onload="window.pwned=3"></svg>\n\n[click](javascript:window.pwned=4)\n\n<iframe src="javascript:alert(1)"></iframe>',
++        )
++      const preview = page.getByTestId('preview')
++      await expect(preview).toContainText('<script>window.pwned=1;alert(1)</script>')
++      await expect(preview.locator('script, img, svg, iframe')).toHaveCount(0)
++      await expect(preview.locator('a')).toHaveCount(0)
++      await preview.getByText('click', { exact: true }).click()
++      await page.waitForTimeout(300)
++      expect(await page.evaluate(() => (window as unknown as { pwned: number }).pwned)).toBe(0)
++      expect(dialogs).toBe(0)
++      await shot(page, '07-xss')
++    })
++  })
++}
+diff --git a/e2e/tmp/probe.spec.ts b/e2e/tmp/probe.spec.ts
+new file mode 100644
+index 0000000..cd13933
+--- /dev/null
++++ b/e2e/tmp/probe.spec.ts
+@@ -0,0 +1,18 @@
++import { test } from '@playwright/test'
++test.use({ viewport: { width: 375, height: 740 } })
++test('probe', async ({ page }) => {
++  await page.goto('/')
++  await page.evaluate(() => localStorage.clear())
++  await page.reload()
++  await page.getByTestId('note-item').first().click()
++  await page.getByLabel('Markdown source').fill('<script>x</script>\n\nhello\n\n[click](javascript:1)')
++  await page.screenshot({ path: 'shots/probe-a.png' })
++  await page.getByTestId('preview').getByText('click', { exact: true }).click()
++  await page.screenshot({ path: 'shots/probe-b.png' })
++  const info = await page.evaluate(() => {
++    const p = document.querySelector('[data-testid=preview]')!
++    const g = p.parentElement!
++    return { gridScroll: g.scrollTop, gridH: g.clientHeight, gridSH: g.scrollHeight, pTop: p.getBoundingClientRect().top, first: p.firstElementChild?.getBoundingClientRect().top }
++  })
++  console.log('INFO ' + JSON.stringify(info))
++})
+diff --git a/index.html b/index.html
+index 3d7efb3..4b7af74 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,14 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Markdown Notes</title>
++    <script>
++      try {
++        var t = localStorage.getItem('md-notes:theme')
++        if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches))
++          document.documentElement.classList.add('dark')
++      } catch (e) {}
++    </script>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..9ad3b63 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,8 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
++    "test": "vitest run",
++    "test:e2e": "playwright test",
+     "preview": "vite preview"
+   },
+   "dependencies": {
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..c26b977 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,384 @@
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
++import { countWords, renderMarkdown, toggleTask } from './lib/markdown'
++import {
++  createNote,
++  highlight,
++  loadNotes,
++  matchesQuery,
++  saveNotes,
++  snippet,
++  sortNotes,
++  THEME_KEY,
++  UNTITLED,
++  WELCOME,
++  type Note,
++} from './lib/notes'
++
++type Theme = 'light' | 'dark'
++type SaveState = 'saved' | 'saving' | 'error'
++
++function initialNotes(): Note[] {
++  const stored = loadNotes(localStorage)
++  if (stored) return stored
++  return [createNote(Date.now(), 'Welcome', WELCOME)]
++}
++
++function initialTheme(): Theme {
++  try {
++    const t = localStorage.getItem(THEME_KEY)
++    if (t === 'light' || t === 'dark') return t
++  } catch {
++    /* ignore */
++  }
++  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
++}
++
++function Highlighted({ text, query }: { text: string; query: string }) {
++  return (
++    <>
++      {highlight(text, query).map((s, i) =>
++        s.match ? (
++          <mark key={i} className="rounded-sm bg-amber-200 px-0.5 text-inherit dark:bg-amber-500/40">
++            {s.text}
++          </mark>
++        ) : (
++          <span key={i}>{s.text}</span>
++        ),
++      )}
++    </>
++  )
++}
++
++function relativeTime(ts: number, now: number): string {
++  const s = Math.round((now - ts) / 1000)
++  if (s < 45) return 'just now'
++  const m = Math.round(s / 60)
++  if (m < 60) return `${m} min ago`
++  const h = Math.round(m / 60)
++  if (h < 24) return `${h} h ago`
++  return new Date(ts).toLocaleDateString()
++}
++
++function ConfirmDialog({
++  title,
++  onCancel,
++  onConfirm,
++}: {
++  title: string
++  onCancel: () => void
++  onConfirm: () => void
++}) {
++  const cancelRef = useRef<HTMLButtonElement>(null)
++  useEffect(() => {
++    cancelRef.current?.focus()
++    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel()
++    window.addEventListener('keydown', onKey)
++    return () => window.removeEventListener('keydown', onKey)
++  }, [onCancel])
++  return (
++    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onMouseDown={onCancel}>
++      <div
++        role="alertdialog"
++        aria-modal="true"
++        aria-labelledby="confirm-title"
++        aria-describedby="confirm-desc"
++        className="w-full max-w-sm rounded-xl border border-(--line) bg-(--panel) p-5 shadow-xl"
++        onMouseDown={(e) => e.stopPropagation()}
++      >
++        <h2 id="confirm-title" className="text-lg font-semibold">
++          Delete note?
++        </h2>
++        <p id="confirm-desc" className="mt-2 text-sm text-(--muted)">
++          “{title}” will be permanently deleted. This can’t be undone.
++        </p>
++        <div className="mt-5 flex justify-end gap-2">
++          <button ref={cancelRef} className="btn" onClick={onCancel}>
++            Cancel
++          </button>
++          <button className="btn btn-danger" onClick={onConfirm}>
++            Delete
++          </button>
++        </div>
++      </div>
++    </div>
++  )
++}
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [notes, setNotes] = useState<Note[]>(initialNotes)
++  const [selectedId, setSelectedId] = useState<string | null>(() => sortNotes(notes)[0]?.id ?? null)
++  const [query, setQuery] = useState('')
++  const [saveState, setSaveState] = useState<SaveState>('saved')
++  const [theme, setTheme] = useState<Theme>(initialTheme)
++  const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
++  const [confirmId, setConfirmId] = useState<string | null>(null)
++  const [now, setNow] = useState(() => Date.now())
++  const titleRef = useRef<HTMLInputElement>(null)
++
++  // ---- persistence: debounced autosave, flushed when the page is hidden ----
++  const latest = useRef(notes)
++  const dirty = useRef(false)
++  const saved = useRef<Note[] | null>(null)
++  useEffect(() => {
++    latest.current = notes
++    if (notes === saved.current) return // nothing new (e.g. StrictMode re-run)
++    if (saved.current === null) {
++      saved.current = notes
++      saveNotes(localStorage, notes) // first render: persist the seeded welcome note
++      return
++    }
++    dirty.current = true
++    setSaveState('saving')
++    const t = setTimeout(() => {
++      dirty.current = false
++      saved.current = notes
++      setSaveState(saveNotes(localStorage, notes) ? 'saved' : 'error')
++    }, 400)
++    return () => clearTimeout(t)
++  }, [notes])
++  useEffect(() => {
++    const flush = () => {
++      if (dirty.current) {
++        dirty.current = false
++        saveNotes(localStorage, latest.current)
++      }
++    }
++    window.addEventListener('pagehide', flush)
++    window.addEventListener('beforeunload', flush)
++    const onVis = () => document.visibilityState === 'hidden' && flush()
++    document.addEventListener('visibilitychange', onVis)
++    return () => {
++      window.removeEventListener('pagehide', flush)
++      window.removeEventListener('beforeunload', flush)
++      document.removeEventListener('visibilitychange', onVis)
++    }
++  }, [])
++
++  // ---- theme ----
++  useEffect(() => {
++    document.documentElement.classList.toggle('dark', theme === 'dark')
++    document.documentElement.style.colorScheme = theme
++    try {
++      localStorage.setItem(THEME_KEY, theme)
++    } catch {
++      /* ignore */
++    }
++  }, [theme])
++
++  useEffect(() => {
++    const t = setInterval(() => setNow(Date.now()), 30_000)
++    return () => clearInterval(t)
++  }, [])
++
++  const sorted = useMemo(() => sortNotes(notes), [notes])
++  const visible = useMemo(() => sorted.filter((n) => matchesQuery(n, query)), [sorted, query])
++  const current = notes.find((n) => n.id === selectedId) ?? null
++  const html = useMemo(() => (current ? renderMarkdown(current.content) : ''), [current])
++  const words = useMemo(() => (current ? countWords(current.content) : 0), [current])
++
++  const update = useCallback((id: string, patch: Partial<Note>) => {
++    setNow(Date.now())
++    setNotes((ns) => ns.map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)))
++  }, [])
++
++  const addNote = () => {
++    const n = createNote()
++    setNotes((ns) => [n, ...ns])
++    setSelectedId(n.id)
++    setQuery('')
++    setMobileView('editor')
++    requestAnimationFrame(() => {
++      titleRef.current?.focus()
++      titleRef.current?.select()
++    })
++  }
++
++  const togglePin = (id: string) =>
++    // Pinning is not an edit, so it leaves updatedAt alone.
++    setNotes((ns) => ns.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n)))
++
++  const deleteNote = (id: string) => {
++    const order = sortNotes(notes)
++    const idx = order.findIndex((n) => n.id === id)
++    const rest = order.filter((n) => n.id !== id)
++    setNotes((ns) => ns.filter((n) => n.id !== id))
++    if (selectedId === id) {
++      setSelectedId(rest[Math.min(idx, rest.length - 1)]?.id ?? null)
++      if (rest.length === 0) setMobileView('list')
++    }
++    setConfirmId(null)
++  }
++
++  const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
++    const el = e.target as HTMLElement
++    if (!current || !(el instanceof HTMLInputElement) || el.type !== 'checkbox') return
++    const line = Number(el.dataset.line)
++    if (Number.isInteger(line)) update(current.id, { content: toggleTask(current.content, line) })
++  }
++
++  const open = (id: string) => {
++    setSelectedId(id)
++    setMobileView('editor')
++  }
++
++  const confirmNote = notes.find((n) => n.id === confirmId)
++  const cancelConfirm = useCallback(() => setConfirmId(null), [])
++
++  return (
++    <div className="flex h-dvh flex-col bg-(--bg) text-(--fg)">
++      {/* Top bar */}
++      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-(--line) bg-(--panel) px-3">
++        {mobileView === 'editor' && (
++          <button className="btn btn-ghost md:hidden" onClick={() => setMobileView('list')} aria-label="Back to notes">
++            ← Notes
++          </button>
++        )}
++        <span className={`font-semibold tracking-tight ${mobileView === 'editor' ? 'hidden md:inline' : ''}`}>
++          Markdown Notes
++        </span>
++        <div className="ml-auto flex items-center gap-2">
++          <span
++            className="text-xs text-(--muted)"
++            role="status"
++            aria-live="polite"
++            data-testid="save-status"
++          >
++            {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Not saved (storage full?)' : '✓ Saved'}
++          </span>
++          <button
++            className="btn btn-ghost"
++            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
++            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
++            title="Toggle theme"
++          >
++            {theme === 'dark' ? '☀︎' : '☾'}
++          </button>
++        </div>
++      </header>
++
++      <div className="flex min-h-0 flex-1">
++        {/* Sidebar */}
++        <aside
++          className={`${mobileView === 'list' ? 'flex' : 'hidden'} w-full shrink-0 flex-col border-r border-(--line) bg-(--panel) md:flex md:w-72`}
++          aria-label="Notes"
++        >
++          <div className="flex gap-2 p-3">
++            <input
++              type="search"
++              placeholder="Search notes…"
++              aria-label="Search notes"
++              value={query}
++              onChange={(e) => setQuery(e.target.value)}
++              className="field min-w-0 flex-1"
++            />
++            <button className="btn btn-primary shrink-0" onClick={addNote}>
++              + New
++            </button>
++          </div>
++          <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" data-testid="note-list">
++            {visible.map((n) => {
++              const active = n.id === selectedId
++              return (
++                <li key={n.id}>
++                  <button
++                    onClick={() => open(n.id)}
++                    aria-current={active ? 'true' : undefined}
++                    data-testid="note-item"
++                    className={`block w-full rounded-lg px-3 py-2 text-left transition-colors ${
++                      active ? 'bg-(--active)' : 'hover:bg-(--hover)'
++                    }`}
++                  >
++                    <div className="flex items-center gap-1.5">
++                      {n.pinned && (
++                        <span aria-label="Pinned" title="Pinned" className="text-xs">
++                          📌
++                        </span>
++                      )}
++                      <span className="truncate font-medium" data-testid="note-title">
++                        <Highlighted text={n.title || UNTITLED} query={query} />
++                      </span>
++                    </div>
++                    <div className="mt-0.5 truncate text-xs text-(--muted)">
++                      <Highlighted text={snippet(n.content, query) || 'Empty note'} query={query} />
++                    </div>
++                    <div className="mt-0.5 text-[11px] text-(--muted)">{relativeTime(n.updatedAt, now)}</div>
++                  </button>
++                </li>
++              )
++            })}
++            {visible.length === 0 && (
++              <li className="px-3 py-6 text-center text-sm text-(--muted)">
++                {notes.length === 0 ? 'No notes yet. Create one with “+ New”.' : 'No notes match your search.'}
++              </li>
++            )}
++          </ul>
++        </aside>
++
++        {/* Editor */}
++        <main className={`${mobileView === 'editor' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col md:flex`}>
++          {current ? (
++            <>
++              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-(--line) px-3 py-2">
++                <input
++                  ref={titleRef}
++                  value={current.title}
++                  placeholder={UNTITLED}
++                  onChange={(e) => update(current.id, { title: e.target.value })}
++                  aria-label="Note title"
++                  className="min-w-0 flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-(--muted) focus:ring-0"
++                />
++                <span className="text-xs text-(--muted)" data-testid="word-count">
++                  {words} {words === 1 ? 'word' : 'words'}
++                </span>
++                <button
++                  className="btn btn-ghost"
++                  onClick={() => togglePin(current.id)}
++                  aria-pressed={current.pinned}
++                >
++                  {current.pinned ? 'Unpin' : 'Pin'}
++                </button>
++                <button className="btn btn-ghost text-red-600 dark:text-red-400" onClick={() => setConfirmId(current.id)}>
++                  Delete
++                </button>
++              </div>
++              <div className="grid min-h-0 flex-1 grid-cols-1 content-start overflow-y-auto md:grid-cols-2 md:content-stretch md:overflow-hidden">
++                <textarea
++                  value={current.content}
++                  onChange={(e) => update(current.id, { content: e.target.value })}
++                  aria-label="Markdown source"
++                  placeholder="Write Markdown here…"
++                  spellCheck
++                  className="h-[45dvh] resize-none border-b border-(--line) bg-(--bg) p-4 font-mono text-sm leading-relaxed outline-none md:h-full md:border-r md:border-b-0"
++                />
++                <div
++                  className="md-preview p-4 md:h-full md:overflow-y-auto"
++                  aria-label="Preview"
++                  data-testid="preview"
++                  onClick={onPreviewClick}
++                  dangerouslySetInnerHTML={{ __html: html }}
++                />
++              </div>
++            </>
++          ) : (
++            <div className="grid flex-1 place-items-center p-6 text-center text-(--muted)">
++              <div>
++                <p>No note selected.</p>
++                <button className="btn btn-primary mt-3" onClick={addNote}>
++                  + New note
++                </button>
++              </div>
++            </div>
++          )}
++        </main>
++      </div>
++
++      {confirmNote && (
++        <ConfirmDialog
++          title={confirmNote.title || UNTITLED}
++          onCancel={cancelConfirm}
++          onConfirm={() => deleteNote(confirmNote.id)}
++        />
++      )}
++    </div>
++  )
+ }
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..7684674 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,82 @@
+ @import "tailwindcss";
++
++@custom-variant dark (&:where(.dark, .dark *));
++
++:root {
++  --bg: #ffffff;
++  --panel: #f7f7f8;
++  --fg: #1c1d21;
++  --muted: #6b6f7a;
++  --line: #e3e4e8;
++  --hover: #ececef;
++  --active: #e1e7fb;
++  --accent: #3b5bdb;
++  --code-bg: #f1f2f5;
++  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
++}
++
++:root.dark {
++  --bg: #16171b;
++  --panel: #1d1e23;
++  --fg: #e6e7ea;
++  --muted: #9a9ead;
++  --line: #2e3038;
++  --hover: #26282f;
++  --active: #2b3352;
++  --accent: #7c94f5;
++  --code-bg: #23252c;
++}
++
++body {
++  margin: 0;
++  background: var(--bg);
++  color: var(--fg);
++}
++
++@layer components {
++  .btn {
++    @apply inline-flex items-center justify-center rounded-md border border-(--line) bg-(--bg) px-3 py-1.5 text-sm font-medium transition-colors hover:bg-(--hover) cursor-pointer;
++  }
++  .btn-ghost {
++    @apply border-transparent bg-transparent px-2;
++  }
++  .btn-primary {
++    @apply border-transparent bg-(--accent) text-white hover:bg-(--accent) hover:opacity-90 dark:text-[#10121a];
++  }
++  .btn-danger {
++    @apply border-transparent bg-red-600 text-white hover:bg-red-700;
++  }
++  .field {
++    @apply rounded-md border border-(--line) bg-(--bg) px-3 py-1.5 text-sm outline-none focus:border-(--accent);
++  }
++}
++
++:focus-visible {
++  outline: 2px solid var(--accent);
++  outline-offset: 1px;
++}
++
++/* Rendered Markdown */
++.md-preview {
++  line-height: 1.65;
++  overflow-wrap: anywhere;
++}
++.md-preview > * + * { margin-top: 0.75em; }
++.md-preview h1 { font-size: 1.75em; font-weight: 700; line-height: 1.25; }
++.md-preview h2 { font-size: 1.4em; font-weight: 700; line-height: 1.3; margin-top: 1.2em; }
++.md-preview h3 { font-size: 1.15em; font-weight: 600; margin-top: 1em; }
++.md-preview h4, .md-preview h5, .md-preview h6 { font-weight: 600; }
++.md-preview a { color: var(--accent); text-decoration: underline; }
++.md-preview ul { list-style: disc; padding-left: 1.5em; }
++.md-preview ol { list-style: decimal; padding-left: 1.5em; }
++.md-preview li > ul, .md-preview li > ol { margin-top: 0.25em; }
++.md-preview ul.task-list { list-style: none; padding-left: 0.25em; }
++.md-preview li.task-item > ul, .md-preview li.task-item > ol { padding-left: 1.5em; }
++.md-preview .task-item label { display: inline-flex; gap: 0.5em; align-items: baseline; cursor: pointer; }
++.md-preview .task-item input { accent-color: var(--accent); width: 1em; height: 1em; transform: translateY(0.12em); cursor: pointer; }
++.md-preview .task-item input:checked + span { color: var(--muted); text-decoration: line-through; }
++.md-preview code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
++.md-preview pre { background: var(--code-bg); padding: 0.85em 1em; border-radius: 8px; overflow-x: auto; }
++.md-preview pre code { background: none; padding: 0; font-size: 0.85em; }
++.md-preview blockquote { border-left: 3px solid var(--line); padding-left: 1em; color: var(--muted); }
++.md-preview hr { border: 0; border-top: 1px solid var(--line); }
+diff --git a/src/lib/markdown.test.ts b/src/lib/markdown.test.ts
+new file mode 100644
+index 0000000..016d8cb
+--- /dev/null
++++ b/src/lib/markdown.test.ts
+@@ -0,0 +1,159 @@
++import { describe, expect, it } from 'vitest'
++import { countWords, renderInline, renderMarkdown, safeUrl, toggleTask } from './markdown'
++
++describe('renderMarkdown: blocks', () => {
++  it('renders headings h1-h6', () => {
++    expect(renderMarkdown('# One')).toBe('<h1>One</h1>')
++    expect(renderMarkdown('### Three ###')).toBe('<h3>Three</h3>')
++    expect(renderMarkdown('###### Six')).toBe('<h6>Six</h6>')
++    expect(renderMarkdown('#NoSpace')).toBe('<p>#NoSpace</p>')
++  })
++
++  it('renders paragraphs with line breaks', () => {
++    expect(renderMarkdown('a\nb\n\nc')).toBe('<p>a<br>b</p>\n<p>c</p>')
++  })
++
++  it('renders bullet and numbered lists', () => {
++    expect(renderMarkdown('- a\n- b')).toBe('<ul><li>a</li><li>b</li></ul>')
++    expect(renderMarkdown('1. a\n2. b')).toBe('<ol><li>a</li><li>b</li></ol>')
++    expect(renderMarkdown('* a\n+ b')).toBe('<ul><li>a</li><li>b</li></ul>')
++  })
++
++  it('nests lists by indentation', () => {
++    expect(renderMarkdown('- a\n  - b\n- c')).toBe('<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>')
++    expect(renderMarkdown('- a\n  1. x')).toBe('<ul><li>a<ol><li>x</li></ol></li></ul>')
++  })
++
++  it('renders task lists with checkboxes tagged by source line', () => {
++    const html = renderMarkdown('intro\n\n- [ ] todo\n- [x] done')
++    expect(html).toContain('<ul class="task-list">')
++    expect(html).toContain('<input type="checkbox" data-line="2">')
++    expect(html).toContain('<input type="checkbox" data-line="3" checked>')
++    expect(html).toContain('<span>todo</span>')
++  })
++
++  it('renders fenced code blocks verbatim and escaped', () => {
++    const html = renderMarkdown('```js\nconst a = **b** < 3\n- [ ] not a task\n```')
++    expect(html).toBe(
++      '<pre><code class="language-js">const a = **b** &lt; 3\n- [ ] not a task</code></pre>',
++    )
++  })
++
++  it('handles an unterminated fence', () => {
++    expect(renderMarkdown('```\ncode')).toBe('<pre><code>code</code></pre>')
++  })
++
++  it('renders blockquotes and horizontal rules', () => {
++    expect(renderMarkdown('> quote')).toBe('<blockquote><p>quote</p></blockquote>')
++    expect(renderMarkdown('---')).toBe('<hr>')
++  })
++})
++
++describe('renderInline', () => {
++  it('renders bold, italic, both, strikethrough', () => {
++    expect(renderInline('**b** *i* __b2__ _i2_ ***bi*** ~~s~~')).toBe(
++      '<strong>b</strong> <em>i</em> <strong>b2</strong> <em>i2</em> <strong><em>bi</em></strong> <del>s</del>',
++    )
++  })
++
++  it('does not italicise snake_case words', () => {
++    expect(renderInline('some_var_name')).toBe('some_var_name')
++  })
++
++  it('renders inline code without formatting inside', () => {
++    expect(renderInline('`**x** <b>`')).toBe('<code>**x** &lt;b&gt;</code>')
++  })
++
++  it('renders links with safe attributes', () => {
++    expect(renderInline('[Ex **bold**](https://example.com/?a=1&b=2)')).toBe(
++      '<a href="https://example.com/?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">Ex <strong>bold</strong></a>',
++    )
++  })
++
++  it('autolinks bare URLs', () => {
++    expect(renderInline('see https://example.com.')).toBe(
++      'see <a href="https://example.com" target="_blank" rel="noopener noreferrer">https://example.com</a>.',
++    )
++  })
++})
++
++describe('safety', () => {
++  it('escapes raw HTML so scripts never become elements', () => {
++    const html = renderMarkdown('<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>')
++    expect(html).not.toContain('<script')
++    expect(html).not.toContain('<img')
++    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
++  })
++
++  it('escapes HTML inside headings, lists and tasks', () => {
++    const html = renderMarkdown('# <b onclick=x>\n- <iframe>\n- [ ] <svg onload=x>')
++    expect(html).not.toMatch(/<(b|iframe|svg)[\s>]/)
++  })
++
++  it('drops javascript: and data: links but keeps their text', () => {
++    expect(renderInline('[click](javascript:alert(1))')).not.toContain('href')
++    expect(renderInline('[click](JaVaScRiPt:alert(1))')).not.toContain('<a')
++    expect(renderInline('[x](data:text/html,<script>)')).not.toContain('<a')
++    expect(renderInline('[x](vbscript:msgbox)')).not.toContain('<a')
++  })
++
++  it('cannot break out of attributes with quotes', () => {
++    const html = renderInline('[x](https://a.com/"onmouseover="alert(1))')
++    expect(html).not.toMatch(/"\s*onmouseover=/)
++  })
++
++  it('allows http, https, mailto and relative URLs', () => {
++    expect(safeUrl('https://a.com')).toBe('https://a.com')
++    expect(safeUrl('mailto:a@b.c')).toBe('mailto:a@b.c')
++    expect(safeUrl('/path#x')).toBe('/path#x')
++    expect(safeUrl('java\tscript:alert(1)')).toBeNull()
++  })
++
++  it('ignores injected placeholder characters', () => {
++    expect(renderInline('\u00000\u0000 `x`')).toBe('0 <code>x</code>')
++  })
++})
++
++describe('toggleTask', () => {
++  const src = 'title\n- [ ] one\n- [x] two\n  * [X] three\n1. [ ] four\nplain'
++  it('checks an unchecked task', () => {
++    expect(toggleTask(src, 1).split('\n')[1]).toBe('- [x] one')
++  })
++  it('unchecks checked tasks (x and X)', () => {
++    expect(toggleTask(src, 2).split('\n')[2]).toBe('- [ ] two')
++    expect(toggleTask(src, 3).split('\n')[3]).toBe('  * [ ] three')
++  })
++  it('works for numbered tasks', () => {
++    expect(toggleTask(src, 4).split('\n')[4]).toBe('1. [x] four')
++  })
++  it('leaves non-task lines and out-of-range lines alone', () => {
++    expect(toggleTask(src, 0)).toBe(src)
++    expect(toggleTask(src, 5)).toBe(src)
++    expect(toggleTask(src, 99)).toBe(src)
++  })
++  it('only touches the targeted line', () => {
++    const out = toggleTask(src, 1).split('\n')
++    expect(out.slice(2)).toEqual(src.split('\n').slice(2))
++  })
++  it('preserves CRLF line endings', () => {
++    expect(toggleTask('a\r\n- [ ] b\r\nc', 1)).toBe('a\r\n- [x] b\r\nc')
++  })
++  it('round-trips with the rendered data-line', () => {
++    const md = 'x\n\n```\n- [ ] in code\n```\n- [ ] real'
++    const line = Number(/data-line="(\d+)"/.exec(renderMarkdown(md))![1])
++    expect(toggleTask(md, line).endsWith('- [x] real')).toBe(true)
++    expect(toggleTask(md, line)).toContain('- [ ] in code')
++  })
++})
++
++describe('countWords', () => {
++  it('counts words, ignoring Markdown punctuation', () => {
++    expect(countWords('')).toBe(0)
++    expect(countWords('   \n ')).toBe(0)
++    expect(countWords('# Hello **world**')).toBe(2)
++    expect(countWords('- [ ] buy milk\n- [x] done')).toBe(3)
++    expect(countWords("don't stop")).toBe(2)
++    expect(countWords('[my site](https://example.com/a/b)')).toBe(2)
++    expect(countWords('zażółć gęślą 42')).toBe(3)
++  })
++})
+diff --git a/src/lib/markdown.ts b/src/lib/markdown.ts
+new file mode 100644
+index 0000000..43c9dc4
+--- /dev/null
++++ b/src/lib/markdown.ts
+@@ -0,0 +1,219 @@
++// A small Markdown renderer. Safety comes from construction: every piece of
++// note text is HTML-escaped before any tag is emitted, so raw HTML in a note
++// is shown as text and can never run. Link URLs are limited to safe schemes.
++
++export function escapeHtml(s: string): string {
++  return s
++    .replace(/&/g, '&amp;')
++    .replace(/</g, '&lt;')
++    .replace(/>/g, '&gt;')
++    .replace(/"/g, '&quot;')
++    .replace(/'/g, '&#39;')
++}
++
++/** Returns a safe href, or null if the URL uses a scheme we don't allow. */
++export function safeUrl(raw: string): string | null {
++  const url = raw.trim()
++  // Strip characters browsers ignore inside schemes ("java\tscript:").
++  // eslint-disable-next-line no-control-regex
++  const probe =url.replace(/[\u0000- \u007f]/g, '').toLowerCase()
++  const scheme = /^([a-z][a-z0-9+.-]*):/.exec(probe)
++  if (scheme && !['http', 'https', 'mailto'].includes(scheme[1])) return null
++  return url
++}
++
++const PH = '\u0000' // placeholder marker; stripped from input first
++
++export function renderInline(text: string): string {
++  const slots: string[] = []
++  const stash = (html: string) => `${PH}${slots.push(html) - 1}${PH}`
++  let s = text.replace(new RegExp(PH, 'g'), '')
++
++  // Code spans first, so their contents are not formatted.
++  s = s.replace(/(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/g, (_, _t, code: string) =>
++    stash(`<code>${escapeHtml(code.trim() === '' ? code : code.replace(/^ (.*) $/, '$1'))}</code>`),
++  )
++
++  // Links: [text](url "optional title")
++  s = s.replace(/\[([^\]]*)\]\(\s*<?([^\s)>]*)>?(?:\s+"([^"]*)")?\s*\)/g, (m, label: string, url: string, title?: string) => {
++    const href = safeUrl(url)
++    if (href === null) return stash(renderEmphasis(escapeHtml(label)))
++    if (!url) return m
++    const t = title ? ` title="${escapeHtml(title)}"` : ''
++    return stash(
++      `<a href="${escapeHtml(href)}"${t} target="_blank" rel="noopener noreferrer">${renderEmphasis(escapeHtml(label))}</a>`,
++    )
++  })
++
++  // Bare autolinks
++  s = s.replace(/\bhttps?:\/\/[^\s<]*[^\s<.,:;"')\]!?]/g, (url) =>
++    stash(`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`),
++  )
++
++  s = renderEmphasis(escapeHtml(s))
++  return s.replace(new RegExp(`${PH}(\\d+)${PH}`, 'g'), (_, i: string) => slots[Number(i)])
++}
++
++/** Bold / italic / strikethrough on already-escaped text. */
++function renderEmphasis(s: string): string {
++  return s
++    .replace(/(\*\*\*|___)(?=\S)([\s\S]*?\S)\1/g, '<strong><em>$2</em></strong>')
++    .replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, '<strong>$1</strong>')
++    .replace(/(^|[^\w])__(?=\S)([\s\S]*?\S)__(?!\w)/g, '$1<strong>$2</strong>')
++    .replace(/\*(?=\S)([^*]*?\S)\*/g, '<em>$1</em>')
++    .replace(/(^|[^\w])_(?=\S)([^_]*?\S)_(?!\w)/g, '$1<em>$2</em>')
++    .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
++}
++
++const LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
++const TASK_RE = /^\[([ xX])\](?:\s+|$)(.*)$/
++const FENCE_RE = /^\s*(`{3,}|~{3,})\s*([\w+-]*)/
++
++interface ListItem {
++  indent: number
++  ordered: boolean
++  text: string
++  line: number
++  children: ListItem[]
++}
++
++function renderList(items: ListItem[]): string {
++  if (items.length === 0) return ''
++  const ordered = items[0].ordered
++  const hasTask = items.some((i) => TASK_RE.test(i.text))
++  const tag = ordered ? 'ol' : 'ul'
++  let html = `<${tag}${hasTask ? ' class="task-list"' : ''}>`
++  for (const it of items) {
++    const task = TASK_RE.exec(it.text)
++    if (task) {
++      const checked = task[1] !== ' '
++      html +=
++        `<li class="task-item"><label><input type="checkbox" data-line="${it.line}"${checked ? ' checked' : ''}> ` +
++        `<span>${renderInline(task[2])}</span></label>`
++    } else {
++      html += `<li>${renderInline(it.text)}`
++    }
++    html += renderList(it.children) + '</li>'
++  }
++  return html + `</${tag}>`
++}
++
++function nestItems(flat: ListItem[]): ListItem[] {
++  const root: ListItem[] = []
++  const stack: ListItem[] = []
++  for (const it of flat) {
++    while (stack.length && stack[stack.length - 1].indent >= it.indent) stack.pop()
++    if (stack.length) stack[stack.length - 1].children.push(it)
++    else root.push(it)
++    stack.push(it)
++  }
++  return root
++}
++
++export function renderMarkdown(src: string): string {
++  const lines = src.replace(/\r\n?/g, '\n').split('\n')
++  const out: string[] = []
++  let i = 0
++
++  while (i < lines.length) {
++    const line = lines[i]
++
++    if (line.trim() === '') {
++      i++
++      continue
++    }
++
++    // Fenced code block
++    const fence = FENCE_RE.exec(line)
++    if (fence) {
++      const marker = fence[1]
++      const lang = fence[2]
++      const body: string[] = []
++      i++
++      while (i < lines.length && !lines[i].trim().startsWith(marker)) body.push(lines[i++])
++      i++ // closing fence (or end of input)
++      const cls = lang ? ` class="language-${escapeHtml(lang)}"` : ''
++      out.push(`<pre><code${cls}>${escapeHtml(body.join('\n'))}</code></pre>`)
++      continue
++    }
++
++    // Heading
++    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line)
++    if (h) {
++      const n = h[1].length
++      out.push(`<h${n}>${renderInline(h[2])}</h${n}>`)
++      i++
++      continue
++    }
++
++    // Horizontal rule
++    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
++      out.push('<hr>')
++      i++
++      continue
++    }
++
++    // Blockquote
++    if (/^\s*>/.test(line)) {
++      const body: string[] = []
++      while (i < lines.length && /^\s*>/.test(lines[i])) body.push(lines[i++].replace(/^\s*>\s?/, ''))
++      out.push(`<blockquote>${renderMarkdown(body.join('\n'))}</blockquote>`)
++      continue
++    }
++
++    // List (consecutive list lines; indented continuation lines join the item)
++    if (LIST_RE.test(line)) {
++      const flat: ListItem[] = []
++      while (i < lines.length) {
++        const m = LIST_RE.exec(lines[i])
++        if (m) {
++          const ordered = /\d/.test(m[2])
++          // A switch between bullet and numbered at the top level starts a new list.
++          if (flat.length && m[1].length <= flat[0].indent && ordered !== flat[0].ordered) break
++          flat.push({ indent: m[1].length, ordered, text: m[3], line: i, children: [] })
++          i++
++        } else if (flat.length && lines[i].trim() !== '' && /^\s+/.test(lines[i])) {
++          flat[flat.length - 1].text += ' ' + lines[i].trim()
++          i++
++        } else break
++      }
++      out.push(renderList(nestItems(flat)))
++      continue
++    }
++
++    // Paragraph
++    const para: string[] = []
++    while (
++      i < lines.length &&
++      lines[i].trim() !== '' &&
++      !FENCE_RE.test(lines[i]) &&
++      !/^#{1,6}\s/.test(lines[i]) &&
++      !/^\s*>/.test(lines[i]) &&
++      !LIST_RE.test(lines[i])
++    ) {
++      para.push(lines[i++])
++    }
++    out.push(`<p>${para.map((l) => renderInline(l.trim())).join('<br>')}</p>`)
++  }
++
++  return out.join('\n')
++}
++
++/** Flip the checkbox of the task item on source line `lineIndex`. */
++export function toggleTask(src: string, lineIndex: number): string {
++  const eol = src.includes('\r\n') ? '\r\n' : '\n'
++  const lines = src.split(/\r?\n/)
++  const line = lines[lineIndex]
++  if (line === undefined) return src
++  const m = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\].*)$/.exec(line)
++  if (!m) return src
++  lines[lineIndex] = m[1] + (m[2] === ' ' ? 'x' : ' ') + m[3]
++  return lines.join(eol)
++}
++
++export function countWords(src: string): number {
++  const text = src
++    .replace(/^(\s*(?:[-*+]|\d+[.)])\s+)\[[ xX]\]/gm, '$1') // task markers
++    .replace(/\]\([^)]*\)/g, ']') // link URLs
++  return (text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? []).length
++}
+diff --git a/src/lib/notes.test.ts b/src/lib/notes.test.ts
+new file mode 100644
+index 0000000..316dd7c
+--- /dev/null
++++ b/src/lib/notes.test.ts
+@@ -0,0 +1,109 @@
++import { describe, expect, it } from 'vitest'
++import {
++  createNote,
++  highlight,
++  loadNotes,
++  matchesQuery,
++  saveNotes,
++  snippet,
++  sortNotes,
++  STORAGE_KEY,
++  type Note,
++} from './notes'
++
++const note = (title: string, updatedAt: number, pinned = false, content = ''): Note => ({
++  ...createNote(updatedAt, title, content),
++  pinned,
++})
++
++function memoryStorage(init: Record<string, string> = {}) {
++  const data = { ...init }
++  return {
++    data,
++    getItem: (k: string) => (k in data ? data[k] : null),
++    setItem: (k: string, v: string) => {
++      data[k] = v
++    },
++  }
++}
++
++describe('sortNotes', () => {
++  it('puts pinned first, then newest edited first', () => {
++    const notes = [note('old', 1), note('pinOld', 2, true), note('new', 5), note('pinNew', 4, true), note('mid', 3)]
++    expect(sortNotes(notes).map((n) => n.title)).toEqual(['pinNew', 'pinOld', 'new', 'mid', 'old'])
++  })
++  it('does not mutate the input', () => {
++    const notes = [note('a', 1), note('b', 2)]
++    sortNotes(notes)
++    expect(notes.map((n) => n.title)).toEqual(['a', 'b'])
++  })
++})
++
++describe('search', () => {
++  const n = note('Shopping List', 1, false, 'Buy MILK and eggs')
++  it('matches title or content, case-insensitively', () => {
++    expect(matchesQuery(n, 'shop')).toBe(true)
++    expect(matchesQuery(n, 'milk')).toBe(true)
++    expect(matchesQuery(n, 'bread')).toBe(false)
++    expect(matchesQuery(n, '   ')).toBe(true)
++  })
++  it('highlight splits text into match segments', () => {
++    expect(highlight('Banana', 'an')).toEqual([
++      { text: 'B', match: false },
++      { text: 'an', match: true },
++      { text: 'an', match: true },
++      { text: 'a', match: false },
++    ])
++    expect(highlight('abc', '')).toEqual([{ text: 'abc', match: false }])
++    expect(highlight('ABC', 'abc')).toEqual([{ text: 'ABC', match: true }])
++  })
++  it('highlight treats regex characters literally', () => {
++    expect(highlight('a.b*c', '.b*')).toEqual([
++      { text: 'a', match: false },
++      { text: '.b*', match: true },
++      { text: 'c', match: false },
++    ])
++  })
++  it('snippet centres on the first match', () => {
++    const text = 'x '.repeat(100) + 'needle' + ' y'.repeat(100)
++    const s = snippet(text, 'needle', 10)
++    expect(s).toContain('needle')
++    expect(s.startsWith('…')).toBe(true)
++    expect(s.endsWith('…')).toBe(true)
++    expect(snippet('hello\n\nworld', '')).toBe('hello world')
++  })
++  it('snippet strips Markdown syntax', () => {
++    expect(snippet('# Title\n- [ ] **buy** [milk](https://x.y)\n> `quote`', '')).toBe('Title buy milk quote')
++  })
++})
++
++describe('storage', () => {
++  it('round-trips notes', () => {
++    const st = memoryStorage()
++    const notes = [note('a', 1, true, 'body')]
++    expect(saveNotes(st, notes)).toBe(true)
++    expect(loadNotes(st)).toEqual(notes)
++  })
++  it('returns null when nothing is stored or data is corrupt', () => {
++    expect(loadNotes(memoryStorage())).toBeNull()
++    expect(loadNotes(memoryStorage({ [STORAGE_KEY]: '{not json' }))).toBeNull()
++    expect(loadNotes(memoryStorage({ [STORAGE_KEY]: '{"a":1}' }))).toBeNull()
++  })
++  it('keeps an empty list (user deleted everything)', () => {
++    expect(loadNotes(memoryStorage({ [STORAGE_KEY]: '[]' }))).toEqual([])
++  })
++  it('drops malformed entries and fills defaults', () => {
++    const raw = JSON.stringify([{ id: '1', title: 't', content: 'c', updatedAt: 5 }, { id: 2 }, null])
++    expect(loadNotes(memoryStorage({ [STORAGE_KEY]: raw }))).toEqual([
++      { id: '1', title: 't', content: 'c', updatedAt: 5, pinned: false, createdAt: 5 },
++    ])
++  })
++  it('reports a failed save (quota exceeded)', () => {
++    const st = {
++      setItem: () => {
++        throw new Error('QuotaExceededError')
++      },
++    }
++    expect(saveNotes(st, [])).toBe(false)
++  })
++})
+diff --git a/src/lib/notes.ts b/src/lib/notes.ts
+new file mode 100644
+index 0000000..81e122e
+--- /dev/null
++++ b/src/lib/notes.ts
+@@ -0,0 +1,135 @@
++export interface Note {
++  id: string
++  title: string
++  content: string
++  pinned: boolean
++  createdAt: number
++  updatedAt: number
++}
++
++export const STORAGE_KEY = 'md-notes:v1'
++export const THEME_KEY = 'md-notes:theme'
++export const UNTITLED = 'Untitled note'
++
++export function newId(): string {
++  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
++    ? crypto.randomUUID()
++    : Math.random().toString(36).slice(2) + Date.now().toString(36)
++}
++
++export function createNote(now = Date.now(), title = UNTITLED, content = ''): Note {
++  return { id: newId(), title, content, pinned: false, createdAt: now, updatedAt: now }
++}
++
++/** Pinned first, then most recently edited first. */
++export function sortNotes(notes: Note[]): Note[] {
++  return [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
++}
++
++export function matchesQuery(note: Note, query: string): boolean {
++  const q = query.trim().toLowerCase()
++  if (!q) return true
++  return note.title.toLowerCase().includes(q) || note.content.toLowerCase().includes(q)
++}
++
++export interface Segment {
++  text: string
++  match: boolean
++}
++
++/** Splits `text` into matching / non-matching segments (case-insensitive). */
++export function highlight(text: string, query: string): Segment[] {
++  const q = query.trim().toLowerCase()
++  if (!q) return [{ text, match: false }]
++  const lower = text.toLowerCase()
++  const out: Segment[] = []
++  let pos = 0
++  for (let idx = lower.indexOf(q); idx !== -1; idx = lower.indexOf(q, pos)) {
++    if (idx > pos) out.push({ text: text.slice(pos, idx), match: false })
++    out.push({ text: text.slice(idx, idx + q.length), match: true })
++    pos = idx + q.length
++  }
++  if (pos < text.length) out.push({ text: text.slice(pos), match: false })
++  return out
++}
++
++/** Markdown source with the syntax markers removed, for list excerpts. */
++export function plainText(md: string): string {
++  return md
++    .replace(/^\s*(`{3,}|~{3,}).*$/gm, '') // code fences
++    .replace(/^\s{0,3}#{1,6}\s+/gm, '') // heading markers
++    .replace(/^\s*>\s?/gm, '') // blockquotes
++    .replace(/^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/gm, '$1') // list / task markers
++    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // links → their text
++    .replace(/(\*\*|__|~~|\*|`)/g, '') // emphasis / code markers
++}
++
++/** A one-line excerpt of the content: around the first match, or its start. */
++export function snippet(content: string, query: string, radius = 40): string {
++  const flat = plainText(content).replace(/\s+/g, ' ').trim()
++  const q = query.trim().toLowerCase()
++  const idx = q ? flat.toLowerCase().indexOf(q) : -1
++  if (idx === -1) return flat.slice(0, radius * 2)
++  const start = Math.max(0, idx - radius)
++  const end = Math.min(flat.length, idx + q.length + radius)
++  return (start > 0 ? '…' : '') + flat.slice(start, end) + (end < flat.length ? '…' : '')
++}
++
++function isNote(x: unknown): x is Note {
++  const n = x as Note
++  return (
++    !!n &&
++    typeof n.id === 'string' &&
++    typeof n.title === 'string' &&
++    typeof n.content === 'string' &&
++    typeof n.updatedAt === 'number'
++  )
++}
++
++export function loadNotes(storage: Pick<Storage, 'getItem'>): Note[] | null {
++  try {
++    const raw = storage.getItem(STORAGE_KEY)
++    if (raw === null) return null
++    const data = JSON.parse(raw)
++    if (!Array.isArray(data)) return null
++    return data.filter(isNote).map((n) => ({
++      ...n,
++      pinned: !!n.pinned,
++      createdAt: typeof n.createdAt === 'number' ? n.createdAt : n.updatedAt,
++    }))
++  } catch {
++    return null
++  }
++}
++
++export function saveNotes(storage: Pick<Storage, 'setItem'>, notes: Note[]): boolean {
++  try {
++    storage.setItem(STORAGE_KEY, JSON.stringify(notes))
++    return true
++  } catch {
++    return false
++  }
++}
++
++export const WELCOME = `# Welcome to Markdown Notes
++
++Type Markdown in the editor and the preview updates as you go. Everything is **saved in this browser** automatically.
++
++## What you can use
++
++- **Bold**, *italic* and \`inline code\`
++- [Links](https://example.com)
++- Numbered lists:
++  1. First
++  2. Second
++
++## Checklist
++
++- [x] Open the app
++- [ ] Click a checkbox in the preview
++- [ ] Pin a note to keep it on top
++
++\`\`\`js
++console.log('code blocks work too')
++\`\`\`
++`
+diff --git a/vitest.config.ts b/vitest.config.ts
+new file mode 100644
+index 0000000..9e1ac47
+--- /dev/null
++++ b/vitest.config.ts
+@@ -0,0 +1,5 @@
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  test: { include: ['src/**/*.test.ts'] },
++})

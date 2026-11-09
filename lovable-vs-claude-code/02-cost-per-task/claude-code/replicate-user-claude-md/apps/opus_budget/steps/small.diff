@@ -1,0 +1,94 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index 11801e3..c6ea9e3 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -139,8 +139,30 @@ for (const size of sizes) {
+     await expect(page.getByTestId('tx-row')).toHaveCount(1)
+     await page.getByLabel('Search notes').fill('zzz')
+     await expect(page.getByText('No transactions match the filters.')).toBeVisible()
+-    await page.getByRole('button', { name: 'Clear filters' }).click()
++    const clear = page.getByRole('button', { name: 'Clear filters' })
++    await expect(clear).toBeEnabled()
++    await clear.click()
+     await expect(page.getByTestId('tx-row')).toHaveCount(4)
++    await expect(clear).toBeDisabled()
++    // Clear filters resets all three at once, and sits on the same row as the search box
++    await page.getByLabel('Filter by category').selectOption({ label: 'Other' })
++    await page.getByLabel('Filter by type').selectOption('income')
++    await page.getByLabel('Search notes').fill('sal')
++    await expect(page.getByTestId('tx-count')).toHaveText('Showing 1 of 4')
++    const searchBox = (await page.getByLabel('Search notes').boundingBox())!
++    const clearBox = (await clear.boundingBox())!
++    expect(Math.abs(searchBox.y - clearBox.y)).toBeLessThan(4)
++    expect(clearBox.x).toBeGreaterThan(searchBox.x + searchBox.width)
++    await page.screenshot({ path: `shots/${size.name}-filters-active.png`, fullPage: true })
++    await clear.click()
++    await expect(page.getByLabel('Filter by category')).toHaveValue('')
++    await expect(page.getByLabel('Filter by type')).toHaveValue('')
++    await expect(page.getByLabel('Search notes')).toHaveValue('')
++    await expect(page.getByTestId('tx-row')).toHaveCount(4)
++    // income is teal (Tailwind teal-700) in the total and in the list
++    const teal = 'oklch(0.511 0.096 186.391)'
++    await expect(page.getByTestId('total-income')).toHaveCSS('color', teal)
++    await expect(page.getByTestId('tx-row').filter({ hasText: 'Salary' }).getByTestId('tx-amount')).toHaveCSS('color', teal)
+     // totals stay month-wide while filtering
+     await expect(page.getByTestId('total-expenses')).toHaveText('842.65')
+ 
+diff --git a/src/App.tsx b/src/App.tsx
+index a226145..d67b0d6 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -123,7 +123,7 @@ export default function App() {
+         )}
+ 
+         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Month totals">
+-          <Stat label="Income" cents={sums.incomeCents} tone="text-green-800" testId="total-income" />
++          <Stat label="Income" cents={sums.incomeCents} tone="text-teal-700" testId="total-income" />
+           <Stat label="Expenses" cents={sums.expenseCents} tone="text-stone-900" testId="total-expenses" />
+           <Stat label="Balance" cents={sums.balanceCents} tone={sums.balanceCents < 0 ? 'text-red-700' : 'text-stone-900'} testId="total-balance" />
+         </section>
+@@ -175,7 +175,7 @@ export default function App() {
+                   {filtered ? `Showing ${visible.length} of ${monthTx.length}` : `${monthTx.length} this month`}
+                 </span>
+               </div>
+-              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr]">
++              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr_auto]">
+                 <label className="sr-only" htmlFor="f-cat">Filter by category</label>
+                 <select id="f-cat" className={control} value={filters.categoryId} onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}>
+                   <option value="">All categories</option>
+@@ -188,15 +188,22 @@ export default function App() {
+                   <option value="expense">Expense</option>
+                 </select>
+                 <label className="sr-only" htmlFor="f-search">Search notes</label>
+-                <input id="f-search" type="search" placeholder="Search notes…" className={`${control} col-span-2 sm:col-span-1`} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
++                <div className="col-span-2 flex gap-2 sm:contents">
++                  <input id="f-search" type="search" placeholder="Search notes…" className={`${control} min-w-0 flex-1`} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
++                  <button
++                    type="button"
++                    disabled={!filtered}
++                    onClick={() => setFilters({ categoryId: '', type: '', search: '' })}
++                    className="shrink-0 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:bg-transparent"
++                  >
++                    Clear filters
++                  </button>
++                </div>
+               </div>
+ 
+               {visible.length === 0 ? (
+                 <div className="py-8 text-center text-sm text-stone-500">
+                   {monthTx.length === 0 ? `No transactions in ${monthLabel(month)}.` : 'No transactions match the filters.'}
+-                  {filtered && (
+-                    <button type="button" className="ml-2 font-medium text-stone-800 underline" onClick={() => setFilters({ categoryId: '', type: '', search: '' })}>Clear filters</button>
+-                  )}
+                 </div>
+               ) : (
+                 <ul className="divide-y divide-stone-100" aria-label="Transactions">
+@@ -211,7 +218,7 @@ export default function App() {
+                             {c?.name ?? 'Unknown'} · {new Date(t.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                           </div>
+                         </div>
+-                        <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-green-800' : 'text-stone-900'}`} data-testid="tx-amount">
++                        <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-teal-700' : 'text-stone-900'}`} data-testid="tx-amount">
+                           {t.type === 'income' ? '+' : '−'}{formatCents(t.amountCents)}
+                         </span>
+                         <div className="flex shrink-0 gap-0.5">

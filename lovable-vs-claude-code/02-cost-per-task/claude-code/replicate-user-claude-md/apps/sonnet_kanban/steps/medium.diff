@@ -1,0 +1,924 @@
+diff --git a/e2e/boards.spec.ts b/e2e/boards.spec.ts
+new file mode 100644
+index 0000000..d5ced88
+--- /dev/null
++++ b/e2e/boards.spec.ts
+@@ -0,0 +1,237 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 800, touch: false },
++  { name: 'mobile', width: 375, height: 800, touch: true },
++]
++
++const col = (page: Page, id: 'todo' | 'doing' | 'done') => page.getByTestId(`column-${id}`)
++const switcher = (page: Page) => page.getByLabel('Switch board')
++const boardNames = (page: Page) => switcher(page).locator('option').allInnerTexts()
++const dlg = (page: Page) => page.getByRole('dialog')
++
++async function addCard(page: Page, column: 'todo' | 'doing' | 'done', title: string, extra: { priority?: string; due?: string } = {}) {
++  await col(page, column).getByRole('button', { name: /^Add card to/ }).click()
++  await dlg(page).getByLabel('Title').fill(title)
++  if (extra.priority) await dlg(page).getByLabel('Priority').selectOption({ label: extra.priority })
++  if (extra.due) await dlg(page).getByLabel(/Due date/).fill(extra.due)
++  await dlg(page).getByRole('button', { name: 'Add card' }).click()
++  await expect(dlg(page)).toBeHidden()
++}
++
++async function newBoard(page: Page, name: string) {
++  await page.getByRole('button', { name: 'New board' }).click()
++  await dlg(page).getByLabel('Board name').fill(name)
++  await dlg(page).getByRole('button', { name: 'Create board' }).click()
++  await expect(dlg(page)).toBeHidden()
++}
++
++const LEGACY = {
++  cards: {
++    a: { id: 'a', title: 'Legacy todo', description: 'old desc', dueDate: '2020-01-01', priority: 'high' },
++    b: { id: 'b', title: 'Legacy doing', description: '', dueDate: '', priority: 'low' },
++    c: { id: 'c', title: 'Legacy done', description: '', dueDate: '', priority: 'medium' },
++    d: { id: 'd', title: 'Legacy todo 2', description: '', dueDate: '', priority: 'medium' },
++  },
++  columns: { todo: ['a', 'd'], doing: ['b'], done: ['c'] },
++}
++
++for (const size of sizes) {
++  test.describe(`boards ${size.name}`, () => {
++    test.use({ viewport: { width: size.width, height: size.height }, hasTouch: size.touch })
++
++    test.beforeEach(async ({ page }) => {
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++    })
++
++    test('data saved by the single-board version becomes the first board, nothing lost', async ({ page }) => {
++      await page.evaluate((legacy) => {
++        localStorage.removeItem('kanban.workspace.v1')
++        localStorage.setItem('kanban.board.v1', JSON.stringify(legacy))
++      }, LEGACY)
++      await page.reload()
++      expect(await boardNames(page)).toEqual(['My board'])
++      await expect(col(page, 'todo').getByTestId('card-title')).toHaveText(['Legacy todo', 'Legacy todo 2'])
++      await expect(col(page, 'doing').getByTestId('card')).toContainText('Legacy doing')
++      await expect(col(page, 'done').getByTestId('card')).toContainText('Legacy done')
++      await expect(page.getByTestId('card')).toHaveCount(4)
++      await expect(col(page, 'todo').getByText('old desc')).toBeVisible()
++      await expect(page.getByTestId('card').filter({ hasText: 'Legacy todo' }).first()).toHaveAttribute('data-overdue', 'true')
++      // still there after another reload (now served from the workspace key)
++      await page.reload()
++      await expect(page.getByTestId('card')).toHaveCount(4)
++      await page.screenshot({ path: `shots/${size.name}-migrated.png`, fullPage: true })
++    })
++
++    test('starts with one board; the last board cannot be deleted', async ({ page }) => {
++      expect(await boardNames(page)).toEqual(['My board'])
++      await expect(page.getByRole('button', { name: 'Delete board' })).toBeDisabled()
++      await expect(page.getByRole('button', { name: 'Move "x" to another board' })).toHaveCount(0)
++    })
++
++    test('create: custom and blank names, new board is empty and active, boards keep separate cards', async ({ page }) => {
++      await addCard(page, 'todo', 'On first')
++      await newBoard(page, 'Work')
++      await expect(switcher(page)).toHaveValue(/.+/)
++      expect(await boardNames(page)).toEqual(['My board', 'Work'])
++      expect(await switcher(page).evaluate((s: HTMLSelectElement) => s.selectedOptions[0].text)).toBe('Work')
++      await expect(page.getByTestId('card')).toHaveCount(0)
++      for (const c of ['todo', 'doing', 'done'] as const) await expect(col(page, c).getByTestId('empty')).toBeVisible()
++      await addCard(page, 'doing', 'On work')
++
++      await newBoard(page, '   ') // blank -> default name
++      expect(await boardNames(page)).toEqual(['My board', 'Work', 'Board 3'])
++      await expect(page.getByTestId('card')).toHaveCount(0)
++
++      await switcher(page).selectOption({ label: 'My board' })
++      await expect(page.getByTestId('card')).toHaveCount(1)
++      await expect(col(page, 'todo').getByTestId('card')).toContainText('On first')
++      await switcher(page).selectOption({ label: 'Work' })
++      await expect(page.getByTestId('card')).toHaveCount(1)
++      await expect(col(page, 'doing').getByTestId('card')).toContainText('On work')
++      await page.screenshot({ path: `shots/${size.name}-boards.png`, fullPage: true })
++    })
++
++    test('cancel / Escape on new board creates nothing', async ({ page }) => {
++      await page.getByRole('button', { name: 'New board' }).click()
++      await dlg(page).getByLabel('Board name').fill('Nope')
++      await dlg(page).getByRole('button', { name: 'Cancel' }).click()
++      await page.getByRole('button', { name: 'New board' }).click()
++      await page.keyboard.press('Escape')
++      expect(await boardNames(page)).toEqual(['My board'])
++    })
++
++    test('rename: validates, updates the switcher, persists', async ({ page }) => {
++      await page.getByRole('button', { name: 'Rename' }).click()
++      await expect(dlg(page).getByLabel('Board name')).toHaveValue('My board')
++      await dlg(page).getByLabel('Board name').fill('   ')
++      await dlg(page).getByRole('button', { name: 'Save' }).click()
++      await expect(dlg(page).getByText('Name is required.')).toBeVisible()
++      await dlg(page).getByLabel('Board name').fill('Personal')
++      await dlg(page).getByRole('button', { name: 'Save' }).click()
++      await expect(dlg(page)).toBeHidden()
++      expect(await boardNames(page)).toEqual(['Personal'])
++      await page.reload()
++      expect(await boardNames(page)).toEqual(['Personal'])
++    })
++
++    test('delete: confirmation, cancel keeps, confirm removes and switches; last board protected', async ({ page }) => {
++      await addCard(page, 'todo', 'Keep me')
++      await newBoard(page, 'Temp')
++      await addCard(page, 'todo', 'T1')
++      await addCard(page, 'done', 'T2')
++
++      await page.getByRole('button', { name: 'Delete board' }).click()
++      await expect(dlg(page)).toContainText('Delete this board?')
++      await expect(dlg(page)).toContainText('“Temp” and its 2 cards')
++      await dlg(page).getByRole('button', { name: 'Cancel' }).click()
++      expect(await boardNames(page)).toEqual(['My board', 'Temp'])
++      await expect(page.getByTestId('card')).toHaveCount(2)
++
++      await page.getByRole('button', { name: 'Delete board' }).click()
++      await dlg(page).getByRole('button', { name: 'Delete board' }).click()
++      await expect(dlg(page)).toBeHidden()
++      expect(await boardNames(page)).toEqual(['My board'])
++      expect(await switcher(page).evaluate((s: HTMLSelectElement) => s.selectedOptions[0].text)).toBe('My board')
++      await expect(col(page, 'todo').getByTestId('card')).toContainText('Keep me')
++      await expect(page.getByRole('button', { name: 'Delete board' })).toBeDisabled()
++      await page.reload()
++      expect(await boardNames(page)).toEqual(['My board'])
++      await expect(page.getByTestId('card')).toHaveCount(1)
++    })
++
++    test('Move to board…: disabled with one board; moves card with its data to the chosen board and column', async ({ page }) => {
++      await addCard(page, 'doing', 'Traveller', { priority: 'High', due: '2020-02-02' })
++      await addCard(page, 'todo', 'Stay put')
++      await expect(page.getByRole('button', { name: 'Move "Traveller" to another board' })).toBeDisabled()
++
++      await newBoard(page, 'Other')
++      await switcher(page).selectOption({ label: 'My board' })
++      await page.getByRole('button', { name: 'Move "Traveller" to another board' }).click()
++      await expect(dlg(page)).toContainText('Move “Traveller” to another board')
++      // only other boards offered, column defaults to the current one
++      expect(await dlg(page).getByLabel('Destination board').locator('option').allInnerTexts()).toEqual(['Other'])
++      await expect(dlg(page).getByLabel('Column')).toHaveValue('doing')
++      await dlg(page).getByLabel('Column').selectOption({ label: 'Done' })
++      await dlg(page).getByRole('button', { name: 'Move card' }).click()
++      await expect(dlg(page)).toBeHidden()
++
++      // gone from source, source count updated
++      await expect(page.getByTestId('card-title').getByText('Traveller')).toHaveCount(0)
++      await expect(page.getByTestId('card')).toHaveCount(1)
++      await expect(col(page, 'doing').getByTestId('empty')).toBeVisible()
++      await expect(col(page, 'doing').getByTestId('count')).toContainText('0')
++
++      // arrived in destination Done with fields intact (done -> struck through, so not overdue)
++      await switcher(page).selectOption({ label: 'Other' })
++      const card = col(page, 'done').getByTestId('card').filter({ hasText: 'Traveller' })
++      await expect(card).toBeVisible()
++      await expect(card.getByTestId('priority-label')).toHaveText('High')
++      await expect(card.getByTestId('due')).toContainText('2020')
++      await expect(card).toHaveAttribute('data-overdue', 'false')
++      await expect(col(page, 'done').getByTestId('count')).toHaveText('1')
++
++      // it is a normal card there: move it with the keyboard button, and it survives reload
++      await page.getByRole('button', { name: 'Move "Traveller" to In progress' }).click()
++      await page.reload()
++      await expect(col(page, 'doing').getByTestId('card')).toContainText('Traveller')
++      await expect(col(page, 'doing').getByTestId('card')).toHaveAttribute('data-overdue', 'true')
++      await page.screenshot({ path: `shots/${size.name}-moved.png`, fullPage: true })
++    })
++
++    test('Move to board dialog can be cancelled without moving', async ({ page }) => {
++      await addCard(page, 'todo', 'Stay')
++      await newBoard(page, 'B2')
++      await switcher(page).selectOption({ label: 'My board' })
++      await page.getByRole('button', { name: 'Move "Stay" to another board' }).click()
++      await page.keyboard.press('Escape')
++      await expect(page.getByTestId('card')).toHaveCount(1)
++    })
++
++    test('with three boards the dialog lists the other two; WIP limit applies per board', async ({ page }) => {
++      for (const t of ['W1', 'W2', 'W3', 'W4']) await addCard(page, 'doing', t)
++      await expect(page.getByTestId('wip-warning')).toBeVisible()
++      await newBoard(page, 'Two')
++      await newBoard(page, 'Three')
++      await expect(page.getByTestId('wip-warning')).toHaveCount(0) // empty board, no warning
++      await switcher(page).selectOption({ label: 'My board' })
++      await expect(page.getByTestId('wip-warning')).toBeVisible()
++      await page.getByRole('button', { name: 'Move "W1" to another board' }).click()
++      expect(await dlg(page).getByLabel('Destination board').locator('option').allInnerTexts()).toEqual(['Two', 'Three'])
++      await dlg(page).getByRole('button', { name: 'Move card' }).click()
++      await expect(page.getByTestId('wip-warning')).toHaveCount(0) // back to 3
++      await switcher(page).selectOption({ label: 'Two' })
++      await expect(col(page, 'doing').getByTestId('card')).toContainText('W1')
++    })
++
++    test('active board and filters: selection persists on reload; search resets when switching', async ({ page }) => {
++      await addCard(page, 'todo', 'Alpha')
++      await newBoard(page, 'Second')
++      await addCard(page, 'todo', 'Beta')
++      await page.getByLabel('Search cards').fill('zzz')
++      await expect(page.getByTestId('no-results')).toBeVisible()
++      await switcher(page).selectOption({ label: 'My board' })
++      await expect(page.getByLabel('Search cards')).toHaveValue('')
++      await expect(page.getByTestId('card')).toHaveCount(1)
++      await page.reload()
++      expect(await switcher(page).evaluate((s: HTMLSelectElement) => s.selectedOptions[0].text)).toBe('My board')
++      await expect(page.getByTestId('card')).toContainText('Alpha')
++    })
++
++    test('board bar does not overflow the page and fits the viewport', async ({ page }) => {
++      await newBoard(page, 'A rather long board name to test wrapping')
++      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
++      expect(overflow).toBeLessThanOrEqual(0)
++      // the switcher must be genuinely usable: visible, wide enough to read, inside the viewport
++      const sw = (await switcher(page).boundingBox())!
++      expect(sw.width).toBeGreaterThanOrEqual(150)
++      expect(sw.x + sw.width).toBeLessThanOrEqual(size.width)
++      for (const name of ['New board', 'Rename', 'Delete board']) {
++        const box = (await page.getByRole('button', { name, exact: true }).boundingBox())!
++        expect(box.x + box.width).toBeLessThanOrEqual(size.width)
++      }
++    })
++  })
++}
+diff --git a/e2e/kanban.spec.ts b/e2e/kanban.spec.ts
+index c965dcc..632b177 100644
+--- a/e2e/kanban.spec.ts
++++ b/e2e/kanban.spec.ts
+@@ -12,7 +12,9 @@ const ymd = (offsetDays: number) => {
+ }
+ 
+ const col = (page: Page, id: 'todo' | 'doing' | 'done') => page.getByTestId(`column-${id}`)
+-const cardIn = (c: Locator, title: string) => c.getByTestId('card').filter({ hasText: title })
++// Match by exact title (hasText is a case-insensitive substring match and also sees button labels).
++const cardIn = (c: Locator, title: string) =>
++  c.getByTestId('card').filter({ has: c.page().getByTestId('card-title').getByText(title, { exact: true }) })
+ 
+ async function addCard(
+   page: Page,
+@@ -170,7 +172,7 @@ for (const size of sizes) {
+       await expect(col(page, 'doing').getByTestId('card').first()).toContainText('K1')
+       // edge buttons: To do column has no left button
+       await addCard(page, 'todo', { title: 'K3' })
+-      await expect(page.getByRole('button', { name: /Move "K3" to (?!In progress)/ })).toHaveCount(0)
++      await expect(page.getByRole('button', { name: /Move "K3" to (?!In progress|another board)/ })).toHaveCount(0)
+     })
+ 
+     test('mouse drag: between columns and reorder within a column', async ({ page }) => {
+diff --git a/src/App.tsx b/src/App.tsx
+index e1935eb..385e0d6 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -4,17 +4,28 @@ import {
+   type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
+ } from '@dnd-kit/core'
+ import {
+-  COLUMN_IDS, COLUMN_TITLES, PRIORITIES, PRIORITY_LABELS, addCard, deleteCard, dropCard, filtersActive, findColumn, loadBoard,
+-  moveCardBy, reorderCardBy, saveBoard, updateCard, visibleIds, type Board, type CardInput, type ColumnId, type Filters, type Priority,
++  COLUMN_IDS, COLUMN_TITLES, PRIORITIES, PRIORITY_LABELS, addCard, deleteCard, dropCard, filtersActive, findColumn,
++  moveCardBy, reorderCardBy, updateCard, visibleIds, type Board, type CardInput, type ColumnId, type Filters, type Priority,
+ } from './board'
++import {
++  activeBoard, boardList, canDeleteBoard, createBoard, deleteBoard, loadWorkspace, moveCardToBoard, renameBoard,
++  saveWorkspace, setActiveBoard, totalCards as countCards, updateActiveBoard, type Workspace,
++} from './workspace'
+ import { CardForm, CardView, Column, Modal, type CardActions } from './components'
++import { BoardNameForm, MoveToBoardForm } from './boardForms'
+ 
+ type Dialog =
+   | { kind: 'add'; column: ColumnId }
+   | { kind: 'edit'; id: string }
+   | { kind: 'delete'; id: string }
++  | { kind: 'moveToBoard'; id: string }
++  | { kind: 'newBoard' }
++  | { kind: 'renameBoard' }
++  | { kind: 'deleteBoard' }
+   | null
+ 
++const NO_FILTERS: Filters = { query: '', priority: 'all' }
++
+ // Prefer the column/card under the pointer; fall back to nearest corners (e.g. when released in a gap).
+ const collision: CollisionDetection = (args) => {
+   const hits = pointerWithin(args)
+@@ -25,15 +36,20 @@ const collision: CollisionDetection = (args) => {
+ }
+ 
+ export default function App() {
+-  const [board, setBoard] = useState<Board>(() => loadBoard())
+-  const [filters, setFilters] = useState<Filters>({ query: '', priority: 'all' })
++  const [ws, setWs] = useState<Workspace>(() => loadWorkspace())
++  const board = activeBoard(ws)
++  const boards = boardList(ws)
++  const current = ws.boards[ws.activeId]
++  // Every board edit below goes through the active board.
++  const setBoard = useCallback((fn: (b: Board) => Board) => setWs((w) => updateActiveBoard(w, fn)), [])
++  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+   const [dialog, setDialog] = useState<Dialog>(null)
+   const [dragId, setDragId] = useState<string | null>(null)
+   const [overColumn, setOverColumn] = useState<ColumnId | null>(null)
+   const [announce, setAnnounce] = useState('')
+   const focusId = useRef<string | null>(null)
+ 
+-  useEffect(() => { saveBoard(board) }, [board])
++  useEffect(() => { saveWorkspace(ws) }, [ws])
+ 
+   // Keep keyboard focus on a card after it moves (it is re-mounted in its new column).
+   useEffect(() => {
+@@ -77,7 +93,9 @@ export default function App() {
+       }
+       return next
+     }),
+-  }), [])
++    onMoveToBoard: (id) => setDialog({ kind: 'moveToBoard', id }),
++    canMoveToBoard: boards.length > 1,
++  }), [setBoard, boards.length])
+ 
+   const onDragStart = (e: DragStartEvent) => setDragId(String(e.active.id))
+   const columnOf = useCallback((overId: string | number | undefined): ColumnId | null => {
+@@ -109,6 +127,34 @@ export default function App() {
+     setDialog(null)
+   }
+ 
++  const switchBoard = (id: string) => {
++    setWs((w) => setActiveBoard(w, id))
++    setFilters(NO_FILTERS)
++    setAnnounce(`Switched to ${ws.boards[id]?.name ?? 'board'}`)
++  }
++  const submitNewBoard = (name: string) => {
++    setWs((w) => createBoard(w, name))
++    setFilters(NO_FILTERS)
++    setDialog(null)
++  }
++  const submitRename = (name: string) => {
++    setWs((w) => renameBoard(w, w.activeId, name))
++    setDialog(null)
++  }
++  const confirmDeleteBoard = () => {
++    setWs((w) => deleteBoard(w, w.activeId))
++    setFilters(NO_FILTERS)
++    setDialog(null)
++  }
++  const submitMoveToBoard = (toId: string, column: ColumnId) => {
++    if (dialog?.kind !== 'moveToBoard') return
++    const cardId = dialog.id
++    setAnnounce(`Moved ${board.cards[cardId]?.title ?? 'card'} to ${ws.boards[toId].name}`)
++    setWs((w) => moveCardToBoard(w, w.activeId, cardId, toId, column))
++    setDialog(null)
++  }
++
++  const movingCard = dialog?.kind === 'moveToBoard' ? board.cards[dialog.id] : undefined
+   const editing = dialog?.kind === 'edit' ? board.cards[dialog.id] : undefined
+   const deleting = dialog?.kind === 'delete' ? board.cards[dialog.id] : undefined
+   const dragCard = dragId ? board.cards[dragId] : undefined
+@@ -156,6 +202,37 @@ export default function App() {
+         </div>
+       </header>
+ 
++      <nav aria-label="Boards" className="border-b border-slate-200 bg-white">
++        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pb-3">
++          <label className="flex w-full min-w-0 items-center gap-2 text-sm font-medium text-slate-700 sm:w-auto">
++            Board
++            <select
++              aria-label="Switch board"
++              value={ws.activeId}
++              onChange={(e) => switchBoard(e.target.value)}
++              className="min-h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-semibold sm:w-64 sm:flex-none sm:text-sm"
++            >
++              {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
++            </select>
++          </label>
++          <button type="button" onClick={() => setDialog({ kind: 'newBoard' })} className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100">
++            New board
++          </button>
++          <button type="button" onClick={() => setDialog({ kind: 'renameBoard' })} className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100">
++            Rename
++          </button>
++          <button
++            type="button"
++            disabled={!canDeleteBoard(ws)}
++            title={canDeleteBoard(ws) ? undefined : 'You can’t delete your only board'}
++            onClick={() => setDialog({ kind: 'deleteBoard' })}
++            className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-white"
++          >
++            Delete board
++          </button>
++        </div>
++      </nav>
++
+       <main className="mx-auto max-w-6xl px-4 py-5">
+         <p className="mb-3 text-xs text-slate-500">
+           Drag cards to move or reorder them. Keyboard: focus a card and press Alt+←/→ to change column, Alt+↑/↓ to reorder, or use the buttons on the card.
+@@ -207,6 +284,41 @@ export default function App() {
+           <CardForm initial={editing} submitLabel={dialog.kind === 'add' ? 'Add card' : 'Save'} onSubmit={submit} onCancel={() => setDialog(null)} />
+         </Modal>
+       )}
++      {dialog?.kind === 'newBoard' && (
++        <Modal title="New board" onClose={() => setDialog(null)}>
++          <BoardNameForm initial="" requireName={false} submitLabel="Create board" onSubmit={submitNewBoard} onCancel={() => setDialog(null)} />
++        </Modal>
++      )}
++      {dialog?.kind === 'renameBoard' && (
++        <Modal title="Rename board" onClose={() => setDialog(null)}>
++          <BoardNameForm initial={current.name} requireName submitLabel="Save" onSubmit={submitRename} onCancel={() => setDialog(null)} />
++        </Modal>
++      )}
++      {dialog?.kind === 'deleteBoard' && canDeleteBoard(ws) && (
++        <Modal title="Delete this board?" onClose={() => setDialog(null)}>
++          <p className="mb-4 text-sm text-slate-700">
++            “{current.name}” and {countCards(board) === 1 ? 'its 1 card' : `its ${countCards(board)} cards`} will be permanently deleted. This can’t be undone.
++          </p>
++          <div className="flex justify-end gap-2">
++            <button type="button" onClick={() => setDialog(null)} className="min-h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100">
++              Cancel
++            </button>
++            <button type="button" onClick={confirmDeleteBoard} className="min-h-10 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
++              Delete board
++            </button>
++          </div>
++        </Modal>
++      )}
++      {movingCard && dialog?.kind === 'moveToBoard' && (
++        <Modal title={`Move “${movingCard.title}” to another board`} onClose={() => setDialog(null)}>
++          <MoveToBoardForm
++            boards={boards.filter((b) => b.id !== ws.activeId)}
++            defaultColumn={findColumn(board, dialog.id) ?? 'todo'}
++            onSubmit={submitMoveToBoard}
++            onCancel={() => setDialog(null)}
++          />
++        </Modal>
++      )}
+       {deleting && (
+         <Modal title="Delete this card?" onClose={() => setDialog(null)}>
+           <p className="mb-4 text-sm text-slate-700">
+diff --git a/src/boardForms.tsx b/src/boardForms.tsx
+new file mode 100644
+index 0000000..a35670c
+--- /dev/null
++++ b/src/boardForms.tsx
+@@ -0,0 +1,84 @@
++import { useState } from 'react'
++import { COLUMN_IDS, COLUMN_TITLES, type ColumnId } from './board'
++import { field } from './components'
++
++const cancelBtn =
++  'min-h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100'
++const primaryBtn = 'min-h-10 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700'
++
++/** Name dialog for creating (blank falls back to "Board N") and renaming (blank is an error). */
++export function BoardNameForm({ initial, requireName, submitLabel, onSubmit, onCancel }: {
++  initial: string
++  requireName: boolean
++  submitLabel: string
++  onSubmit: (name: string) => void
++  onCancel: () => void
++}) {
++  const [name, setName] = useState(initial)
++  const [touched, setTouched] = useState(false)
++  const error = touched && requireName && name.trim() === ''
++  return (
++    <form
++      noValidate
++      onSubmit={(e) => {
++        e.preventDefault()
++        setTouched(true)
++        if (!(requireName && name.trim() === '')) onSubmit(name)
++      }}
++      className="space-y-3"
++    >
++      <label className="block text-sm font-medium text-slate-700">
++        Board name
++        <input
++          className={field}
++          value={name}
++          maxLength={60}
++          placeholder={requireName ? undefined : 'e.g. Work, Home, Side project'}
++          onChange={(e) => setName(e.target.value)}
++          aria-invalid={error}
++        />
++        {error && <span role="alert" className="mt-1 block text-sm text-red-700">Name is required.</span>}
++      </label>
++      <div className="flex justify-end gap-2 pt-2">
++        <button type="button" onClick={onCancel} className={cancelBtn}>Cancel</button>
++        <button type="submit" className={primaryBtn}>{submitLabel}</button>
++      </div>
++    </form>
++  )
++}
++
++export function MoveToBoardForm({ boards, defaultColumn, onSubmit, onCancel }: {
++  boards: { id: string; name: string }[]
++  defaultColumn: ColumnId
++  onSubmit: (boardId: string, column: ColumnId) => void
++  onCancel: () => void
++}) {
++  const [boardId, setBoardId] = useState(boards[0]?.id ?? '')
++  const [column, setColumn] = useState<ColumnId>(defaultColumn)
++  return (
++    <form
++      onSubmit={(e) => {
++        e.preventDefault()
++        if (boardId) onSubmit(boardId, column)
++      }}
++      className="space-y-3"
++    >
++      <label className="block text-sm font-medium text-slate-700">
++        Destination board
++        <select className={field} value={boardId} onChange={(e) => setBoardId(e.target.value)}>
++          {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
++        </select>
++      </label>
++      <label className="block text-sm font-medium text-slate-700">
++        Column
++        <select className={field} value={column} onChange={(e) => setColumn(e.target.value as ColumnId)}>
++          {COLUMN_IDS.map((c) => <option key={c} value={c}>{COLUMN_TITLES[c]}</option>)}
++        </select>
++      </label>
++      <div className="flex justify-end gap-2 pt-2">
++        <button type="button" onClick={onCancel} className={cancelBtn}>Cancel</button>
++        <button type="submit" className={primaryBtn}>Move card</button>
++      </div>
++    </form>
++  )
++}
+diff --git a/src/components.tsx b/src/components.tsx
+index ea35a8f..8c211fd 100644
+--- a/src/components.tsx
++++ b/src/components.tsx
+@@ -18,6 +18,8 @@ export interface CardActions {
+   onDelete: (id: string) => void
+   onMove: (id: string, delta: -1 | 1) => void
+   onReorder: (id: string, delta: -1 | 1) => void
++  onMoveToBoard: (id: string) => void
++  canMoveToBoard: boolean
+ }
+ 
+ export function PriorityLabel({ priority }: { priority: Priority }) {
+@@ -81,6 +83,16 @@ export function CardView({ card, column, actions, overlay }: CardViewProps) {
+               {COLUMN_TITLES[right]} →
+             </button>
+           )}
++          <button
++            type="button"
++            className={btn}
++            disabled={!actions.canMoveToBoard}
++            title={actions.canMoveToBoard ? undefined : 'Create another board to move cards to it'}
++            onClick={() => actions.onMoveToBoard(card.id)}
++            aria-label={`Move "${card.title}" to another board`}
++          >
++            Move to board…
++          </button>
+           <button type="button" className={btn} onClick={() => actions.onEdit(card.id)} aria-label={`Edit "${card.title}"`}>
+             Edit
+           </button>
+@@ -242,7 +254,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
+   )
+ }
+ 
+-const field =
++export const field =
+   'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-2 focus-visible:outline-indigo-600 sm:text-sm'
+ 
+ export function CardForm({ initial, submitLabel, onSubmit, onCancel }: {
+diff --git a/src/workspace.test.ts b/src/workspace.test.ts
+new file mode 100644
+index 0000000..1a12e96
+--- /dev/null
++++ b/src/workspace.test.ts
+@@ -0,0 +1,174 @@
++import { describe, expect, it } from 'vitest'
++import { STORAGE_KEY, addCard, emptyBoard, moveCard, type Board } from './board'
++import {
++  DEFAULT_BOARD_NAME, WORKSPACE_KEY, activeBoard, boardList, canDeleteBoard, createBoard, deleteBoard, loadWorkspace,
++  moveCardToBoard, parseWorkspace, renameBoard, saveWorkspace, setActiveBoard, totalCards, updateActiveBoard,
++  workspaceFrom,
++} from './workspace'
++
++const mem = (init: Record<string, string> = {}) => {
++  const m = new Map(Object.entries(init))
++  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m }
++}
++const withCards = (): Board => {
++  let b = addCard(emptyBoard(), { title: 'One', description: 'd', dueDate: '2026-01-01', priority: 'high' }, 'todo', 'c1')
++  b = addCard(b, { title: 'Two', priority: 'low' }, 'doing', 'c2')
++  return b
++}
++const names = (ws: ReturnType<typeof workspaceFrom>) => boardList(ws).map((b) => b.name)
++
++describe('create / rename', () => {
++  it('creates an empty board, appends it and makes it active', () => {
++    const ws = createBoard(workspaceFrom(withCards(), 'A', 'a'), '  Work   stuff ', 'b')
++    expect(names(ws)).toEqual(['A', 'Work stuff'])
++    expect(ws.activeId).toBe('b')
++    expect(activeBoard(ws)).toEqual(emptyBoard())
++    expect(totalCards(ws.boards.a.board)).toBe(2) // untouched
++  })
++  it('gives blank names a unique default', () => {
++    let ws = workspaceFrom(emptyBoard(), 'Board 2', 'a')
++    ws = createBoard(ws, '   ', 'b')
++    expect(names(ws)).toEqual(['Board 2', 'Board 3'])
++  })
++  it('renames, trims, and rejects blank names', () => {
++    const ws = workspaceFrom(emptyBoard(), 'A', 'a')
++    expect(renameBoard(ws, 'a', ' New ').boards.a.name).toBe('New')
++    expect(renameBoard(ws, 'a', '   ')).toBe(ws)
++    expect(renameBoard(ws, 'zzz', 'x')).toBe(ws)
++    expect(renameBoard(ws, 'a', 'A')).toBe(ws)
++  })
++  it('caps very long names', () => {
++    expect(renameBoard(workspaceFrom(emptyBoard(), 'A', 'a'), 'a', 'x'.repeat(500)).boards.a.name).toHaveLength(60)
++  })
++})
++
++describe('delete', () => {
++  const three = () => createBoard(createBoard(workspaceFrom(emptyBoard(), 'A', 'a'), 'B', 'b'), 'C', 'c')
++  it('never deletes the last board', () => {
++    const ws = workspaceFrom(withCards(), 'A', 'a')
++    expect(canDeleteBoard(ws)).toBe(false)
++    expect(deleteBoard(ws, 'a')).toBe(ws)
++  })
++  it('deleting an inactive board keeps the active one', () => {
++    const ws = deleteBoard(three(), 'a') // active is c
++    expect(ws.order).toEqual(['b', 'c'])
++    expect(ws.activeId).toBe('c')
++    expect(ws.boards.a).toBeUndefined()
++  })
++  it('deleting the active board activates the previous, or the next if first', () => {
++    expect(deleteBoard(setActiveBoard(three(), 'b'), 'b').activeId).toBe('a')
++    expect(deleteBoard(setActiveBoard(three(), 'a'), 'a').activeId).toBe('b')
++    expect(deleteBoard(three(), 'c').activeId).toBe('b')
++  })
++  it('unknown id is a no-op', () => {
++    const ws = three()
++    expect(deleteBoard(ws, 'nope')).toBe(ws)
++  })
++})
++
++describe('active board', () => {
++  it('switches only to existing boards', () => {
++    const ws = createBoard(workspaceFrom(emptyBoard(), 'A', 'a'), 'B', 'b')
++    expect(setActiveBoard(ws, 'a').activeId).toBe('a')
++    expect(setActiveBoard(ws, 'x')).toBe(ws)
++    expect(setActiveBoard(ws, 'b')).toBe(ws)
++  })
++  it('edits touch only the active board', () => {
++    let ws = createBoard(workspaceFrom(withCards(), 'A', 'a'), 'B', 'b')
++    ws = updateActiveBoard(ws, (b) => addCard(b, { title: 'In B', priority: 'low' }, 'todo', 'x'))
++    expect(totalCards(ws.boards.b.board)).toBe(1)
++    expect(totalCards(ws.boards.a.board)).toBe(2)
++    expect(updateActiveBoard(ws, (b) => b)).toBe(ws)
++  })
++})
++
++describe('moveCardToBoard', () => {
++  const two = () => createBoard(workspaceFrom(withCards(), 'A', 'a'), 'B', 'b')
++  it('moves the card with all its fields, appended to the chosen column', () => {
++    let ws = two()
++    ws = updateActiveBoard(ws, (b) => addCard(b, { title: 'Existing', priority: 'low' }, 'doing', 'e'))
++    const next = moveCardToBoard(ws, 'a', 'c1', 'b', 'doing')
++    expect(next.boards.a.board.cards.c1).toBeUndefined()
++    expect(next.boards.a.board.columns.todo).toEqual([])
++    expect(next.boards.b.board.columns.doing).toEqual(['e', 'c1'])
++    expect(next.boards.b.board.cards.c1).toEqual({ id: 'c1', title: 'One', description: 'd', dueDate: '2026-01-01', priority: 'high' })
++  })
++  it('defaults to To do and conserves the total number of cards', () => {
++    const ws = two()
++    const next = moveCardToBoard(ws, 'a', 'c2', 'b')
++    expect(next.boards.b.board.columns.todo).toEqual(['c2'])
++    expect(totalCards(next.boards.a.board) + totalCards(next.boards.b.board)).toBe(2)
++  })
++  it('does not change the active board', () => {
++    const ws = two()
++    expect(moveCardToBoard(ws, 'a', 'c1', 'b').activeId).toBe(ws.activeId)
++  })
++  it('gives the card a new id when the destination already has that id', () => {
++    let ws = two()
++    ws = updateActiveBoard(ws, (b) => addCard(b, { title: 'Clash', priority: 'low' }, 'todo', 'c1'))
++    const next = moveCardToBoard(ws, 'a', 'c1', 'b')
++    expect(next.boards.b.board.columns.todo).toHaveLength(2)
++    expect(new Set(next.boards.b.board.columns.todo).size).toBe(2)
++    expect(next.boards.b.board.cards.c1.title).toBe('Clash')
++    expect(Object.values(next.boards.b.board.cards).map((c) => c.title).sort()).toEqual(['Clash', 'One'])
++  })
++  it('ignores same board, unknown board, unknown card', () => {
++    const ws = two()
++    expect(moveCardToBoard(ws, 'a', 'c1', 'a')).toBe(ws)
++    expect(moveCardToBoard(ws, 'a', 'c1', 'zzz')).toBe(ws)
++    expect(moveCardToBoard(ws, 'a', 'nope', 'b')).toBe(ws)
++  })
++  it('a moved card can still be moved between columns afterwards', () => {
++    const next = moveCardToBoard(two(), 'a', 'c1', 'b')
++    const b = moveCard(next.boards.b.board, 'c1', 'done')
++    expect(b.columns.done).toEqual(['c1'])
++  })
++})
++
++describe('persistence and migration', () => {
++  it('round-trips the workspace', () => {
++    const s = mem()
++    const ws = setActiveBoard(createBoard(workspaceFrom(withCards(), 'A', 'a'), 'B', 'b'), 'a')
++    expect(saveWorkspace(ws, s)).toBe(true)
++    expect(loadWorkspace(s)).toEqual(ws)
++  })
++  it('migrates the legacy single board into the first board without losing cards', () => {
++    const legacy = withCards()
++    const s = mem({ [STORAGE_KEY]: JSON.stringify(legacy) })
++    const ws = loadWorkspace(s)
++    expect(ws.order).toHaveLength(1)
++    expect(boardList(ws)[0].name).toBe(DEFAULT_BOARD_NAME)
++    expect(activeBoard(ws)).toEqual(legacy)
++    expect(s.m.get(STORAGE_KEY)).toBe(JSON.stringify(legacy)) // backup left in place
++  })
++  it('prefers a saved workspace over the legacy board', () => {
++    const ws = workspaceFrom(addCard(emptyBoard(), { title: 'New', priority: 'low' }, 'todo', 'n'), 'Saved', 's')
++    const s = mem({ [STORAGE_KEY]: JSON.stringify(withCards()), [WORKSPACE_KEY]: JSON.stringify(ws) })
++    expect(loadWorkspace(s)).toEqual(ws)
++  })
++  it('starts with one empty board when nothing or garbage is saved', () => {
++    for (const s of [mem(), mem({ [WORKSPACE_KEY]: '{bad', [STORAGE_KEY]: 'also bad' })]) {
++      const ws = loadWorkspace(s)
++      expect(ws.order).toHaveLength(1)
++      expect(activeBoard(ws)).toEqual(emptyBoard())
++    }
++  })
++  it('repairs a damaged workspace: bad ids, names, active id, duplicate ids', () => {
++    const ws = parseWorkspace({
++      boards: { a: { name: '', board: withCards() }, b: { name: 'B', board: 'junk' } },
++      order: ['a', 'ghost', 'a', 7, 'b'],
++      activeId: 'gone',
++    })!
++    expect(ws.order).toEqual(['a', 'b'])
++    expect(ws.activeId).toBe('a')
++    expect(ws.boards.a.name).toBe(DEFAULT_BOARD_NAME)
++    expect(ws.boards.b.board).toEqual(emptyBoard())
++    expect(parseWorkspace({ boards: {}, order: [] })).toBeNull()
++    expect(parseWorkspace(null)).toBeNull()
++  })
++  it('survives throwing storage', () => {
++    const bad = { getItem: () => { throw new Error('x') }, setItem: () => { throw new Error('x') } }
++    expect(loadWorkspace(bad).order).toHaveLength(1)
++    expect(saveWorkspace(workspaceFrom(), bad)).toBe(false)
++  })
++})
+diff --git a/src/workspace.ts b/src/workspace.ts
+new file mode 100644
+index 0000000..1da371f
+--- /dev/null
++++ b/src/workspace.ts
+@@ -0,0 +1,157 @@
++import {
++  COLUMN_IDS, STORAGE_KEY as LEGACY_STORAGE_KEY, addCard, deleteCard, emptyBoard, findColumn, newId, parseBoard,
++  type Board, type ColumnId,
++} from './board'
++
++export interface NamedBoard {
++  id: string
++  name: string
++  board: Board
++}
++
++export interface Workspace {
++  boards: Record<string, NamedBoard>
++  order: string[] // display order of board ids
++  activeId: string
++}
++
++export const WORKSPACE_KEY = 'kanban.workspace.v1'
++export const DEFAULT_BOARD_NAME = 'My board'
++export const MAX_NAME = 60
++
++const cleanName = (name: string) => name.trim().replace(/\s+/g, ' ').slice(0, MAX_NAME)
++
++export function workspaceFrom(board: Board = emptyBoard(), name = DEFAULT_BOARD_NAME, id = newId()): Workspace {
++  return { boards: { [id]: { id, name, board } }, order: [id], activeId: id }
++}
++
++export const activeBoard = (ws: Workspace): Board => ws.boards[ws.activeId].board
++export const boardList = (ws: Workspace): NamedBoard[] => ws.order.map((id) => ws.boards[id])
++
++/** Returns a unique default like "Board 2" when no name is given. */
++function defaultName(ws: Workspace): string {
++  const taken = new Set(boardList(ws).map((b) => b.name.toLowerCase()))
++  for (let n = ws.order.length + 1; ; n++) if (!taken.has(`board ${n}`)) return `Board ${n}`
++}
++
++/** Create an empty board and make it active. A blank name falls back to "Board N". */
++export function createBoard(ws: Workspace, name: string, id = newId()): Workspace {
++  const finalName = cleanName(name) || defaultName(ws)
++  return {
++    boards: { ...ws.boards, [id]: { id, name: finalName, board: emptyBoard() } },
++    order: [...ws.order, id],
++    activeId: id,
++  }
++}
++
++/** Blank names are rejected (returns the same workspace). */
++export function renameBoard(ws: Workspace, id: string, name: string): Workspace {
++  const n = cleanName(name)
++  if (!n || !ws.boards[id] || ws.boards[id].name === n) return ws
++  return { ...ws, boards: { ...ws.boards, [id]: { ...ws.boards[id], name: n } } }
++}
++
++export const canDeleteBoard = (ws: Workspace) => ws.order.length > 1
++
++/** Never deletes the last board. If the active board goes, the neighbour (previous, else next) becomes active. */
++export function deleteBoard(ws: Workspace, id: string): Workspace {
++  if (!ws.boards[id] || !canDeleteBoard(ws)) return ws
++  const i = ws.order.indexOf(id)
++  const order = ws.order.filter((b) => b !== id)
++  const { [id]: _gone, ...boards } = ws.boards
++  const activeId = ws.activeId === id ? order[Math.max(0, i - 1)] : ws.activeId
++  return { boards, order, activeId }
++}
++
++export function setActiveBoard(ws: Workspace, id: string): Workspace {
++  return ws.boards[id] && ws.activeId !== id ? { ...ws, activeId: id } : ws
++}
++
++/** Apply a board transformation to the active board only. */
++export function updateActiveBoard(ws: Workspace, fn: (b: Board) => Board): Workspace {
++  const cur = ws.boards[ws.activeId]
++  const next = fn(cur.board)
++  return next === cur.board ? ws : { ...ws, boards: { ...ws.boards, [cur.id]: { ...cur, board: next } } }
++}
++
++/** Move a card from one board into a column of another (appended at the end). The card keeps its data. */
++export function moveCardToBoard(
++  ws: Workspace, fromId: string, cardId: string, toId: string, column: ColumnId = 'todo',
++): Workspace {
++  const from = ws.boards[fromId]
++  const to = ws.boards[toId]
++  const card = from?.board.cards[cardId]
++  if (!from || !to || !card || fromId === toId || findColumn(from.board, cardId) === undefined) return ws
++  const id = to.board.cards[cardId] ? newId() : cardId // avoid an id clash in the destination
++  const dest = addCard(to.board, card, column, id)
++  return {
++    ...ws,
++    boards: {
++      ...ws.boards,
++      [fromId]: { ...from, board: deleteCard(from.board, cardId) },
++      [toId]: { ...to, board: dest },
++    },
++  }
++}
++
++// ---- persistence ----
++
++/** Validate unknown data; returns null when nothing usable (caller falls back / migrates). */
++export function parseWorkspace(raw: unknown): Workspace | null {
++  if (!raw || typeof raw !== 'object') return null
++  const r = raw as { boards?: unknown; order?: unknown; activeId?: unknown }
++  if (!r.boards || typeof r.boards !== 'object' || !Array.isArray(r.order)) return null
++  const src = r.boards as Record<string, { name?: unknown; board?: unknown }>
++  const boards: Record<string, NamedBoard> = {}
++  const order: string[] = []
++  for (const id of r.order) {
++    if (typeof id !== 'string' || boards[id] || !src[id]) continue
++    const name = typeof src[id].name === 'string' ? cleanName(src[id].name as string) : ''
++    boards[id] = { id, name: name || DEFAULT_BOARD_NAME, board: parseBoard(src[id].board) }
++    order.push(id)
++  }
++  if (!order.length) return null
++  const activeId = typeof r.activeId === 'string' && boards[r.activeId] ? r.activeId : order[0]
++  return { boards, order, activeId }
++}
++
++type StorageLike = Pick<Storage, 'getItem' | 'setItem'>
++
++function safeStorage(): Storage | undefined {
++  try {
++    return globalThis.localStorage
++  } catch {
++    return undefined
++  }
++}
++
++function readJson(storage: StorageLike | undefined, key: string): unknown {
++  try {
++    const t = storage?.getItem(key)
++    return t ? JSON.parse(t) : null
++  } catch {
++    return null
++  }
++}
++
++/**
++ * Load the workspace. If none is saved yet, the legacy single board (`kanban.board.v1`) becomes the first board,
++ * with all its cards. The legacy entry is left in place as a backup.
++ */
++export function loadWorkspace(storage: StorageLike | undefined = safeStorage()): Workspace {
++  const ws = parseWorkspace(readJson(storage, WORKSPACE_KEY))
++  if (ws) return ws
++  const legacy = readJson(storage, LEGACY_STORAGE_KEY)
++  return workspaceFrom(legacy ? parseBoard(legacy) : emptyBoard())
++}
++
++export function saveWorkspace(ws: Workspace, storage: StorageLike | undefined = safeStorage()): boolean {
++  try {
++    storage?.setItem(WORKSPACE_KEY, JSON.stringify(ws))
++    return !!storage
++  } catch {
++    return false
++  }
++}
++
++export const totalCards = (b: Board) => COLUMN_IDS.reduce((n, c) => n + b.columns[c].length, 0)

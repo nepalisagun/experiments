@@ -1,0 +1,213 @@
+{
+  "q1A": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      "Trivial wording: 'Heartbeat ingest Worker | Cloudflare Worker reached through Hyperdrive'. The Worker reaches the database through Hyperdrive; it is reached through its own route/custom domain (ingest/wrangler.toml:10-12, docs/deploying.md:67).",
+      "Trivial: counts the Netlify-hosted Next.js app among 'four processes you host yourself'; deploying.md:13 puts it on Netlify by default."
+    ],
+    "missed": [
+      "Self re-check after 20 s also happens when every peer declined with 409 (can't open the monitor's headers), not only when no other location is live (probe/runtime.ts:565-576,587).",
+      "Builder monitors ask a probe on the other continent first; same-location probes never confirm (probe/schedule.ts:72-80).",
+      "alert_expand applies alert routing (alert_route_matches) and suppressions before writing receipts (20261023120000_alert_channels.sql:185-188)."
+    ]
+  },
+  "q1B": {
+    "correctness": 10,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [],
+    "missed": [
+      "Network canary: a failing check from a probe that can't reach its canaries is dropped before any confirmation or report (probe/runtime.ts:496-499).",
+      "Retry/backoff behaviour of the sender (MAX_ATTEMPTS = 8, backoff table) and FRESH_CLAIM_MS (src/lib/alerts/sender.ts:47-53).",
+      "Builder other-continent preference for confirmers (probe/schedule.ts:72-80).",
+      "Line references are approximate (~L540, ~L295-410), less directly actionable than exact ones; the table formatting was lost."
+    ]
+  },
+  "q1C": {
+    "correctness": 7,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "Says runSender 'claims deliveries under a lease with alert_claim (alert_channels.sql:203)'. The sender Worker passes deps.channels (sender/worker.ts:31), so runSender calls alert_claim_channels for every kind, email included (src/lib/alerts/sender.ts:392). alert_claim is the legacy email/Telegram-only claim (alert_channels.sql:1-2,219) used only by the app's deliverNow, whose senderDeps has no channels (src/lib/alerts/standalone.ts:32-42).",
+      "Reverses the claim split: 'Telegram, Slack and webhook alerts take the same route ... with their own claim and prepare functions (alert_claim_channels, ...)'. alert_claim_channels is the Worker's single claim for all kinds; only alert_prepare_webhook is webhook-specific (alert_channels.sql:343-349).",
+      "Step 4 says the observing probe's store writes the transition and incident. Only the monitor's home probe writes: a non-home probe puts the outcome in its outbox and sends it once a second over signed POST /report (probe/runtime.ts:605-638); the home's Store.apply locks the row and steps the reducer (probe/store.ts:303-415). The hand-off step is missing, so the flow as described is wrong for most monitors.",
+      "Trivial citation: deploying.md:14 does not say 'most of the logic lives here as SQL functions and triggers'."
+    ],
+    "missed": [
+      "Home-probe hand-off (outbox, POST /report, rendezvous ranking) entirely absent.",
+      "Network canary dropping failures (probe/runtime.ts:499).",
+      "probe_lock_monitor and version/ordering fences in Store.apply (probe/store.ts:309-330).",
+      "Sender retries/backoff and MAX_ATTEMPTS (src/lib/alerts/sender.ts:47-53).",
+      "Recovery path: two passes close the incident and the trigger queues 'resolved' (only mentioned as a line range in step 5)."
+    ]
+  },
+  "q2A": {
+    "correctness": 7,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "Says a website monitor's incident closes when 'the monitor is edited and the new settings pass a check: \"Monitor edited and verified, incident closed\" (service_monitors.sql ~L66, added in 20261022081211_monitor_edit_closes_incident.sql)'. That text and behaviour belong to save_service_monitor (Stripe/Supabase only, 20261023100000_service_monitors.sql:62-67). For HTTP monitors, update_monitor closes the incident only when the target address changes, with 'Address changed, incident closed', and with no verification check (20261022081211_monitor_edit_closes_incident.sql:103-107). Migration 081211 never contains the quoted text."
+    ],
+    "missed": [
+      "Network canary drop of failures from an isolated probe (probe/runtime.ts:499).",
+      "Confirmers exclude probes at the same location and, for Builder, prefer the other continent (probe/schedule.ts:72-80).",
+      "Conditions on the 'resolved' alert: only if an 'opened' alert exists and the monitor is up (or degraded after a down incident) (20261022195510_alerts_email.sql:224-231); an address change therefore sends no recovery.",
+      "Pausing doesn't resolve; no manual resolve exists.",
+      "A monitor that has never passed (state null) also goes straight to down on a confirmed failure."
+    ]
+  },
+  "q2B": {
+    "correctness": 10,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [],
+    "missed": [
+      "A version change (monitor edit) resets the reducer counters in SQL (probe/state.ts:19-20).",
+      "Recorded failures (check_failures) are written even for blips and unconfirmed failures, capped at 20 rows (service_monitors.sql:184-189); minor."
+    ]
+  },
+  "q2C": {
+    "correctness": 7,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      "Says that after a self re-check 'the timeline just says \"Incident opened\" instead of \"Confirmed from X\" (probe/store.ts:387-391)'. The self re-check returns a result located at this probe (probe/runtime.ts:503,572-575), evidenceOf includes the confirm location whenever confirm failed (probe/state.ts:84), so the timeline reads 'Confirmed from <same city>, incident opened'. 'Incident opened' appears only when there is no confirm at all (DNS, invalid cert).",
+      "Says editing the monitor closes its incident with 'Monitor edited and verified, incident closed' (citing 20261022081211_monitor_edit_closes_incident.sql:105). Line 105-106 is 'Address changed, incident closed', and it runs only when the target changes (:103). The 'verified' text is the Stripe/Supabase save_service_monitor path (service_monitors.sql:66)."
+    ],
+    "missed": [
+      "Never states the 30-second confirmation budget value (only names CONFIRM_WITHIN_MS).",
+      "Network canary drop (probe/runtime.ts:499).",
+      "Same-location exclusion and Builder other-continent preference for confirmers (probe/schedule.ts:72-80).",
+      "No manual resolve path exists."
+    ]
+  },
+  "q3A": {
+    "correctness": 8,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      "Says there is 'a fixed 120-per-minute check on each token or OAuth user at sign-in (L103, L115)'. The API-token admission budget is keyed on the workspace, agentHash('admission-token', data.workspace_id) (src/lib/agent-auth.ts:103), not per token; only the OAuth one is per user (:115).",
+      "Says the monitor and per-host numbers are passed 'when a domain is added (actions.ts ~L984)'. Line 984 is the verify_page_domain call made at verification, after the CNAME matches (src/app/(app)/app/actions.ts:975-985).",
+      "Says 20261023100000_service_monitors.sql 'holds the current monitor_limit and host_limit count queries'. That's true only for Stripe/Supabase (save_service_monitor). The current create_monitor checks are in 20261022040000_heartbeat_url_sealed.sql:82-113, and update_monitor's in 20261022081211_monitor_edit_closes_incident.sql:66-84."
+    ],
+    "missed": [
+      "Downgrade gap: existing items over the new caps and 1-minute intervals are kept (apps_limit_and_logo.sql:63-65, src/lib/workspace-plan.ts:19).",
+      "Plan-independent SQL rules: DNS >= 600 s, SSL = 21600 s, Supabase 60/180 s, Stripe 300/600 s (heartbeat_url_sealed.sql:101-105, service_monitors.sql:46,60).",
+      "Non-plan caps: 100 active API tokens (agent_surface.sql:66), 3 pending custom domains (status_edge_hosts.sql:20-21).",
+      "SELF_HOSTED_PLAN=builder and its refusal on staygreen.io (src/lib/self-hosted-plan.ts, src/lib/env-schema.ts:130-134).",
+      "alert_rules gate (src/app/(app)/app/alerts/actions.ts:317,322).",
+      "Dashboard history functions take no plan argument (probe_history.sql:199,276), so the 30-day/1-year limit isn't applied there."
+    ]
+  },
+  "q3B": {
+    "correctness": 10,
+    "completeness": 7,
+    "usefulness": 8,
+    "errors": [],
+    "missed": [
+      "MCP monitor limits (2 / cap, 10/5 min) are display-only: create_monitor refuses the type with type_not_available (heartbeat_url_sealed.sql:72-74), and mcpMonitors/mcpIntervalMin are read only by PlanTable (src/components/PlanTable.tsx:44). The table presents them as real limits.",
+      "Feature-switch enforcement not traced (admitted): white_label/private_pages passed to SQL (actions.ts:874-875,894-895,922-923), notify_teammates (alerts/actions.ts:122,139), alert_rules (alerts/actions.ts:317,322); subscribers gates nothing live (launch.ts:93).",
+      "History not traced (admitted): only the agent API clamps by history_1y (src/lib/agent-service.ts:52,276).",
+      "Agent/REST writes pass the full limit set to agent_write (src/lib/agent-service.ts:197).",
+      "Supabase interval rule 60/180 s (service_monitors.sql:46); numbers for the token (100) and pending-domain (3) caps."
+    ]
+  },
+  "q3C": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 9,
+    "errors": [
+      "Minor overstatement: the table marks the plan-based Stripe poll interval as enforced by 'SQL interval_not_allowed'. SQL accepts 300 or 600 for any plan (service_monitors.sql:60); the plan difference comes from the app always passing stripePollMin*60 (src/app/(app)/app/actions.ts:314), with no user input.",
+      "Citation: 'slowing monitors remains deferred in BACKLOG' is src/lib/workspace-plan.ts:19, not :22."
+    ],
+    "missed": [
+      "history_1y also gates CSV export, marked soon (src/components/PlanTable.tsx:77); trivial."
+    ]
+  },
+  "q4A": {
+    "correctness": 9,
+    "completeness": 8,
+    "usefulness": 9,
+    "errors": [
+      "Minor: says a read token gets 403 'before any input is processed'. executeAgentTool first checks monitors:read and zod-parses the input (src/lib/agent-service.ts:213-214) before write() checks scope (:151). Nothing touches the database before the scope check, but malformed input from a read token gets 400 invalid_arguments, not 403."
+    ],
+    "missed": [
+      "agent_write also re-reads the token row inside the transaction, requiring revoked_at is null and scope = 'write' FOR SHARE, so a revoked token can't finish a write (agent_surface.sql:135-137).",
+      "api_tokens has RLS on, browser-role grants revoked, service_role only (agent_surface.sql:53-59).",
+      "Token-management budget of 10 per member per minute when minting (src/lib/api-tokens.ts:29).",
+      "agent_calls usage-log insert on every call, read tokens included (src/lib/agent-transport.ts:42-64).",
+      "Under SELF_HOSTED_PLAN=builder, any authenticated request (read tokens included) runs syncWorkspacePlan, which can update workspaces.plan and monitor intervals (src/lib/agent-auth.ts:134-136, src/lib/workspace-plan.ts:8-20).",
+      "Origin check and 64 KiB body limit (src/lib/agent-transport.ts:26-40)."
+    ]
+  },
+  "q4B": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 10,
+    "errors": [
+      "Citation drift: agent-auth.ts references are about 3 lines early (lookup is :94 not :91; the 401 is :97 not :93-94; principal :98-101 not :95-98; admission :103 not :100; last_used :104 not :101; REST refusal :107 not :104).",
+      "Minor: 'write() calls requireAgentPermission as its first line, before parsing input'. True inside write(), but executeAgentTool already zod-parsed the input (src/lib/agent-service.ts:214). No database access happens first."
+    ],
+    "missed": [
+      "The in-transaction token re-check raises invalid_token (PT401), not insufficient_scope (agent_surface.sql:137); minor."
+    ]
+  },
+  "q4C": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "'The most a write token can do is draft an incident update.' A write token can also run provision_app, create_monitor and pause (src/lib/agent-contract.ts:85; agent_surface.sql:127). Likely meant 'for incidents', but as written it's wrong.",
+      "Minor: 'A read token gets 403 insufficient_scope before any input is parsed'. executeAgentTool parses the input first (src/lib/agent-service.ts:214)."
+    ],
+    "missed": [
+      "scan_app is open to read tokens and makes outbound requests to a caller-chosen URL (src/lib/agent-service.ts:217-219).",
+      "agent_calls usage log written on every call (src/lib/agent-transport.ts:42-64).",
+      "SELF_HOSTED_PLAN=builder plan sync that a read request can trigger (src/lib/agent-auth.ts:134-136).",
+      "Origin and body-size hardening (src/lib/agent-transport.ts:26-40).",
+      "Few file:line references for an engineer to act on (most claims name a function only)."
+    ]
+  },
+  "q5A": {
+    "correctness": 8,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      "Recommends teamsUrl 'refuse query strings and other tricks, the same way discordUrl'. Teams Workflows (Power Automate/Logic Apps) webhook URLs carry required query parameters (api-version, sp, sv, sig), so this validator would reject every real URL. The answer flags Microsoft's hosts and format as unverified, but states the query-string rule as the design.",
+      "Lists tests/unit/alerts.test.ts among 'the existing Discord cases'. It has no Discord case (0 matches); Discord sender routing is tested in tests/unit/channels.test.ts."
+    ],
+    "missed": [
+      "Deploy order: the sender Worker must be redeployed; until it is, Teams receipts fall through to 'This kind of channel can't send yet.' and are failed (src/lib/alerts/sender.ts:387; docs/deploying.md:70).",
+      "SendResult 'sent' requires a messageId, which becomes the receipt's providerId (src/lib/alerts/outcome.ts:11, sender.ts:255-259), while Teams Workflows typically answers 202 with no id.",
+      "sender.ts:272's message builds the provider name from a slack/discord ternary, which needs a Teams branch, not just a list entry."
+    ]
+  },
+  "q5B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      "Deploy order 'follows the deploy docs (docs/deploying.md:70)' with the app deployed before the sender. Line 70 only says pushing app code doesn't update Workers. With that order, Teams receipts created in the gap are permanently failed ('This kind of channel can't send yet.', src/lib/alerts/sender.ts:387), not merely delayed; the sender should go first.",
+      "Trivial: 'Both are Record<ChannelKind, …>'. icons is an untyped literal (src/components/alerts/ChannelIcon.tsx:4); TypeScript still flags it through icons[kind] (:9)."
+    ],
+    "missed": [
+      "Workflows URLs carry query parameters, so discordUrl's u.search refusal must not be copied (src/lib/alerts/channel-input.ts:17).",
+      "sender.ts:272 builds the provider name from a slack/discord ternary, which needs a Teams branch."
+    ]
+  },
+  "q5C": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 9,
+    "errors": [
+      "Citation: sendDiscord is src/lib/alerts/providers.ts:58-78, not :66-86.",
+      "Lists tests/unit/channel-routing-screen.test.ts among 'suites that already cover Discord'. It has no Discord case (it uses a Slack channel)."
+    ],
+    "missed": [
+      "The comment in src/lib/launch.ts:83 that lists channels; trivial.",
+      "sender.ts:272's slack/discord name ternary needs a Teams branch."
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index 4361784..c577bf2 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -94,9 +94,19 @@ test('items: add, edit, remove, validation, and breakdown with tax and tip', asy
+   await page.getByRole('button', { name: 'Remove Bread' }).click()
+   await expect(page.getByTestId('item-row')).toHaveCount(2)
+ 
+-  // Defaults: tax 0, tip 15%
++  // Defaults: tax 0, tip 18%
+   await expect(page.getByTestId('bill-subtotal')).toHaveText('$50.00')
+-  await expect(page.getByTestId('bill-tip')).toHaveText('$7.50')
++  await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++  await expect(page.getByTestId('bill-tip')).toHaveText('$9.00')
++  await expect(page.getByTestId('bill-tax')).toHaveText('$0.00')
++  // presets appear in order, with 18% between 15% and 20%
++  const tipGroup = page.getByRole('group', { name: 'Tip' })
++  await expect(tipGroup.getByRole('button')).toHaveText(['10%', '15%', '18%', '20%', 'Custom'])
++  const boxes = await Promise.all(['15%', '18%', '20%'].map((n) => tipGroup.getByRole('button', { name: n }).boundingBox()))
++  // on the same row, or wrapped onto the next one in reading order
++  expect(boxes[0]!.y < boxes[1]!.y || boxes[0]!.x < boxes[1]!.x).toBe(true)
++  expect(boxes[1]!.y < boxes[2]!.y || boxes[1]!.x < boxes[2]!.x).toBe(true)
++  await shot(page, 'tip-default-18')
+ 
+   // Tax 10%, tip presets
+   await page.getByLabel('Tax', { exact: true }).fill('10')
+@@ -115,6 +125,11 @@ test('items: add, edit, remove, validation, and breakdown with tax and tip', asy
+   await expect(page.getByTestId('bill-tip')).toHaveText('$5.00')
+   await page.getByRole('button', { name: '15%' }).click()
+   await expect(page.getByTestId('bill-tip')).toHaveText('$7.50')
++  await page.getByRole('button', { name: '18%' }).click()
++  await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++  await expect(page.getByRole('button', { name: '15%' })).toHaveAttribute('aria-pressed', 'false')
++  await expect(page.getByTestId('bill-tip')).toHaveText('$9.00')
++  await expect(share(page, 'Ann').getByTestId('share-tip')).toHaveText('$5.40')
+ 
+   // custom tip + validation
+   await page.getByRole('button', { name: 'Custom' }).click()
+diff --git a/src/lib/bill.test.ts b/src/lib/bill.test.ts
+index 2f33f55..9cba6f3 100644
+--- a/src/lib/bill.test.ts
++++ b/src/lib/bill.test.ts
+@@ -152,6 +152,13 @@ describe('computeBreakdown', () => {
+     const items = [{ id: 'i', name: 'X', priceCents: 10000, sharedBy: ['a'] }]
+     expect(computeBreakdown(bill({ items, tipMode: '10' })).tip).toBe(1000)
+     expect(computeBreakdown(bill({ items, tipMode: '15' })).tip).toBe(1500)
++    expect(computeBreakdown(bill({ items, tipMode: '18' })).tip).toBe(1800)
++    expect(computeBreakdown(bill({ items, tipMode: '20' })).tip).toBe(2000)
++    // the default tip is 18%
++    expect(emptyBill().tipMode).toBe('18')
++    expect(computeBreakdown({ ...emptyBill(), people, items }).tip).toBe(1800)
++    // a bill saved with the old 15% default keeps it
++    expect(deserializeBill(JSON.stringify({ ...emptyBill(), tipMode: '15' })).tipMode).toBe('15')
+     expect(computeBreakdown(bill({ items, tipMode: 'custom', customTipPct: '17.5' })).tip).toBe(1750)
+     // invalid custom tip is treated as 0
+     expect(computeBreakdown(bill({ items, tipMode: 'custom', customTipPct: '-3' })).tip).toBe(0)
+@@ -272,6 +279,6 @@ describe('deserializeBill', () => {
+     expect(r.people).toEqual([{ id: 'a', name: 'A' }])
+     expect(r.items).toEqual([])
+     expect(r.currency).toBe('USD')
+-    expect(r.tipMode).toBe('15')
++    expect(r.tipMode).toBe('18')
+   })
+ })
+diff --git a/src/lib/bill.ts b/src/lib/bill.ts
+index 02bdbb8..839b98d 100644
+--- a/src/lib/bill.ts
++++ b/src/lib/bill.ts
+@@ -2,7 +2,7 @@
+ 
+ export type Currency = 'USD' | 'EUR' | 'PLN'
+ export const CURRENCIES: Currency[] = ['USD', 'EUR', 'PLN']
+-export const TIP_PRESETS = ['10', '15', '20'] as const
++export const TIP_PRESETS = ['10', '15', '18', '20'] as const
+ export type TipMode = (typeof TIP_PRESETS)[number] | 'custom'
+ 
+ export interface Person {
+@@ -30,7 +30,7 @@ export const emptyBill = (): Bill => ({
+   people: [],
+   items: [],
+   taxPct: '0',
+-  tipMode: '15',
++  tipMode: '18',
+   customTipPct: '',
+   currency: 'USD',
+ })

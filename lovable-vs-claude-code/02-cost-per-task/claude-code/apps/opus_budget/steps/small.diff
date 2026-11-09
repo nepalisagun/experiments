@@ -1,0 +1,93 @@
+diff --git a/e2e/budget.spec.ts b/e2e/budget.spec.ts
+index 4f8d53e..8ced9c3 100644
+--- a/e2e/budget.spec.ts
++++ b/e2e/budget.spec.ts
+@@ -126,6 +126,32 @@ for (const size of sizes) {
+ 
+       // 7. Filters
+       const txs = page.getByRole('region', { name: 'Transactions' })
++      const clear = txs.getByRole('button', { name: 'Clear filters' })
++      await expect(clear).toBeDisabled()
++      // Clear button sits in the same row as the search box
++      const sBox = (await txs.getByLabel('Search notes').boundingBox())!
++      const cBox = (await clear.boundingBox())!
++      expect(Math.abs(sBox.y + sBox.height / 2 - (cBox.y + cBox.height / 2))).toBeLessThan(2)
++      expect(cBox.x).toBeGreaterThan(sBox.x + sBox.width - 1)
++      expect(cBox.x + cBox.width).toBeLessThanOrEqual(size.width)
++      // Income shows in teal
++      const teal = 'rgb(13, 127, 128)'
++      expect(await page.getByTestId('total-income').evaluate((el) => getComputedStyle(el).color)).toBe(teal)
++      const salaryAmt = page.getByTestId('tx-row').filter({ hasText: 'Salary' }).getByText('+2,500.00')
++      expect(await salaryAmt.evaluate((el) => getComputedStyle(el).color)).toBe(teal)
++      // All three filters active, then cleared in one click
++      await txs.getByLabel('Filter by type').selectOption('expense')
++      await txs.getByLabel('Filter by category').selectOption({ label: 'Health' })
++      await txs.getByLabel('Search notes').fill('pharm')
++      await expect(page.getByTestId('tx-row')).toHaveCount(1)
++      await expect(clear).toBeEnabled()
++      await shot('04a-clear-enabled')
++      await clear.click()
++      await expect(page.getByTestId('tx-row')).toHaveCount(6)
++      await expect(txs.getByLabel('Filter by type')).toHaveValue('')
++      await expect(txs.getByLabel('Filter by category')).toHaveValue('')
++      await expect(txs.getByLabel('Search notes')).toHaveValue('')
++      await expect(clear).toBeDisabled()
+       await txs.getByLabel('Filter by type').selectOption('income')
+       await expect(page.getByTestId('tx-row')).toHaveCount(1)
+       await expect(page.getByTestId('tx-row')).toContainText('Salary')
+diff --git a/src/App.tsx b/src/App.tsx
+index 3271215..de2c864 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -329,20 +329,25 @@ export default function App() {
+                   <option value="income">Income</option>
+                   <option value="expense">Expense</option>
+                 </select>
+-                <input
+-                  type="search"
+-                  aria-label="Search notes"
+-                  placeholder="Search notes…"
+-                  value={filters.search}
+-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+-                  className={`${inputCls} col-span-2 sm:col-span-1`}
+-                />
++                <div className="col-span-2 sm:col-span-1 flex gap-2 min-w-0">
++                  <input
++                    type="search"
++                    aria-label="Search notes"
++                    placeholder="Search notes…"
++                    value={filters.search}
++                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
++                    className={`${inputCls} min-w-0`}
++                  />
++                  <button
++                    type="button"
++                    className={`${btnGhost} whitespace-nowrap shrink-0 disabled:cursor-not-allowed`}
++                    disabled={!filtersActive}
++                    onClick={() => setFilters({ categoryId: '', type: '', search: '' })}
++                  >
++                    Clear filters
++                  </button>
++                </div>
+               </div>
+-              {filtersActive && (
+-                <button className="text-xs text-[var(--accent)] hover:underline mb-2 cursor-pointer" onClick={() => setFilters({ categoryId: '', type: '', search: '' })}>
+-                  Clear filters
+-                </button>
+-              )}
+               <TxList
+                 txs={visible}
+                 catById={catById}
+diff --git a/src/index.css b/src/index.css
+index ac804ed..50edaca 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -11,7 +11,7 @@
+   --track: #ebeae6;
+   --accent: #2a78d6;
+   --accent-strong: #1f63b5;
+-  --pos: #137a45;
++  --pos: #0d7f80; /* income: teal */
+   --danger: #c62f2f;
+   --danger-bg: #fde8e8;
+ }

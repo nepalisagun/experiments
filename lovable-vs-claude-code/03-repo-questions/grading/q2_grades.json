@@ -1,0 +1,137 @@
+{
+  "A": {
+    "correctness": 7,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "An incident also closes when the monitor is edited and the new settings pass a check: 'Monitor edited and verified, incident closed' (service_monitors.sql ~L66).",
+        "truth": "That close is in save_service_monitor, which only accepts Stripe and Supabase monitors (p_type in ('stripe','supabase')). A website (HTTP) monitor is edited through update_monitor, which closes the open incident only when the target address changes, with 'Address changed, incident closed'. Any other edit leaves the incident open; the edit only resets the streak counters.",
+        "evidence": "supabase/migrations/20261023100000_service_monitors.sql:24,62-67; supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:103-108; src/app/(app)/app/actions.ts:337,347",
+        "severity": "medium"
+      },
+      {
+        "claim": "The 'Monitor edited and verified' close was added in 20261022081211_monitor_edit_closes_incident.sql.",
+        "truth": "That migration added the address-change close in update_monitor ('Address changed, incident closed'). The 'Monitor edited and verified' text first appears in 20261023100000_service_monitors.sql.",
+        "evidence": "supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:1,106",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Canary veto: a probe that reads itself as isolated drops failures before confirmation (runtime.ts:499)",
+      "The real HTTP edit path: an address change closes the incident ('Address changed, incident closed', no recovery alert)",
+      "What counts as a failed HTTP check (status, keyword, assertion, bot page, network); slow is a pass",
+      "Confirmers exclude probes at the same location; Builder asks the other continent first (schedule.ts:72-80)",
+      "Conditions on the resolved alert (monitor up/degraded and an 'opened' event exists)",
+      "Edits and pause/resume reset streak counters through a trigger (probe_row_state.sql:19-40)"
+    ]
+  },
+  "B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      {
+        "claim": "Network-level request failure cited as src/checks/http.ts:77-80.",
+        "truth": "Lines 77-80 are statusMatches. A network failure is returned at line 196 (exchange returning a failure kind). The behaviour described is right; only the citation is off.",
+        "evidence": "src/checks/http.ts:77-80,196",
+        "severity": "low"
+      },
+      {
+        "claim": "A recovery email goes out only if an 'opened' alert was sent for that incident.",
+        "truth": "The trigger checks that an alert_events row of kind 'opened' exists (queued), not that it was delivered. It also requires the monitor's state to be up, or degraded for a 'down' incident.",
+        "evidence": "supabase/migrations/20261022195510_alerts_email.sql:224-231",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Confirmers exclude probes at the same location; Builder prefers the other continent (schedule.ts:72-80)",
+      "Any edit that changes updated_at (and pause/resume) resets the pass/fail/slow streaks through a trigger, so an edit without an address change restarts recovery (probe_row_state.sql:19-40)",
+      "The outcome is applied by the monitor's home probe under a row lock (store.ts:303-353)"
+    ]
+  },
+  "C": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "Editing a monitor and verifying the new version also closes its incident ('Monitor edited and verified, incident closed', service_monitors.sql:66).",
+        "truth": "This applies only to Stripe and Supabase monitors (save_service_monitor). An HTTP monitor's edit (update_monitor) closes the incident only on an address change, with 'Address changed, incident closed'. Other edits keep it open.",
+        "evidence": "supabase/migrations/20261023100000_service_monitors.sql:24,62-67; supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:103-108",
+        "severity": "medium"
+      },
+      {
+        "claim": "If no other probe is live, the same probe re-checks after 20 seconds.",
+        "truth": "The self re-check runs when no probe at another location is live (confirmersFor filters out same-location probes) or every peer declines. Another live probe at the same location does not count.",
+        "evidence": "probe/schedule.ts:72-80; probe/runtime.ts:571-576,587",
+        "severity": "low"
+      },
+      {
+        "claim": "needsConfirmation at state.ts:68-73 and RECOVERED_AFTER at state.ts:63.",
+        "truth": "needsConfirmation is at lines 70-75. Line 63 is DEGRADED_AFTER; RECOVERED_AFTER is line 64. These are citation offsets only.",
+        "evidence": "probe/state.ts:63-64,70-75",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "The real HTTP edit path: an address change closes the incident ('Address changed, incident closed')",
+      "What counts as a failed HTTP check; slow responses are passes",
+      "An already-down monitor records further confirmed failures but opens no new incident (only implied)",
+      "Same-location probes never confirm; Builder plan prefers the other continent",
+      "Conditions on the resolved alert (state up/degraded, an opened event exists)",
+      "Pausing does not close the incident; edits and pause/resume reset streak counters"
+    ]
+  },
+  "D": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 8,
+    "errors": [
+      {
+        "claim": "Editing a monitor closes its open incident with 'Monitor edited and verified, incident closed' (service_monitors.sql:66).",
+        "truth": "That is save_service_monitor, for Stripe and Supabase monitors only. A website monitor's update_monitor closes the incident only when the address changes ('Address changed, incident closed'). Other edits leave it open and reset the streak counters.",
+        "evidence": "supabase/migrations/20261023100000_service_monitors.sql:24,62-67; supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:103-108",
+        "severity": "medium"
+      },
+      {
+        "claim": "A redirect to a non-HTTP address is a failure at http.ts lines 207-211.",
+        "truth": "The non-HTTP redirect failure is at line 189. Lines 207-211 cover more than 5 redirects and an invalid Location. The behaviour is real; only the citation is off.",
+        "evidence": "src/checks/http.ts:189,207-211",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Its 'what counts as a failed HTTP check' list leaves out the commonest case: network errors and timeouts (http.ts:196; default timeout 15 s, runtime.ts:477)",
+      "Canary veto: an isolated probe drops failures before confirmation (runtime.ts:499)",
+      "The address-change close ('Address changed, incident closed') for HTTP monitors",
+      "The resolved alert queued by the incidents_alert_events trigger, and its conditions",
+      "Version-change counter reset (the answer flags this as unchecked; the trigger exists in probe_row_state.sql:19-40)"
+    ]
+  },
+  "E": {
+    "correctness": 7,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      {
+        "claim": "The current update_monitor clears the monitor's state and closes any open incident with 'Monitor edited and verified, incident closed' (service_monitors.sql:62-66). Repeated in the summary: 'Editing the monitor also closes its open incident.'",
+        "truth": "Lines 62-66 belong to save_service_monitor (Stripe and Supabase only), not update_monitor. update_monitor (the HTTP edit path) clears state and closes the incident only when the target changes, with 'Address changed, incident closed'. Other edits keep the incident open.",
+        "evidence": "supabase/migrations/20261023100000_service_monitors.sql:9,24,62-67; supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:92-108",
+        "severity": "medium"
+      },
+      {
+        "claim": "The 'Monitor edited and verified' close was introduced in 20261022081211_monitor_edit_closes_incident.sql.",
+        "truth": "That migration introduced the address-change close in update_monitor. The 'verified' text is from 20261023100000_service_monitors.sql.",
+        "evidence": "supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:1,106",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "The address-change close ('Address changed, incident closed') that actually applies to website monitors",
+      "What counts as a failed HTTP check; slow responses are passes",
+      "Conditions on the resolved alert (no alert after an address-change or replacement close)",
+      "Edits and pause/resume reset the streak counters (probe_row_state.sql:19-40)"
+    ]
+  }
+}

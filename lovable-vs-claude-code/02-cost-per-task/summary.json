@@ -1,0 +1,155 @@
+{
+ "build": {
+  "n": [
+   5,
+   5,
+   5
+  ],
+  "lov_credits": 5.02,
+  "lov_credits_range": [
+   3.4,
+   6.7
+  ],
+  "lov_usd": 1.255,
+  "lov_usd_topup": 1.506,
+  "sonnet_api": 0.608,
+  "sonnet_range": [
+   0.49,
+   0.87
+  ],
+  "opus_api": 1.647,
+  "opus_range": [
+   1.54,
+   1.85
+  ],
+  "sonnet_sub": 0.0134,
+  "opus_sub": 0.0363,
+  "sonnet_wall_s": 322,
+  "opus_wall_s": 557,
+  "lovable_over_opus_sub": 34.5,
+  "lovable_over_sonnet_sub": 93.5
+ },
+ "small": {
+  "n": [
+   5,
+   5,
+   5
+  ],
+  "lov_credits": 1.4,
+  "lov_credits_range": [
+   1.3,
+   1.6
+  ],
+  "lov_usd": 0.35,
+  "lov_usd_topup": 0.42,
+  "sonnet_api": 0.166,
+  "sonnet_range": [
+   0.12,
+   0.22
+  ],
+  "opus_api": 0.311,
+  "opus_range": [
+   0.22,
+   0.38
+  ],
+  "sonnet_sub": 0.0037,
+  "opus_sub": 0.0069,
+  "sonnet_wall_s": 71,
+  "opus_wall_s": 99,
+  "lovable_over_opus_sub": 50.9,
+  "lovable_over_sonnet_sub": 95.7
+ },
+ "medium": {
+  "n": [
+   5,
+   5,
+   5
+  ],
+  "lov_credits": 5.21,
+  "lov_credits_range": [
+   4.1,
+   6.73
+  ],
+  "lov_usd": 1.302,
+  "lov_usd_topup": 1.562,
+  "sonnet_api": 0.638,
+  "sonnet_range": [
+   0.49,
+   0.89
+  ],
+  "opus_api": 1.625,
+  "opus_range": [
+   1.33,
+   1.79
+  ],
+  "sonnet_sub": 0.0141,
+  "opus_sub": 0.0359,
+  "sonnet_wall_s": 256,
+  "opus_wall_s": 447,
+  "lovable_over_opus_sub": 36.3,
+  "lovable_over_sonnet_sub": 92.5
+ },
+ "qa": {
+  "n": [
+   5,
+   5,
+   5
+  ],
+  "lov_credits": 2.42,
+  "lov_credits_range": [
+   1.6,
+   3.0
+  ],
+  "lov_usd": 0.605,
+  "lov_usd_topup": 0.726,
+  "sonnet_api": 0.328,
+  "sonnet_range": [
+   0.17,
+   0.46
+  ],
+  "opus_api": 0.684,
+  "opus_range": [
+   0.35,
+   0.87
+  ],
+  "sonnet_sub": 0.0072,
+  "opus_sub": 0.0151,
+  "sonnet_wall_s": 63,
+  "opus_wall_s": 78,
+  "lovable_over_opus_sub": 40.1,
+  "lovable_over_sonnet_sub": 83.5
+ },
+ "opus_qa": {
+  "n": 5,
+  "api": 0.684,
+  "wall_s": 78,
+  "chars": 6191,
+  "tool_calls": 15
+ },
+ "opus_qa_low": {
+  "n": 5,
+  "api": 0.274,
+  "wall_s": 58,
+  "chars": 4760,
+  "tool_calls": 4.8
+ },
+ "opus_qa_medium": {
+  "n": 5,
+  "api": 0.491,
+  "wall_s": 62,
+  "chars": 6389,
+  "tool_calls": 7.4
+ },
+ "sonnet_qa": {
+  "n": 5,
+  "api": 0.328,
+  "wall_s": 63,
+  "chars": 6128,
+  "tool_calls": 13.2
+ },
+ "totals_20_tasks": {
+  "lovable_credits": 70.23,
+  "sonnet_api": 8.7,
+  "opus_api": 21.33
+ }
+}

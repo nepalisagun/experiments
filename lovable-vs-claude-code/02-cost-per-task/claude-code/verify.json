@@ -1,0 +1,122 @@
+[
+ {
+  "app": "opus_budget",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 41,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 4,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "opus_kanban",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 53,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 32,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "opus_notes",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 64,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 30,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "opus_split",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 39,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 8,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "opus_timer",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 34,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 42,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "sonnet_budget",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 34,
+  "unit_failed": 0,
+  "unit_cmd": "vitest run src/",
+  "e2e_rc": 0,
+  "e2e_passed": 4,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "sonnet_kanban",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 33,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 31,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "sonnet_notes",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 31,
+  "unit_failed": 0,
+  "unit_cmd": "vitest run src/",
+  "e2e_rc": 0,
+  "e2e_passed": 6,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "sonnet_split",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 34,
+  "unit_failed": 0,
+  "unit_cmd": "npm test",
+  "e2e_rc": 0,
+  "e2e_passed": 4,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ },
+ {
+  "app": "sonnet_timer",
+  "build_ok": true,
+  "unit_rc": 0,
+  "unit_passed": 28,
+  "unit_failed": 0,
+  "unit_cmd": "vitest run src/",
+  "e2e_rc": 0,
+  "e2e_passed": 14,
+  "e2e_failed": 0,
+  "e2e_tail": ""
+ }
+]

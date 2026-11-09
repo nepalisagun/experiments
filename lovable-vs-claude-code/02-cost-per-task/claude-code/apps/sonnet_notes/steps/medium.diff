@@ -1,0 +1,584 @@
+diff --git a/e2e/tags.spec.ts b/e2e/tags.spec.ts
+new file mode 100644
+index 0000000..cc345a4
+--- /dev/null
++++ b/e2e/tags.spec.ts
+@@ -0,0 +1,168 @@
++import { expect, test, type Page } from '@playwright/test'
++
++for (const [name, width, height] of [['desktop', 1280, 800], ['mobile', 375, 700]] as const) {
++  test.describe(name, () => {
++    test.use({ viewport: { width, height } })
++    const mobile = name === 'mobile'
++
++    const openList = async (page: Page) => {
++      if (mobile && !(await page.getByLabel('Search notes').isVisible())) await page.getByLabel('Toggle note list').click()
++    }
++    const editor = (page: Page) => page.getByLabel('Markdown editor')
++    const titles = (page: Page) => page.getByTestId('note-title').allInnerTexts()
++    const tagChips = (page: Page) => page.getByTestId('tag-list').locator('[aria-pressed]')
++    const chip = (page: Page, text: string) => page.getByTestId('tag-list').getByRole('button', { name: text, exact: true })
++    const newNote = async (page: Page, title: string, content: string) => {
++      await openList(page)
++      await page.getByRole('button', { name: '+ New note' }).click()
++      await page.getByLabel('Note title').fill(title)
++      await editor(page).fill(content)
++    }
++    const selectNote = async (page: Page, title: string) => {
++      await openList(page)
++      await page.getByTestId('note-list').getByText(title, { exact: true }).click()
++    }
++
++    test('tags end to end', async ({ page }) => {
++      const errors: string[] = []
++      page.on('pageerror', (e) => errors.push(e.message))
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++
++      // no tags yet -> no tag section (Welcome has only headings)
++      await openList(page)
++      await expect(page.getByTestId('tag-list')).toHaveCount(0)
++
++      // 1: tags come from note text; counts are per note, case-insensitive
++      await newNote(page, 'Alpha', 'plan #work and #home')
++      await newNote(page, 'Beta', '#work stuff #Work\n\n# Heading is not a tag')
++      await newNote(page, 'Gamma', 'nothing here')
++      await openList(page)
++      await expect(tagChips(page)).toHaveCount(2)
++      await expect(chip(page, '#home 1')).toBeVisible()
++      await expect(chip(page, '#work 2')).toBeVisible()
++      expect(await tagChips(page).allInnerTexts()).toEqual(['#home 1', '#work 2']) // sorted, no "#heading"
++      await page.screenshot({ path: `shots/${name}-tags.png` })
++
++      // 2: click filters, click again clears
++      await chip(page, '#work 2').click()
++      await expect(chip(page, '#work 2')).toHaveAttribute('aria-pressed', 'true')
++      expect((await titles(page)).sort()).toEqual(['Alpha', 'Beta'])
++      await page.screenshot({ path: `shots/${name}-tag-filter.png` })
++      await chip(page, '#work 2').click()
++      await expect(chip(page, '#work 2')).toHaveAttribute('aria-pressed', 'false')
++      expect(await titles(page)).toHaveLength(4)
++      // switching directly between tags
++      await chip(page, '#home 1').click()
++      expect(await titles(page)).toEqual(['Alpha'])
++      await chip(page, '#work 2').click()
++      expect((await titles(page)).sort()).toEqual(['Alpha', 'Beta'])
++      // combines with search
++      await page.getByLabel('Search notes').fill('stuff')
++      expect(await titles(page)).toEqual(['Beta'])
++      await page.getByLabel('Search notes').fill('')
++      await chip(page, '#work 2').click()
++
++      // 3: suggestions while typing '#'
++      await selectNote(page, 'Gamma')
++      await editor(page).click()
++      await editor(page).press('Control+End')
++      await editor(page).pressSequentially(' #wo')
++      const listbox = page.getByRole('listbox', { name: 'Tag suggestions' })
++      await expect(listbox).toBeVisible()
++      await expect(listbox.getByRole('option')).toHaveText(['#work'])
++      await page.screenshot({ path: `shots/${name}-suggest.png` })
++      await editor(page).press('Enter') // insert with Enter
++      await expect(editor(page)).toHaveValue('nothing here #work ')
++      await expect(listbox).toHaveCount(0)
++      // caret is after the inserted tag: typing continues there
++      await editor(page).pressSequentially('more')
++      await expect(editor(page)).toHaveValue('nothing here #work more')
++
++      // insert with a click
++      await editor(page).pressSequentially(' #h')
++      await expect(listbox.getByRole('option')).toHaveText(['#home'])
++      await listbox.getByRole('option', { name: '#home' }).click()
++      await expect(editor(page)).toHaveValue('nothing here #work more #home ')
++      await expect(editor(page)).toBeFocused()
++      // bare '#' lists all, arrows move, Escape closes
++      await editor(page).pressSequentially('#')
++      await expect(listbox.getByRole('option')).toHaveText(['#home', '#work'])
++      await editor(page).press('ArrowDown')
++      await expect(listbox.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true')
++      await editor(page).press('Escape')
++      await expect(listbox).toHaveCount(0)
++      // Enter with no popup is a normal newline
++      await editor(page).press('Enter')
++      await expect(editor(page)).toHaveValue('nothing here #work more #home #\n')
++      // no suggestions for headings or code
++      await editor(page).fill('# ')
++      await expect(listbox).toHaveCount(0)
++      await editor(page).fill('`#wo')
++      await expect(listbox).toHaveCount(0)
++      // ArrowDown + Enter picks the second
++      await editor(page).fill('#')
++      await editor(page).press('ArrowDown')
++      await editor(page).press('Enter')
++      await expect(editor(page)).toHaveValue('#work ')
++      await editor(page).fill('see #work and #home')
++
++      await openList(page)
++      await expect(chip(page, '#work 3')).toBeVisible()
++      await expect(chip(page, '#home 2')).toBeVisible()
++
++      // 4: rename a tag from the sidebar -> every note's text changes
++      await chip(page, '#work 3').click() // active filter should follow the rename
++      await page.getByRole('button', { name: 'Rename tag work' }).click()
++      const input = page.getByLabel('New name for tag work')
++      await expect(input).toBeFocused()
++      await input.fill('bad name!')
++      await input.press('Enter')
++      await expect(page.getByRole('alert')).toBeVisible()
++      await input.fill('#Job')
++      await page.screenshot({ path: `shots/${name}-tag-rename.png` })
++      await input.press('Enter')
++      await expect(page.getByLabel('New name for tag work')).toHaveCount(0)
++      await expect(chip(page, '#job 3')).toHaveAttribute('aria-pressed', 'true')
++      await expect(page.getByTestId('tag-list').getByText('#work')).toHaveCount(0)
++      expect((await titles(page)).sort()).toEqual(['Alpha', 'Beta', 'Gamma'])
++      await selectNote(page, 'Alpha')
++      await expect(editor(page)).toHaveValue('plan #job and #home')
++      await selectNote(page, 'Beta')
++      await expect(editor(page)).toHaveValue('#job stuff #job\n\n# Heading is not a tag')
++      await selectNote(page, 'Gamma')
++      await expect(editor(page)).toHaveValue('see #job and #home')
++
++      // rename cancel via Escape leaves things alone
++      await openList(page)
++      await page.getByRole('button', { name: 'Rename tag home' }).click()
++      await page.getByLabel('New name for tag home').press('Escape')
++      await expect(chip(page, '#home 2')).toBeVisible()
++
++      // renamed tag survives a reload
++      await expect(page.getByTestId('save-status')).toHaveText('Saved')
++      await page.reload()
++      await openList(page)
++      await expect(chip(page, '#job 3')).toBeVisible()
++      await expect(chip(page, '#home 2')).toBeVisible()
++      await chip(page, '#home 2').click()
++      expect((await titles(page)).sort()).toEqual(['Alpha', 'Gamma'])
++
++      // deleting the only notes of a tag drops it and clears the filter
++      await chip(page, '#home 2').click()
++      for (const t of ['Alpha', 'Gamma']) {
++        await selectNote(page, t)
++        if (mobile) { /* drawer closed by selecting */ }
++        await page.getByRole('button', { name: 'Delete', exact: true }).click()
++        await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
++      }
++      await openList(page)
++      await expect(page.getByTestId('tag-list').getByText('#home')).toHaveCount(0)
++      await expect(chip(page, '#job 1')).toBeVisible()
++
++      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
++      expect(errors).toEqual([])
++    })
++  })
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index d55ef75..b77f07e 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,5 +1,9 @@
+-import { useEffect, useMemo, useRef, useState } from 'react'
++import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+ import { renderMarkdown, toggleCheckbox } from './lib/markdown'
++import {
++  applySuggestion, filterByTag, getTagTrigger, normalizeTagName, renameTag, suggestTags, tagCounts,
++  type TagTrigger,
++} from './lib/tags'
+ import {
+   SELECTED_KEY, THEME_KEY, WELCOME, createNote, filterNotes, highlight, loadNotes, saveNotes,
+   snippet, sortNotes, wordCount, type Note,
+@@ -39,12 +43,23 @@ export default function App() {
+   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved')
+   const [menuOpen, setMenuOpen] = useState(false)
+   const [deleteId, setDeleteId] = useState<string | null>(null)
++  const [activeTag, setActiveTag] = useState<string | null>(null)
++  const [renaming, setRenaming] = useState<{ name: string; value: string; error: string } | null>(null)
++  const [sugg, setSugg] = useState<(TagTrigger & { items: string[] }) | null>(null)
++  const [suggIdx, setSuggIdx] = useState(0)
++  const editorRef = useRef<HTMLTextAreaElement>(null)
++  const pendingCaret = useRef<number | null>(null)
+   const titleRef = useRef<HTMLInputElement>(null)
+   const notesRef = useRef(notes)
+   const first = useRef(true)
+ 
+   const sorted = useMemo(() => sortNotes(notes), [notes])
+-  const visible = useMemo(() => filterNotes(sorted, query), [sorted, query])
++  const tagList = useMemo(() => tagCounts(notes), [notes])
++  const effectiveTag = activeTag && tagList.some((t) => t.name === activeTag) ? activeTag : null
++  const visible = useMemo(
++    () => filterNotes(filterByTag(sorted, effectiveTag), query),
++    [sorted, effectiveTag, query],
++  )
+   const current = notes.find((n) => n.id === selectedId) ?? sorted[0] ?? null
+   const html = useMemo(() => renderMarkdown(current?.content ?? ''), [current?.content])
+ 
+@@ -104,6 +119,70 @@ export default function App() {
+ 
+   const toDelete = notes.find((n) => n.id === deleteId)
+ 
++  // restore the caret after inserting a tag suggestion
++  useLayoutEffect(() => {
++    if (pendingCaret.current !== null && editorRef.current) {
++      editorRef.current.setSelectionRange(pendingCaret.current, pendingCaret.current)
++      pendingCaret.current = null
++    }
++  })
++
++  const refreshSugg = (text: string, caret: number) => {
++    const trig = getTagTrigger(text, caret)
++    const items = trig ? suggestTags(tagList.map((t) => t.name), trig.query) : []
++    setSugg(trig && items.length ? { ...trig, items } : null)
++    // The browser's async "select" event also fires after typing: only reset the
++    // highlighted option when the typed prefix actually changed.
++    if (!sugg || !trig || sugg.start !== trig.start || sugg.query !== trig.query) setSuggIdx(0)
++  }
++
++  const insertSuggestion = (tag: string) => {
++    const ta = editorRef.current
++    if (!sugg || !current || !ta) return
++    const r = applySuggestion(ta.value, sugg, ta.selectionStart, tag)
++    pendingCaret.current = r.caret
++    update(current.id, { content: r.text })
++    setSugg(null)
++    ta.focus()
++  }
++
++  const onEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
++    if (!sugg || e.nativeEvent.isComposing) return
++    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
++      e.preventDefault()
++      const d = e.key === 'ArrowDown' ? 1 : -1
++      setSuggIdx((i) => (i + d + sugg.items.length) % sugg.items.length)
++    } else if (e.key === 'Enter' || e.key === 'Tab') {
++      e.preventDefault()
++      insertSuggestion(sugg.items[suggIdx])
++    } else if (e.key === 'Escape') {
++      e.preventDefault()
++      setSugg(null)
++    }
++  }
++
++  const submitTagRename = (e: React.FormEvent) => {
++    e.preventDefault()
++    if (!renaming) return
++    const to = normalizeTagName(renaming.value)
++    if (!to) {
++      setRenaming({ ...renaming, error: 'Use letters, numbers, _ - or / (not only digits).' })
++      return
++    }
++    const from = renaming.name
++    if (to !== from) {
++      const now = Date.now()
++      setNotes((ns) =>
++        ns.map((n) => {
++          const content = renameTag(n.content, from, to)
++          return content === n.content ? n : { ...n, content, updatedAt: now }
++        }),
++      )
++      if (activeTag === from) setActiveTag(to)
++    }
++    setRenaming(null)
++  }
++
+   return (
+     <div className="flex h-dvh flex-col bg-bg text-fg">
+       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
+@@ -135,6 +214,52 @@ export default function App() {
+               className="rounded-md border border-line bg-bg px-3 py-2 text-sm"
+             />
+           </div>
++          {tagList.length > 0 && (
++            <section aria-label="Tags" className="px-3 pb-2">
++              <h2 className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Tags</h2>
++              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto" data-testid="tag-list">
++                {tagList.map((t) =>
++                  renaming?.name === t.name ? (
++                    <form key={t.name} onSubmit={submitTagRename} className="flex w-full items-center gap-1">
++                      <input
++                        autoFocus
++                        aria-label={`New name for tag ${t.name}`}
++                        value={renaming.value}
++                        onChange={(e) => setRenaming({ ...renaming, value: e.target.value, error: '' })}
++                        onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null) }}
++                        className="min-w-0 flex-1 rounded-md border border-accent bg-bg px-2 py-1 text-sm"
++                      />
++                      <button type="submit" className={btn}>Save</button>
++                      <button type="button" className={btn} onClick={() => setRenaming(null)}>Cancel</button>
++                    </form>
++                  ) : (
++                    <span
++                      key={t.name}
++                      className={`inline-flex items-center overflow-hidden rounded-full border text-xs ${effectiveTag === t.name ? 'border-accent bg-accent text-accent-fg' : 'border-line bg-bg'}`}
++                    >
++                      <button
++                        aria-pressed={effectiveTag === t.name}
++                        title={effectiveTag === t.name ? 'Click to clear filter' : `Show notes tagged #${t.name}`}
++                        onClick={() => setActiveTag(effectiveTag === t.name ? null : t.name)}
++                        className="py-1 pr-1.5 pl-2.5"
++                      >
++                        #{t.name} <span className="opacity-70">{t.count}</span>
++                      </button>
++                      <button
++                        aria-label={`Rename tag ${t.name}`}
++                        title="Rename tag"
++                        onClick={() => setRenaming({ name: t.name, value: t.name, error: '' })}
++                        className="py-1 pr-2 pl-1 opacity-70 hover:opacity-100"
++                      >
++                        ✎
++                      </button>
++                    </span>
++                  ),
++                )}
++              </div>
++              {renaming?.error && <p role="alert" className="mt-1 text-xs text-danger">{renaming.error}</p>}
++            </section>
++          )}
+           <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" data-testid="note-list">
+             {visible.map((n) => (
+               <li key={n.id}>
+@@ -154,7 +279,7 @@ export default function App() {
+               </li>
+             ))}
+             {visible.length === 0 && (
+-              <li className="px-3 py-4 text-sm text-muted">{query ? 'No notes match your search.' : 'Nothing here yet. Create your first note.'}</li>
++              <li className="px-3 py-4 text-sm text-muted">{query || effectiveTag ? 'No notes match your search.' : 'Nothing here yet. Create your first note.'}</li>
+             )}
+           </ul>
+         </aside>
+@@ -189,10 +314,36 @@ export default function App() {
+                     aria-label="Markdown editor"
+                     spellCheck={false}
+                     value={current.content}
+-                    onChange={(e) => update(current.id, { content: e.target.value })}
+-                    placeholder="Write Markdown here…"
++                    ref={editorRef}
++                    onChange={(e) => {
++                      update(current.id, { content: e.target.value })
++                      refreshSugg(e.target.value, e.target.selectionStart)
++                    }}
++                    onSelect={(e) => refreshSugg(e.currentTarget.value, e.currentTarget.selectionStart)}
++                    onKeyDown={onEditorKeyDown}
++                    onBlur={() => setSugg(null)}
++                    placeholder="Write Markdown here… use #tags"
+                     className="h-full w-full resize-none bg-bg p-4 pb-9 font-mono text-sm leading-6 focus:outline-none"
+                   />
++                  {sugg && (
++                    <ul
++                      role="listbox"
++                      aria-label="Tag suggestions"
++                      className="absolute bottom-10 left-3 z-10 max-h-44 min-w-40 overflow-y-auto rounded-md border border-line bg-bg py-1 text-sm shadow-lg"
++                    >
++                      {sugg.items.map((t, i) => (
++                        <li
++                          key={t}
++                          role="option"
++                          aria-selected={i === suggIdx}
++                          onMouseDown={(e) => { e.preventDefault(); insertSuggestion(t) }}
++                          className={`cursor-pointer px-3 py-1.5 ${i === suggIdx ? 'bg-sel' : 'hover:bg-panel'}`}
++                        >
++                          #{t}
++                        </li>
++                      ))}
++                    </ul>
++                  )}
+                   <span
+                     data-testid="word-count"
+                     className="pointer-events-none absolute right-3 bottom-2 rounded bg-panel/90 px-2 py-0.5 text-xs text-muted"
+diff --git a/src/lib/tags.test.ts b/src/lib/tags.test.ts
+new file mode 100644
+index 0000000..750a944
+--- /dev/null
++++ b/src/lib/tags.test.ts
+@@ -0,0 +1,88 @@
++import { describe, expect, it } from 'vitest'
++import {
++  applySuggestion, extractTags, filterByTag, getTagTrigger, normalizeTagName, renameTag, suggestTags, tagCounts,
++} from './tags'
++
++describe('extractTags', () => {
++  it('finds tags anywhere, lowercased and de-duplicated', () => {
++    expect(extractTags('Plan #Work today\nand #home, #work again. (#to-do) #a/b')).toEqual(['work', 'home', 'to-do', 'a/b'])
++  })
++  it('finds a tag at the very start of the text or a line', () => {
++    expect(extractTags('#first\n#second')).toEqual(['first', 'second'])
++  })
++  it('does not treat headings as tags', () => {
++    expect(extractTags('# Title\n## Sub\n###### six')).toEqual([])
++  })
++  it('ignores code, URL fragments, entities, numbers and glued words', () => {
++    expect(extractTags('`#inline`\n```\n#fenced\n```\n[x](http://a.com/#frag) http://b.com/#f &#39; #123 abc#def')).toEqual([])
++  })
++  it('handles unicode', () => {
++    expect(extractTags('#café #日本')).toEqual(['café', '日本'])
++  })
++  it('does not swallow trailing punctuation', () => {
++    expect(extractTags('#done. #next-')).toEqual(['done', 'next'])
++  })
++})
++
++describe('tagCounts / filterByTag', () => {
++  const notes = [
++    { content: '#b #a #a' }, { content: 'x #a' }, { content: 'none' },
++  ]
++  it('counts notes (not occurrences), sorted by name', () => {
++    expect(tagCounts(notes)).toEqual([{ name: 'a', count: 2 }, { name: 'b', count: 1 }])
++  })
++  it('filters, and null clears the filter', () => {
++    expect(filterByTag(notes, 'b')).toEqual([notes[0]])
++    expect(filterByTag(notes, 'a')).toHaveLength(2)
++    expect(filterByTag(notes, null)).toBe(notes)
++  })
++})
++
++describe('renameTag', () => {
++  it('renames every occurrence case-insensitively, leaving others alone', () => {
++    const src = '#Work and #work, #workshop, `#work`\n```\n#work\n```\n# Work'
++    expect(renameTag(src, 'work', 'job')).toBe('#job and #job, #workshop, `#work`\n```\n#work\n```\n# Work')
++  })
++  it('is a no-op when absent', () => {
++    expect(renameTag('hi #a', 'b', 'c')).toBe('hi #a')
++  })
++  it('merges into an existing tag', () => {
++    expect(extractTags(renameTag('#a #b', 'a', 'b'))).toEqual(['b'])
++  })
++})
++
++describe('normalizeTagName', () => {
++  it('accepts valid names and strips #', () => {
++    expect(normalizeTagName(' #Work ')).toBe('work')
++    expect(normalizeTagName('to-do')).toBe('to-do')
++  })
++  it('rejects invalid names', () => {
++    for (const bad of ['', '#', 'a b', 'a#b', '123', '-x', 'x-', 'a!']) expect(normalizeTagName(bad)).toBeNull()
++  })
++})
++
++describe('suggestions', () => {
++  it('detects a trigger before the caret', () => {
++    expect(getTagTrigger('hello #wo', 9)).toEqual({ start: 6, query: 'wo' })
++    expect(getTagTrigger('#', 1)).toEqual({ start: 0, query: '' })
++    expect(getTagTrigger('a\n#Wo', 5)).toEqual({ start: 2, query: 'wo' })
++  })
++  it('does not trigger in headings, code, words or after a space', () => {
++    expect(getTagTrigger('# ', 2)).toBeNull()
++    expect(getTagTrigger('abc#de', 6)).toBeNull()
++    expect(getTagTrigger('#ab ', 4)).toBeNull()
++    expect(getTagTrigger('```\n#ab', 7)).toBeNull()
++    expect(getTagTrigger('`#ab', 4)).toBeNull()
++  })
++  it('suggests by prefix, excluding an exact match', () => {
++    const all = ['home', 'work', 'workout', 'wo']
++    expect(suggestTags(all, '')).toEqual(all)
++    expect(suggestTags(all, 'wo')).toEqual(['work', 'workout'])
++    expect(suggestTags(all, 'x')).toEqual([])
++    expect(suggestTags(all, '', 2)).toHaveLength(2)
++  })
++  it('inserts the chosen tag and moves the caret after it', () => {
++    const r = applySuggestion('see #wo now', { start: 4, query: 'wo' }, 7, 'work')
++    expect(r).toEqual({ text: 'see #work  now', caret: 10 })
++  })
++})
+diff --git a/src/lib/tags.ts b/src/lib/tags.ts
+new file mode 100644
+index 0000000..6340adc
+--- /dev/null
++++ b/src/lib/tags.ts
+@@ -0,0 +1,98 @@
++// Tags are #words written anywhere in a note's text (outside code and link targets).
++// Names are case-insensitive and stored lowercase.
++
++import type { Note } from './notes'
++
++const NAME_RE = /^[\p{L}\p{N}_]+(?:[-/][\p{L}\p{N}_]+)*$/u
++// A '#' that is not glued to a preceding word char, '&' (entities), '#', or '/' (URL fragments).
++const TAG_RE = /(?<![\p{L}\p{N}_&#/])#([\p{L}\p{N}_]+(?:[-/][\p{L}\p{N}_]+)*)/gu
++const TRIGGER_RE = /(?<![\p{L}\p{N}_&#/])#([\p{L}\p{N}_/-]*)$/u
++
++const blank = (s: string) => s.replace(/[^\n]/g, ' ')
++
++/** Replace code blocks, inline code and link targets by spaces, keeping every index. */
++export function maskCode(text: string): string {
++  let fence: string | null = null
++  return text
++    .split('\n')
++    .map((line) => {
++      const m = /^\s*(```+|~~~+)/.exec(line)
++      if (fence) {
++        if (m && m[1].startsWith(fence)) fence = null
++        return blank(line)
++      }
++      if (m) { fence = m[1]; return blank(line) }
++      return line
++        .replace(/`[^`]*`/g, blank)
++        .replace(/\]\([^)]*\)/g, blank)
++    })
++    .join('\n')
++}
++
++export interface TagMatch { name: string; start: number; end: number }
++
++export function findTags(content: string): TagMatch[] {
++  const out: TagMatch[] = []
++  for (const m of maskCode(content).matchAll(TAG_RE)) {
++    if (/^\d+$/.test(m[1])) continue // "#1" is not a tag
++    out.push({ name: m[1].toLowerCase(), start: m.index, end: m.index + m[0].length })
++  }
++  return out
++}
++
++export function extractTags(content: string): string[] {
++  return [...new Set(findTags(content).map((t) => t.name))]
++}
++
++export interface TagCount { name: string; count: number }
++
++/** Every tag across notes with the number of notes using it, sorted by name. */
++export function tagCounts(notes: Pick<Note, 'content'>[]): TagCount[] {
++  const counts = new Map<string, number>()
++  for (const n of notes) for (const t of extractTags(n.content)) counts.set(t, (counts.get(t) ?? 0) + 1)
++  return [...counts]
++    .map(([name, count]) => ({ name, count }))
++    .sort((a, b) => a.name.localeCompare(b.name))
++}
++
++export function filterByTag<T extends Pick<Note, 'content'>>(notes: T[], tag: string | null): T[] {
++  return tag ? notes.filter((n) => extractTags(n.content).includes(tag)) : notes
++}
++
++/** Normalise user input ("#Work ") to a valid tag name, or null if invalid. */
++export function normalizeTagName(input: string): string | null {
++  const t = input.trim().replace(/^#/, '').toLowerCase()
++  return NAME_RE.test(t) && !/^\d+$/.test(t) ? t : null
++}
++
++/** Rewrite every occurrence of tag `from` as `to` in the text. */
++export function renameTag(content: string, from: string, to: string): string {
++  let out = content
++  for (const m of findTags(content).filter((t) => t.name === from).reverse()) {
++    out = out.slice(0, m.start) + '#' + to + out.slice(m.end)
++  }
++  return out
++}
++
++export interface TagTrigger { start: number; query: string }
++
++/** If the caret is right after "#partial", describe it (start = index of '#'). */
++export function getTagTrigger(text: string, caret: number): TagTrigger | null {
++  let masked = maskCode(text.slice(0, caret))
++  // an unclosed backtick means the caret is inside an inline code span being typed
++  const open = masked.lastIndexOf('`')
++  if (open >= 0 && !masked.slice(open).includes('\n')) masked = masked.slice(0, open) + blank(masked.slice(open))
++  const m = TRIGGER_RE.exec(masked)
++  if (!m) return null
++  return { start: m.index, query: text.slice(m.index + 1, caret).toLowerCase() }
++}
++
++export function suggestTags(all: string[], query: string, limit = 8): string[] {
++  return all.filter((t) => t.startsWith(query) && t !== query).slice(0, limit)
++}
++
++/** Replace the "#partial" before the caret with the chosen tag plus a space. */
++export function applySuggestion(text: string, trigger: TagTrigger, caret: number, tag: string) {
++  const insert = `#${tag} `
++  return { text: text.slice(0, trigger.start) + insert + text.slice(caret), caret: trigger.start + insert.length }
++}

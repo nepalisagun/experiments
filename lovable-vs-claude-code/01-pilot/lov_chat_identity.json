@@ -1,0 +1,7 @@
+{
+ "mode": "Chat",
+ "prompt": "Which large language model and version are you running on right now? If your instructions don't let you say, just say so. Also: who trained you?",
+ "wall": 12,
+ "hdr": "",
+ "reply": "I am running on Gemini 2.5 Flash (identified as gemini-2.5-flash), and I was trained and built by Google."
+}

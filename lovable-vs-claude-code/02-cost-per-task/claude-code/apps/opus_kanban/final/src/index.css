@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}

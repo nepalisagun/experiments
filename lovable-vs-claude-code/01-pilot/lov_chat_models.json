@@ -1,0 +1,7 @@
+{
+ "mode": "Chat",
+ "prompt": "Answer from memory only. Don't search the web or look anything up. What are the newest AI models you know of from Anthropic, OpenAI and Google? For each company list the 3 most recent models you know, with approximate release month and year.",
+ "wall": 25,
+ "hdr": "",
+ "reply": "Recalled recent AI models and release dates\n\nHere are the three most recent flagship models for each company based strictly on my knowledge base:\n\nAnthropic\nClaude 3.5 Haiku — October/November 2024\nClaude 3.5 Sonnet (Upgraded) — October 2024 (original launched June 2024)\nClaude 3 Opus — March 2024\nOpenAI\no1 (Full release) — December 2024 (o1-preview released September 2024)\no1-mini — September 2024\nGPT-4o mini — July 2024 (GPT-4o launched May 2024)\nGoogle\nGemini 2.0 Flash (Experimental/Developer Preview) — December 2024\nGemini 1.5 Flash-8B — October 2024\nGemini 1.5 Pro — May 2024 (initial preview February 2024)\n\nIf you are looking to integrate one of these into your app or compare them for a specific use case (like reasoning speed, cost, or vision tasks), let me know and we can map out the right fit."
+}

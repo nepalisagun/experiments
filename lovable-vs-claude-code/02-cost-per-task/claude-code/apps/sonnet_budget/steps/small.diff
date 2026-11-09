@@ -1,0 +1,72 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index 15ab676..60525c0 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -99,7 +99,21 @@ for (const s of sizes) {
+     await expect(page.getByTestId('tx-row')).toHaveCount(1)
+     await page.getByLabel('Search notes').fill('zzz')
+     await expect(page.getByText('No transactions match your filters.')).toBeVisible()
+-    await page.getByLabel('Search notes').fill('')
++    // Clear filters button
++    const clear = page.getByRole('button', { name: 'Clear filters' })
++    await page.getByLabel('Filter by type').selectOption('income')
++    await page.getByLabel('Filter by category').selectOption({ label: 'Other' })
++    await expect(clear).toBeEnabled()
++    await page.screenshot({ path: `shots/${s.name}-filters.png` })
++    await clear.click()
++    await expect(page.getByTestId('tx-row')).toHaveCount(6)
++    await expect(page.getByLabel('Search notes')).toHaveValue('')
++    await expect(page.getByLabel('Filter by type')).toHaveValue('')
++    await expect(page.getByLabel('Filter by category')).toHaveValue('')
++    await expect(clear).toBeDisabled()
++    // Income colour is teal
++    await expect(page.getByTestId('total-income')).toHaveCSS('color', 'oklch(0.6 0.118 184.704)')
++    expect(await noOverflow()).toBe(true)
+ 
+     // Reload persistence
+     await page.reload()
+diff --git a/src/App.tsx b/src/App.tsx
+index 8707ae4..c3f594a 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -70,7 +70,7 @@ export default function App() {
+ 
+       <main className="mx-auto max-w-6xl space-y-4 px-4 py-4">
+         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Month totals">
+-          <Stat label="Income" value={sum.income} cls="text-emerald-600" testid="total-income" />
++          <Stat label="Income" value={sum.income} cls="text-teal-600" testid="total-income" />
+           <Stat label="Expenses" value={sum.expenses} cls="text-rose-600" testid="total-expenses" />
+           <Stat label="Balance" value={sum.balance} cls={sum.balance < 0 ? 'text-rose-600' : 'text-slate-900'} testid="total-balance" />
+         </section>
+@@ -96,7 +96,7 @@ export default function App() {
+             </div>
+           </div>
+ 
+-          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
++          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+             <input
+               className={input} type="search" placeholder="Search notes…" aria-label="Search notes"
+               value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+@@ -110,6 +110,13 @@ export default function App() {
+               <option value="income">Income only</option>
+               <option value="expense">Expenses only</option>
+             </select>
++            <button
++              className={`${btn} border border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40`}
++              disabled={!filters.search && !filters.categoryId && !filters.type}
++              onClick={() => setFilters({ categoryId: '', type: '', search: '' })}
++            >
++              Clear filters
++            </button>
+           </div>
+ 
+           {visible.length === 0 ? (
+@@ -127,7 +134,7 @@ export default function App() {
+                       <div className="truncate text-sm font-medium">{c?.name ?? 'Unknown'}{t.note && <span className="font-normal text-slate-600"> · {t.note}</span>}</div>
+                       <div className="text-xs text-slate-500">{t.date}</div>
+                     </div>
+-                    <div className={`text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
++                    <div className={`text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-teal-600' : 'text-rose-600'}`}>
+                       {t.type === 'income' ? '+' : '−'}{formatCents(t.cents)}
+                     </div>
+                     <button className="rounded px-2 py-1 text-sm text-indigo-700 hover:bg-indigo-50" onClick={() => setEditing(t)} aria-label={`Edit ${c?.name ?? ''} ${t.date}`}>Edit</button>

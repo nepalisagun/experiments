@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@layer components {
+  .btn-secondary {
+    @apply h-12 rounded-2xl bg-white px-4 text-sm font-medium text-stone-700 ring-1 ring-stone-200 transition-colors hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700;
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

@@ -1,0 +1,897 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+new file mode 100644
+index 0000000..e129fe5
+--- /dev/null
++++ b/e2e/app.spec.ts
+@@ -0,0 +1,160 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 800 },
++  { name: 'mobile', width: 375, height: 700 },
++]
++
++for (const size of sizes) {
++  test.describe(size.name, () => {
++    const mobile = size.width < 768
++    test.use({ viewport: { width: size.width, height: size.height } })
++
++    const editor = (p: Page) => p.getByLabel('Markdown editor')
++    const title = (p: Page) => p.getByLabel('Note title')
++    const items = (p: Page) => p.getByTestId('note-item')
++
++    async function open(p: Page, idx = 0) {
++      await items(p).nth(idx).locator('button').first().click()
++    }
++    async function back(p: Page) {
++      if (mobile) await p.getByRole('button', { name: '← Notes' }).click()
++    }
++    async function create(p: Page, name: string, body = '') {
++      await p.getByRole('button', { name: '+ New' }).click()
++      await title(p).fill(name)
++      await editor(p).fill(body)
++    }
++
++    test.beforeEach(async ({ page }) => {
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++    })
++
++    test('layout, screenshots, side-by-side vs stacked', async ({ page }) => {
++      await page.screenshot({ path: `shots/${size.name}-list.png` })
++      await open(page)
++      const e = await editor(page).boundingBox()
++      const pv = await page.getByTestId('preview').boundingBox()
++      if (mobile) expect(pv!.y).toBeGreaterThan(e!.y + e!.height - 2)
++      else expect(pv!.x).toBeGreaterThan(e!.x + e!.width - 2)
++      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width)
++      await page.screenshot({ path: `shots/${size.name}-editor.png` })
++    })
++
++    test('markdown rendering and checkbox toggling', async ({ page }) => {
++      await open(page)
++      await editor(page).fill('# Head\n\n**bold** *it* [lnk](https://example.com)\n\n- one\n- two\n\n```\nlet a = 1\n```\n\n- [ ] first\n- [x] second')
++      const pv = page.getByTestId('preview')
++      await expect(pv.locator('h1')).toHaveText('Head')
++      await expect(pv.locator('strong')).toHaveText('bold')
++      await expect(pv.locator('em')).toHaveText('it')
++      await expect(pv.locator('a')).toHaveAttribute('href', 'https://example.com')
++      await expect(pv.locator('pre code')).toContainText('let a = 1')
++      await expect(pv.locator('ul li')).toHaveCount(4)
++      const boxes = pv.locator('input[type=checkbox]')
++      await expect(boxes).toHaveCount(2)
++      await boxes.nth(0).click()
++      await expect(editor(page)).toHaveValue(/- \[x\] first/)
++      await expect(boxes.nth(0)).toBeChecked()
++      await boxes.nth(1).click()
++      await expect(editor(page)).toHaveValue(/- \[ \] second/)
++      await expect(boxes.nth(1)).not.toBeChecked()
++      await page.screenshot({ path: `shots/${size.name}-md.png` })
++    })
++
++    test('raw HTML does not run', async ({ page }) => {
++      await open(page)
++      await page.evaluate(() => ((window as any).pwned = false))
++      await editor(page).fill('<script>window.pwned=true</script>\n\n<img src=x onerror="window.pwned=true">\n\n[x](javascript:window.pwned=true)')
++      await page.waitForTimeout(300)
++      await page.getByTestId('preview').locator('a').click({ force: true }).catch(() => {})
++      expect(await page.evaluate(() => (window as any).pwned)).toBe(false)
++      await expect(page.getByTestId('preview').locator('img, script')).toHaveCount(0)
++      await expect(page.getByTestId('preview')).toContainText('<script>')
++    })
++
++    test('create, rename, delete with confirmation, pin, sort', async ({ page }) => {
++      await create(page, 'Alpha', 'a')
++      await back(page)
++      await create(page, 'Beta', 'b')
++      await back(page)
++      await expect(items(page).first()).toContainText('Beta')
++      // rename
++      await open(page, 1)
++      await page.getByRole('button', { name: 'Rename' }).click()
++      await title(page).fill('Alpha2')
++      // editing makes it newest
++      await back(page)
++      await expect(items(page).first()).toContainText('Alpha2')
++      // pin the oldest (Beta wasn't edited since) -> goes first
++      await page.getByRole('button', { name: 'Pin Beta' }).click()
++      await expect(items(page).first()).toContainText('Beta')
++      await expect(items(page).first()).toHaveAttribute('data-pinned', 'true')
++      // delete: cancel, then confirm
++      await open(page, 0)
++      await page.getByRole('button', { name: 'Delete', exact: true }).click()
++      await expect(page.getByRole('dialog')).toContainText('Beta')
++      await page.getByRole('button', { name: 'Cancel' }).click()
++      await expect(page.getByRole('dialog')).toHaveCount(0)
++      if (mobile) await back(page)
++      await expect(items(page)).toHaveCount(3)
++      await open(page, 0)
++      await page.getByRole('button', { name: 'Delete', exact: true }).click()
++      await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click()
++      if (mobile) await expect(items(page)).toHaveCount(2)
++      await expect(items(page)).toHaveCount(2)
++      await expect(page.getByTestId('note-list')).not.toContainText('Beta')
++      await page.screenshot({ path: `shots/${size.name}-after-delete.png` })
++    })
++
++    test('search highlights matches in title and content', async ({ page }) => {
++      await create(page, 'Groceries', 'buy milk and eggs')
++      await back(page)
++      await create(page, 'Work', 'meeting notes')
++      await back(page)
++      await page.getByLabel('Search notes').fill('milk')
++      await expect(items(page)).toHaveCount(1)
++      await expect(items(page).locator('mark')).toHaveText('milk')
++      await page.getByLabel('Search notes').fill('GROC')
++      await expect(items(page)).toHaveCount(1)
++      await expect(items(page).locator('mark')).toHaveText('Groc')
++      await page.getByLabel('Search notes').fill('zzz')
++      await expect(page.getByText('No notes match')).toBeVisible()
++      await page.screenshot({ path: `shots/${size.name}-search.png` })
++    })
++
++    test('autosave indicator, word count, reload persistence', async ({ page }) => {
++      await create(page, 'Persist me', 'one two three')
++      await expect(page.getByTestId('word-count')).toHaveText('3 words')
++      await editor(page).fill('one two three four five')
++      await expect(page.getByTestId('save-status')).toHaveText('Saving…')
++      await expect(page.getByTestId('save-status')).toHaveText('Saved')
++      await expect(page.getByTestId('word-count')).toHaveText('5 words')
++      await page.reload()
++      await expect(items(page).first()).toContainText('Persist me')
++      await open(page)
++      await expect(editor(page)).toHaveValue('one two three four five')
++    })
++
++    test('typing then immediate reload does not lose data', async ({ page }) => {
++      await create(page, 'Quick', 'x')
++      await editor(page).fill('quick reload text')
++      await page.reload()
++      await open(page)
++      await expect(editor(page)).toHaveValue('quick reload text')
++    })
++
++    test('theme toggle is remembered', async ({ page }) => {
++      const html = page.locator('html')
++      const before = await html.getAttribute('class')
++      await page.getByTestId('theme-toggle').click()
++      const dark = (await html.getAttribute('class'))?.includes('dark')
++      expect(dark).toBe(!before?.includes('dark'))
++      await page.screenshot({ path: `shots/${size.name}-theme.png` })
++      await page.reload()
++      expect(((await html.getAttribute('class')) ?? '').includes('dark')).toBe(!!dark)
++    })
++  })
++}
+diff --git a/index.html b/index.html
+index 3d7efb3..ce5e492 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,14 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Markdown Notes</title>
++    <script>
++      try {
++        var t = localStorage.getItem('mdnotes.theme.v1')
++        if (t === null) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
++        if (t === 'dark') document.documentElement.classList.add('dark')
++      } catch (e) {}
++    </script>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..b07b59a 100644
+--- a/package.json
++++ b/package.json
+@@ -7,9 +7,12 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
+-    "preview": "vite preview"
++    "preview": "vite preview",
++    "test": "vitest run"
+   },
+   "dependencies": {
++    "dompurify": "^3.4.17",
++    "marked": "^18.1.3",
+     "react": "^19.3.1",
+     "react-dom": "^19.3.1"
+   },
+@@ -20,9 +23,11 @@
+     "@types/react": "^19.3.0",
+     "@types/react-dom": "^19.3.0",
+     "@vitejs/plugin-react": "^6.1.2",
++    "jsdom": "^29.1.1",
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..a807d58 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,293 @@
++import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
++import {
++  THEME_KEY, WELCOME, createNote, filterNotes, highlightSegments, loadNotes, saveNotes,
++  snippet, sortNotes, toggleCheckbox, wordCount, type Note,
++} from './lib/notes'
++import { renderMarkdown } from './lib/markdown'
++
++type Theme = 'light' | 'dark'
++
++function initialTheme(): Theme {
++  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
++}
++
++function initialNotes(): Note[] {
++  return loadNotes() ?? [createNote(Date.now(), 'Welcome', WELCOME)]
++}
++
++function Highlight({ text, query }: { text: string; query: string }): ReactNode {
++  return highlightSegments(text, query).map((s, i) =>
++    s.match ? <mark key={i}>{s.text}</mark> : <span key={i}>{s.text}</span>,
++  )
++}
++
++const btn =
++  'rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-indigo-500'
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [init] = useState(() => {
++    const n = initialNotes()
++    return { notes: n, id: sortNotes(n)[0]?.id ?? null }
++  })
++  const [notes, setNotes] = useState<Note[]>(init.notes)
++  const [selectedId, setSelectedId] = useState<string | null>(init.id)
++  const [query, setQuery] = useState('')
++  const [theme, setTheme] = useState<Theme>(initialTheme)
++  const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved')
++  const [confirmId, setConfirmId] = useState<string | null>(null)
++  const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
++  const titleRef = useRef<HTMLInputElement>(null)
++  const notesRef = useRef(notes)
++  const dirty = useRef(false)
++
++  // Keep selection valid on first render when it was derived from a different initialNotes() call.
++  const sorted = useMemo(() => sortNotes(notes), [notes])
++  const visible = useMemo(() => filterNotes(sorted, query), [sorted, query])
++  const selected = notes.find((n) => n.id === selectedId) ?? null
++  const confirmNote = notes.find((n) => n.id === confirmId) ?? null
++
++  useEffect(() => {
++    if (selectedId === null || notes.some((n) => n.id === selectedId)) return
++    setSelectedId(sorted[0]?.id ?? null)
++  }, [notes, selectedId, sorted])
++
++  // Autosave (debounced) + flush when the page is hidden.
++  useEffect(() => {
++    notesRef.current = notes
++    if (!dirty.current) return
++    setStatus('saving')
++    const t = setTimeout(() => {
++      setStatus(saveNotes(notes) ? 'saved' : 'error')
++      dirty.current = false
++    }, 400)
++    return () => clearTimeout(t)
++  }, [notes])
++
++  useEffect(() => {
++    const flush = () => {
++      if (dirty.current) {
++        saveNotes(notesRef.current)
++        dirty.current = false
++      }
++    }
++    window.addEventListener('pagehide', flush)
++    window.addEventListener('beforeunload', flush)
++    return () => {
++      window.removeEventListener('pagehide', flush)
++      window.removeEventListener('beforeunload', flush)
++    }
++  }, [])
++
++  // Persist the very first state (e.g. the welcome note) too.
++  useEffect(() => {
++    saveNotes(notesRef.current)
++  }, [])
++
++  useEffect(() => {
++    document.documentElement.classList.toggle('dark', theme === 'dark')
++    try {
++      localStorage.setItem(THEME_KEY, theme)
++    } catch {
++      /* ignore */
++    }
++  }, [theme])
++
++  function edit(id: string, patch: Partial<Note>, touch = true) {
++    dirty.current = true
++    setNotes((ns) => ns.map((n) => (n.id === id ? { ...n, ...patch, ...(touch ? { updatedAt: Date.now() } : {}) } : n)))
++  }
++
++  function addNote() {
++    const note = createNote()
++    dirty.current = true
++    setNotes((ns) => [note, ...ns])
++    setSelectedId(note.id)
++    setQuery('')
++    setMobileView('editor')
++    setTimeout(() => {
++      titleRef.current?.focus()
++      titleRef.current?.select()
++    }, 0)
++  }
++
++  function deleteNote(id: string) {
++    dirty.current = true
++    setNotes((ns) => ns.filter((n) => n.id !== id))
++    setConfirmId(null)
++    setMobileView('list')
++  }
++
++  const html = useMemo(() => (selected ? renderMarkdown(selected.content) : ''), [selected?.content])
++
++  function onPreviewClick(e: React.MouseEvent<HTMLDivElement>) {
++    const t = e.target as HTMLElement
++    if (!selected || t.tagName !== 'INPUT' || (t as HTMLInputElement).type !== 'checkbox') return
++    const boxes = Array.from(e.currentTarget.querySelectorAll('input[type="checkbox"]'))
++    const idx = boxes.indexOf(t)
++    if (idx < 0) return
++    e.preventDefault() // state re-render sets the true checked value
++    edit(selected.id, { content: toggleCheckbox(selected.content, idx) })
++  }
++
++  return (
++    <div className="flex h-full flex-col text-slate-900 dark:text-slate-100">
++      <header className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
++        <h1 className="text-lg font-semibold">Notes</h1>
++        <span
++          data-testid="save-status"
++          aria-live="polite"
++          className={`ml-2 text-xs ${status === 'error' ? 'text-red-600' : 'text-slate-500 dark:text-slate-400'}`}
++        >
++          {status === 'saved' ? 'Saved' : status === 'saving' ? 'Saving…' : 'Save failed'}
++        </span>
++        <button
++          className={`${btn} ml-auto`}
++          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
++          aria-label="Toggle theme"
++          data-testid="theme-toggle"
++        >
++          {theme === 'dark' ? '☀ Light' : '🌙 Dark'}
++        </button>
++      </header>
++
++      <div className="flex min-h-0 flex-1">
++        {/* Sidebar */}
++        <aside
++          className={`${mobileView === 'list' ? 'flex' : 'hidden'} w-full flex-col border-r border-slate-200 bg-white md:flex md:w-72 md:shrink-0 dark:border-slate-700 dark:bg-slate-900`}
++          aria-label="Notes list"
++        >
++          <div className="flex gap-2 p-3">
++            <input
++              type="search"
++              value={query}
++              onChange={(e) => setQuery(e.target.value)}
++              placeholder="Search notes…"
++              aria-label="Search notes"
++              className="min-w-0 flex-1 rounded-md border border-slate-300 bg-transparent px-2.5 py-1.5 text-sm dark:border-slate-600"
++            />
++            <button className={`${btn} bg-indigo-600 text-white hover:bg-indigo-700 dark:hover:bg-indigo-500 border-indigo-600`} onClick={addNote}>
++              + New
++            </button>
++          </div>
++          <ul className="min-h-0 flex-1 overflow-y-auto" data-testid="note-list">
++            {visible.map((n) => (
++              <li key={n.id}>
++                <div
++                  className={`group flex items-start gap-1 border-l-4 px-3 py-2 ${
++                    n.id === selectedId
++                      ? 'border-indigo-500 bg-indigo-50 dark:bg-slate-800'
++                      : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60'
++                  }`}
++                  data-testid="note-item"
++                  data-pinned={n.pinned}
++                >
++                  <button
++                    className="min-w-0 flex-1 text-left"
++                    onClick={() => {
++                      setSelectedId(n.id)
++                      setMobileView('editor')
++                    }}
++                  >
++                    <div className="truncate text-sm font-medium">
++                      {n.pinned && <span aria-label="Pinned">📌 </span>}
++                      <Highlight text={n.title || 'Untitled note'} query={query} />
++                    </div>
++                    <div className="truncate text-xs text-slate-500 dark:text-slate-400">
++                      <Highlight text={snippet(n.content, query) || 'No content'} query={query} />
++                    </div>
++                  </button>
++                  <button
++                    className="rounded p-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-700"
++                    aria-label={`${n.pinned ? 'Unpin' : 'Pin'} ${n.title}`}
++                    aria-pressed={n.pinned}
++                    onClick={() => edit(n.id, { pinned: !n.pinned }, false)}
++                  >
++                    {n.pinned ? '★' : '☆'}
++                  </button>
++                </div>
++              </li>
++            ))}
++            {visible.length === 0 && (
++              <li className="p-4 text-sm text-slate-500">{notes.length ? 'No notes match your search.' : 'No notes yet.'}</li>
++            )}
++          </ul>
++        </aside>
++
++        {/* Editor */}
++        <main className={`${mobileView === 'editor' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col md:flex`}>
++          {selected ? (
++            <>
++              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
++                <button className={`${btn} md:hidden`} onClick={() => setMobileView('list')}>
++                  ← Notes
++                </button>
++                <input
++                  ref={titleRef}
++                  value={selected.title}
++                  onChange={(e) => edit(selected.id, { title: e.target.value })}
++                  aria-label="Note title"
++                  className="min-w-0 flex-1 basis-40 rounded-md border border-transparent bg-transparent px-2 py-1 text-base font-semibold hover:border-slate-300 dark:hover:border-slate-600"
++                />
++                <button className={btn} onClick={() => { titleRef.current?.focus(); titleRef.current?.select() }}>
++                  Rename
++                </button>
++                <button className={btn} onClick={() => edit(selected.id, { pinned: !selected.pinned }, false)} aria-pressed={selected.pinned}>
++                  {selected.pinned ? 'Unpin' : 'Pin'}
++                </button>
++                <button className={`${btn} text-red-600 dark:text-red-400`} onClick={() => setConfirmId(selected.id)}>
++                  Delete
++                </button>
++                <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="word-count">
++                  {wordCount(selected.content)} {wordCount(selected.content) === 1 ? 'word' : 'words'}
++                </span>
++              </div>
++              <div className="grid min-h-0 flex-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
++                <textarea
++                  value={selected.content}
++                  onChange={(e) => edit(selected.id, { content: e.target.value })}
++                  aria-label="Markdown editor"
++                  spellCheck={false}
++                  placeholder="Write Markdown here…"
++                  className="min-h-0 resize-none border-b border-slate-200 bg-white p-4 font-mono text-sm outline-none dark:border-slate-700 dark:bg-slate-900 lg:border-b-0 lg:border-r"
++                />
++                <div
++                  className="md min-h-0 overflow-y-auto p-4"
++                  data-testid="preview"
++                  onClick={onPreviewClick}
++                  dangerouslySetInnerHTML={{ __html: html }}
++                />
++              </div>
++            </>
++          ) : (
++            <div className="grid flex-1 place-items-center p-6 text-slate-500">
++              <div className="text-center">
++                <p className="mb-3">No note selected.</p>
++                <button className={btn} onClick={addNote}>+ New note</button>
++              </div>
++            </div>
++          )}
++        </main>
++      </div>
++
++      {confirmNote && (
++        <div
++          className="fixed inset-0 z-10 grid place-items-center bg-black/50 p-4"
++          onKeyDown={(e) => e.key === 'Escape' && setConfirmId(null)}
++        >
++          <div role="dialog" aria-modal="true" aria-labelledby="del-title" className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl dark:bg-slate-800">
++            <h2 id="del-title" className="text-lg font-semibold">Delete note?</h2>
++            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
++              “{confirmNote.title || 'Untitled note'}” will be permanently deleted.
++            </p>
++            <div className="mt-4 flex justify-end gap-2">
++              <button className={btn} autoFocus onClick={() => setConfirmId(null)}>Cancel</button>
++              <button className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700" onClick={() => deleteNote(confirmNote.id)}>
++                Delete
++              </button>
++            </div>
++          </div>
++        </div>
++      )}
++    </div>
++  )
+ }
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..b9cc1e9 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,58 @@
+ @import "tailwindcss";
++
++@custom-variant dark (&:where(.dark, .dark *));
++
++:root {
++  color-scheme: light;
++}
++.dark {
++  color-scheme: dark;
++}
++
++html,
++body,
++#root {
++  height: 100%;
++}
++body {
++  background: #f8fafc;
++  color: #0f172a;
++}
++.dark body {
++  background: #0b1120;
++  color: #e2e8f0;
++}
++
++mark {
++  background: #fde047;
++  color: #111827;
++  border-radius: 2px;
++  padding: 0 1px;
++}
++
++.md {
++  line-height: 1.65;
++  overflow-wrap: anywhere;
++}
++.md > :first-child { margin-top: 0; }
++.md h1 { font-size: 1.75rem; font-weight: 700; margin: 1.2em 0 0.5em; }
++.md h2 { font-size: 1.4rem; font-weight: 700; margin: 1.2em 0 0.5em; }
++.md h3 { font-size: 1.15rem; font-weight: 600; margin: 1.1em 0 0.4em; }
++.md h4, .md h5, .md h6 { font-weight: 600; margin: 1em 0 0.4em; }
++.md p { margin: 0.7em 0; }
++.md ul { list-style: disc; padding-left: 1.5rem; margin: 0.7em 0; }
++.md ol { list-style: decimal; padding-left: 1.5rem; margin: 0.7em 0; }
++.md li > ul, .md li > ol { margin: 0.2em 0; }
++.md li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.25rem; }
++.md input[type="checkbox"] { width: 1rem; height: 1rem; margin-right: 0.35rem; vertical-align: -2px; cursor: pointer; accent-color: #4f46e5; }
++.md a { color: #4f46e5; text-decoration: underline; }
++.dark .md a { color: #a5b4fc; }
++.md code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; background: rgba(100,116,139,0.18); padding: 0.1em 0.35em; border-radius: 4px; }
++.md pre { background: #0f172a; color: #e2e8f0; padding: 0.9rem 1rem; border-radius: 8px; overflow-x: auto; margin: 0.9em 0; }
++.md pre code { background: none; padding: 0; color: inherit; }
++.md blockquote { border-left: 4px solid #94a3b8; padding-left: 1rem; color: #64748b; margin: 0.8em 0; }
++.md hr { border: 0; border-top: 1px solid #cbd5e1; margin: 1.2em 0; }
++.dark .md hr { border-color: #334155; }
++.md table { border-collapse: collapse; margin: 0.8em 0; }
++.md th, .md td { border: 1px solid #cbd5e1; padding: 0.3rem 0.6rem; }
++.dark .md th, .dark .md td { border-color: #334155; }
+diff --git a/src/lib/markdown.ts b/src/lib/markdown.ts
+new file mode 100644
+index 0000000..ee999b1
+--- /dev/null
++++ b/src/lib/markdown.ts
+@@ -0,0 +1,37 @@
++import { Marked } from 'marked'
++import DOMPurify from 'dompurify'
++
++// Raw HTML in a note is shown as literal text, never parsed; output is also sanitized.
++const marked = new Marked({
++  gfm: true,
++  breaks: false,
++  renderer: {
++    html({ text }) {
++      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
++    },
++    checkbox({ checked }) {
++      return `<input type="checkbox" data-task${checked ? ' checked' : ''}> `
++    },
++  },
++})
++
++let hooked = false
++function ensureHook() {
++  if (hooked) return
++  hooked = true
++  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
++    if (node.tagName === 'A') {
++      node.setAttribute('target', '_blank')
++      node.setAttribute('rel', 'noopener noreferrer')
++    }
++  })
++}
++
++export function sanitize(html: string): string {
++  ensureHook()
++  return DOMPurify.sanitize(html, { ADD_ATTR: ['data-task'] })
++}
++
++export function renderMarkdown(src: string): string {
++  return sanitize(marked.parse(src, { async: false }) as string)
++}
+diff --git a/src/lib/notes.test.ts b/src/lib/notes.test.ts
+new file mode 100644
+index 0000000..f31f1d9
+--- /dev/null
++++ b/src/lib/notes.test.ts
+@@ -0,0 +1,106 @@
++import { describe, expect, it } from 'vitest'
++import {
++  createNote, filterNotes, highlightSegments, loadNotes, saveNotes, snippet,
++  sortNotes, toggleCheckbox, wordCount, NOTES_KEY, type Note,
++} from './notes'
++import { renderMarkdown } from './markdown'
++
++const n = (title: string, updatedAt: number, pinned = false, content = ''): Note =>
++  ({ ...createNote(updatedAt, title, content), pinned })
++
++describe('sortNotes', () => {
++  it('puts pinned first then newest first', () => {
++    const r = sortNotes([n('old', 1), n('pinOld', 2, true), n('new', 9), n('pinNew', 5, true)])
++    expect(r.map((x) => x.title)).toEqual(['pinNew', 'pinOld', 'new', 'old'])
++  })
++  it('does not mutate input', () => {
++    const a = [n('a', 1), n('b', 2)]
++    sortNotes(a)
++    expect(a[0].title).toBe('a')
++  })
++})
++
++describe('search', () => {
++  const notes = [n('Groceries', 1, false, 'milk and eggs'), n('Work', 2, false, 'Meeting NOTES')]
++  it('matches title and content case-insensitively', () => {
++    expect(filterNotes(notes, 'GROC').map((x) => x.title)).toEqual(['Groceries'])
++    expect(filterNotes(notes, 'notes').map((x) => x.title)).toEqual(['Work'])
++    expect(filterNotes(notes, '  ')).toHaveLength(2)
++    expect(filterNotes(notes, 'zzz')).toHaveLength(0)
++  })
++  it('highlights segments', () => {
++    expect(highlightSegments('Foo bar foo', 'foo')).toEqual([
++      { text: 'Foo', match: true }, { text: ' bar ', match: false }, { text: 'foo', match: true },
++    ])
++    expect(highlightSegments('abc', '')).toEqual([{ text: 'abc', match: false }])
++  })
++  it('snippets around a match', () => {
++    const s = snippet('x'.repeat(100) + ' needle ' + 'y'.repeat(100), 'needle', 10)
++    expect(s).toContain('needle')
++    expect(s.startsWith('…')).toBe(true)
++  })
++})
++
++describe('wordCount', () => {
++  it('counts words', () => {
++    expect(wordCount('')).toBe(0)
++    expect(wordCount('  \n ')).toBe(0)
++    expect(wordCount('one two\nthree  four')).toBe(4)
++  })
++})
++
++describe('toggleCheckbox', () => {
++  const src = '- [ ] a\n- [x] b\n\n```\n- [ ] not a task\n```\n\n1. [ ] c\n  - [X] d'
++  it('toggles by index, skipping fenced code', () => {
++    expect(toggleCheckbox(src, 0).split('\n')[0]).toBe('- [x] a')
++    expect(toggleCheckbox(src, 1).split('\n')[1]).toBe('- [ ] b')
++    expect(toggleCheckbox(src, 2).split('\n')[7]).toBe('1. [x] c')
++    expect(toggleCheckbox(src, 3).split('\n')[8]).toBe('  - [ ] d')
++    expect(toggleCheckbox(src, 2)).toContain('- [ ] not a task')
++  })
++  it('ignores out of range', () => {
++    expect(toggleCheckbox(src, 9)).toBe(src)
++  })
++})
++
++describe('storage', () => {
++  const mem = () => {
++    const m = new Map<string, string>()
++    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) }
++  }
++  it('round-trips', () => {
++    const s = mem()
++    const notes = [n('a', 1, true, 'hi')]
++    expect(saveNotes(notes, s)).toBe(true)
++    expect(loadNotes(s)).toEqual(notes)
++  })
++  it('returns null when empty or corrupt', () => {
++    const s = mem()
++    expect(loadNotes(s)).toBeNull()
++    s.setItem(NOTES_KEY, '{bad')
++    expect(loadNotes(s)).toBeNull()
++  })
++  it('save reports failure', () => {
++    expect(saveNotes([], { setItem: () => { throw new Error('full') } })).toBe(false)
++  })
++})
++
++describe('renderMarkdown', () => {
++  it('renders supported syntax', () => {
++    const h = renderMarkdown('# T\n\n**b** *i* [l](https://x.com)\n\n- a\n\n```\ncode\n```\n\n- [x] done')
++    expect(h).toContain('<h1>')
++    expect(h).toContain('<strong>b</strong>')
++    expect(h).toContain('<em>i</em>')
++    expect(h).toContain('href="https://x.com"')
++    expect(h).toContain('<pre><code>')
++    expect(h).toContain('type="checkbox"')
++    expect(h).toContain('checked')
++  })
++  it('does not emit raw HTML or scripts', () => {
++    const h = renderMarkdown('<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n[x](javascript:alert(1))\n\n<input type=checkbox>')
++    expect(h).not.toMatch(/<script/i)
++    expect(h).not.toMatch(/<img/i)
++    expect(h).not.toMatch(/<input/i)
++    expect(h).not.toMatch(/javascript:/i)
++  })
++})
+diff --git a/src/lib/notes.ts b/src/lib/notes.ts
+new file mode 100644
+index 0000000..fee3d73
+--- /dev/null
++++ b/src/lib/notes.ts
+@@ -0,0 +1,148 @@
++export interface Note {
++  id: string
++  title: string
++  content: string
++  pinned: boolean
++  updatedAt: number
++}
++
++export const NOTES_KEY = 'mdnotes.notes.v1'
++export const THEME_KEY = 'mdnotes.theme.v1'
++
++export function newId(): string {
++  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
++}
++
++export function createNote(now = Date.now(), title = 'Untitled note', content = ''): Note {
++  return { id: newId(), title, content, pinned: false, updatedAt: now }
++}
++
++/** Pinned first, then newest edited first. */
++export function sortNotes(notes: Note[]): Note[] {
++  return [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
++}
++
++export function matchesQuery(note: Note, query: string): boolean {
++  const q = query.trim().toLowerCase()
++  if (!q) return true
++  return note.title.toLowerCase().includes(q) || note.content.toLowerCase().includes(q)
++}
++
++export function filterNotes(notes: Note[], query: string): Note[] {
++  return notes.filter((n) => matchesQuery(n, query))
++}
++
++export interface Segment {
++  text: string
++  match: boolean
++}
++
++/** Split text into segments, flagging case-insensitive occurrences of query. */
++export function highlightSegments(text: string, query: string): Segment[] {
++  const q = query.trim().toLowerCase()
++  if (!q) return [{ text, match: false }]
++  const lower = text.toLowerCase()
++  const out: Segment[] = []
++  let i = 0
++  while (i < text.length) {
++    const at = lower.indexOf(q, i)
++    if (at === -1) break
++    if (at > i) out.push({ text: text.slice(i, at), match: false })
++    out.push({ text: text.slice(at, at + q.length), match: true })
++    i = at + q.length
++  }
++  if (i < text.length) out.push({ text: text.slice(i), match: false })
++  return out.length ? out : [{ text, match: false }]
++}
++
++/** A one-line snippet of content around the first match (or the start when no query). */
++export function snippet(content: string, query: string, radius = 36): string {
++  const flat = content.replace(/\s+/g, ' ').trim()
++  const q = query.trim().toLowerCase()
++  if (!q) return flat.slice(0, radius * 2)
++  const at = flat.toLowerCase().indexOf(q)
++  if (at === -1) return flat.slice(0, radius * 2)
++  const start = Math.max(0, at - radius)
++  const end = Math.min(flat.length, at + q.length + radius)
++  return (start > 0 ? '…' : '') + flat.slice(start, end) + (end < flat.length ? '…' : '')
++}
++
++export function wordCount(text: string): number {
++  const m = text.trim().match(/\S+/g)
++  return m ? m.length : 0
++}
++
++const TASK_RE = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\]\s)/
++const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})/
++
++/** Line indexes of task-list items, skipping fenced code blocks. */
++function taskLines(lines: string[]): number[] {
++  const res: number[] = []
++  let fence: string | null = null
++  lines.forEach((line, i) => {
++    const f = FENCE_RE.exec(line)
++    if (fence) {
++      if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null
++      return
++    }
++    if (f) {
++      fence = f[1]
++      return
++    }
++    if (TASK_RE.test(line)) res.push(i)
++  })
++  return res
++}
++
++/** Toggle the nth (0-based) checkbox in the Markdown source. */
++export function toggleCheckbox(source: string, index: number): string {
++  const lines = source.split('\n')
++  const at = taskLines(lines)[index]
++  if (at === undefined) return source
++  lines[at] = lines[at].replace(TASK_RE, (_m, a, c, b) => a + (c === ' ' ? 'x' : ' ') + b)
++  return lines.join('\n')
++}
++
++export function loadNotes(storage: Pick<Storage, 'getItem'> = localStorage): Note[] | null {
++  try {
++    const raw = storage.getItem(NOTES_KEY)
++    if (raw === null) return null
++    const data = JSON.parse(raw)
++    if (!Array.isArray(data)) return null
++    return data
++      .filter((n) => n && typeof n.id === 'string')
++      .map((n) => ({
++        id: n.id,
++        title: typeof n.title === 'string' ? n.title : 'Untitled note',
++        content: typeof n.content === 'string' ? n.content : '',
++        pinned: !!n.pinned,
++        updatedAt: typeof n.updatedAt === 'number' ? n.updatedAt : 0,
++      }))
++  } catch {
++    return null
++  }
++}
++
++export function saveNotes(notes: Note[], storage: Pick<Storage, 'setItem'> = localStorage): boolean {
++  try {
++    storage.setItem(NOTES_KEY, JSON.stringify(notes))
++    return true
++  } catch {
++    return false
++  }
++}
++
++export const WELCOME = `# Welcome
++
++This is a **Markdown** notes app. Edit on the left, preview on the right.
++
++- Bullet lists, *italic*, **bold** and [links](https://example.com)
++- Tick the boxes in the preview:
++
++- [ ] Write a note
++- [x] Open the app
++
++\`\`\`js
++console.log("code blocks work")
++\`\`\`
++`
+diff --git a/vitest.config.ts b/vitest.config.ts
+new file mode 100644
+index 0000000..13a81c1
+--- /dev/null
++++ b/vitest.config.ts
+@@ -0,0 +1,3 @@
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({ test: { environment: 'jsdom', include: ['src/**/*.test.ts'] } })

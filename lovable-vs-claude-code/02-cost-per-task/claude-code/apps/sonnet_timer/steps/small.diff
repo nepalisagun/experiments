@@ -1,0 +1,158 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index 3a70103..9c01000 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -99,7 +99,7 @@ for (const size of sizes) {
+       await expect(page.getByTestId('dots')).toContainText('1 of 4')
+       await page.screenshot({ path: `shots/${size.name}-3-break.png`, fullPage: true })
+ 
+-      // finish break, then three more focus sessions -> long break
++      // finish break, then three more focus sessions -> Recharge
+       await btn(page, 'Start').click()
+       await page.clock.fastForward(5 * 60_000)
+       await expect(page.getByTestId('phase')).toHaveText('Focus')
+@@ -112,7 +112,7 @@ for (const size of sizes) {
+           await btn(page, 'Skip').click() // skip break
+         }
+       }
+-      await expect(page.getByTestId('phase')).toHaveText('Long break')
++      await expect(page.getByTestId('phase')).toHaveText('Recharge')
+       await expect(countdown(page)).toHaveText('15:00')
+       await expect(page.getByTestId('log').locator('li')).toHaveCount(4)
+       await page.screenshot({ path: `shots/${size.name}-4-long.png`, fullPage: true })
+@@ -136,6 +136,36 @@ for (const size of sizes) {
+       expect(errors).toEqual([])
+     })
+ 
++    test('countdown size and fit, Recharge title', async ({ page }) => {
++      await setup(page)
++      const fontPx = await countdown(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
++      if (size.width === 375) expect(fontPx).toBeGreaterThanOrEqual(110) // was 90px
++      // widest case: 90:00 must still fit inside the card
++      await page.getByRole('button', { name: /Settings/ }).click()
++      await page.getByRole('textbox').first().fill('90')
++      await expect(countdown(page)).toHaveText('90:00')
++      const fits = await countdown(page).evaluate((el) => {
++        const r = document.createRange()
++        r.selectNodeContents(el)
++        const text = r.getBoundingClientRect()
++        const box = el.getBoundingClientRect()
++        return text.left >= box.left - 0.5 && text.right <= box.right + 0.5
++      })
++      expect(fits).toBe(true)
++      await page.screenshot({ path: `shots/${size.name}-7-90.png`, fullPage: true })
++      // title for the renamed phase
++      await page.getByRole('textbox').first().fill('1')
++      await page.getByRole('textbox').nth(1).fill('1')
++      for (let i = 0; i < 4; i++) {
++        await btn(page, 'Start').click()
++        await page.clock.fastForward(60_000)
++        if (i < 3) await btn(page, 'Skip').click()
++      }
++      await expect(page).toHaveTitle('15:00 - Recharge')
++      await expect(page.getByTestId('dots')).toContainText('until Recharge')
++      await expect(page.locator('body')).not.toContainText(/long break/i)
++    })
++
+     test('settings validation, persistence, mute', async ({ page }) => {
+       await setup(page)
+       await page.getByRole('button', { name: /Settings/ }).click()
+diff --git a/src/App.tsx b/src/App.tsx
+index 00b1c5f..1f90ecc 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -177,7 +177,7 @@ export default function App() {
+ 
+         {showSettings && <SettingsPanel settings={settings} onChange={updateSettings} />}
+ 
+-        <section className="rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200">
++        <section className="rounded-3xl bg-white p-4 text-center sm:p-6 shadow-sm ring-1 ring-slate-200">
+           <p data-testid="phase" className={`text-sm font-semibold uppercase tracking-widest ${th.text}`}>
+             {T.PHASE_NAME[timer.phase]}
+           </p>
+@@ -185,7 +185,7 @@ export default function App() {
+             data-testid="countdown"
+             role="timer"
+             aria-live="off"
+-            className="my-3 text-[clamp(4.5rem,24vw,7.5rem)] font-light leading-none tabular-nums tracking-tight"
++            className="my-3 text-[clamp(5rem,31vw,7.5rem)] font-light leading-none tabular-nums tracking-tight"
+           >
+             {T.formatTime(ms)}
+           </div>
+@@ -218,12 +218,12 @@ export default function App() {
+           <p className="mt-3 hidden text-xs text-slate-400 sm:block">Press Space to start / pause</p>
+ 
+           <div className="mt-5 flex flex-col items-center gap-2" data-testid="dots">
+-            <div className="flex gap-2" role="img" aria-label={`${dots} of ${T.CYCLE} focus sessions done before the long break`}>
++            <div className="flex gap-2" role="img" aria-label={`${dots} of ${T.CYCLE} focus sessions done before Recharge`}>
+               {Array.from({ length: T.CYCLE }, (_, i) => (
+                 <span key={i} data-filled={i < dots} className={`h-3 w-3 rounded-full ${i < dots ? th.dot : 'bg-slate-200'}`} />
+               ))}
+             </div>
+-            <span className="text-xs text-slate-500">{dots} of {T.CYCLE} until long break</span>
++            <span className="text-xs text-slate-500">{dots} of {T.CYCLE} until Recharge</span>
+           </div>
+         </section>
+ 
+@@ -254,7 +254,7 @@ function SettingsPanel({ settings, onChange }: { settings: Settings; onChange: (
+   const fields: { key: Key; label: string }[] = [
+     { key: 'focus', label: 'Focus' },
+     { key: 'short', label: 'Short break' },
+-    { key: 'long', label: 'Long break' },
++    { key: 'long', label: 'Recharge' },
+   ]
+   const [draft, setDraft] = useState({ focus: String(settings.focus), short: String(settings.short), long: String(settings.long) })
+   const [errors, setErrors] = useState<Record<string, boolean>>({})
+diff --git a/src/timer.test.ts b/src/timer.test.ts
+index 403d340..d5dda38 100644
+--- a/src/timer.test.ts
++++ b/src/timer.test.ts
+@@ -37,7 +37,7 @@ describe('timer', () => {
+     expect(r.state.endAt).toBeNull()
+     expect(r.state.cycle).toBe(1)
+   })
+-  it('long break after 4 focus sessions, then cycle resets', () => {
++  it('Recharge (long break) after 4 focus sessions, then cycle resets', () => {
+     let st = T.initialState(S)
+     const phases: string[] = []
+     for (let i = 0; i < 9; i++) {
+diff --git a/src/timer.ts b/src/timer.ts
+index ce2ee7b..68c2eee 100644
+--- a/src/timer.ts
++++ b/src/timer.ts
+@@ -4,7 +4,7 @@ export interface LogEntry { id: string; label: string; finishedAt: number }
+ 
+ export const DEFAULT_SETTINGS: Settings = { focus: 25, short: 5, long: 15, muted: false }
+ export const CYCLE = 4
+-export const PHASE_NAME: Record<Phase, string> = { focus: 'Focus', short: 'Short break', long: 'Long break' }
++export const PHASE_NAME: Record<Phase, string> = { focus: 'Focus', short: 'Short break', long: 'Recharge' }
+ 
+ export interface TimerState {
+   phase: Phase
+@@ -12,7 +12,7 @@ export interface TimerState {
+   endAt: number | null
+   /** ms left while paused/idle */
+   remaining: number
+-  /** focus sessions completed in the current cycle (0-3, or 4 during the long break) */
++  /** focus sessions completed in the current cycle (0-3, or 4 during Recharge) */
+   cycle: number
+ }
+ 
+@@ -49,7 +49,7 @@ export function advance(st: TimerState, s: Settings, completedFocus: boolean): T
+     const phase: Phase = cycle >= CYCLE ? 'long' : 'short'
+     return { phase, endAt: null, remaining: phaseMs(s, phase), cycle }
+   }
+-  // after a break go back to focus; after the long break the cycle starts over
++  // after a break go back to focus; after Recharge the cycle starts over
+   const cycle = st.phase === 'long' ? 0 : st.cycle
+   return { phase: 'focus', endAt: null, remaining: phaseMs(s, 'focus'), cycle }
+ }
+@@ -64,7 +64,7 @@ export function tick(st: TimerState, s: Settings, now: number): { state: TimerSt
+   return { state: advance(st, s, true), finished: st.phase }
+ }
+ 
+-/** Dots filled toward the long break. */
++/** Dots filled toward Recharge. */
+ export const filledDots = (st: TimerState) => Math.min(st.cycle, CYCLE)
+ 
+ export function formatTime(ms: number) {

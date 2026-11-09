@@ -1,0 +1,1068 @@
+diff --git a/e2e/settle.spec.ts b/e2e/settle.spec.ts
+new file mode 100644
+index 0000000..8e65c5e
+--- /dev/null
++++ b/e2e/settle.spec.ts
+@@ -0,0 +1,190 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const shot = (page: Page, name: string) =>
++  page.screenshot({ path: `shots/${test.info().project.name}-${name}.png`, fullPage: true })
++
++async function addPerson(page: Page, name: string) {
++  await page.getByLabel("New person's name").fill(name)
++  await page.getByRole('button', { name: 'Add', exact: true }).click()
++}
++
++async function addItem(page: Page, name: string, price: string, people: string[]) {
++  const form = page.getByRole('form', { name: 'Add item' })
++  await form.getByLabel('Item').fill(name)
++  await form.getByLabel('Price').fill(price)
++  for (const p of people) await form.getByRole('checkbox', { name: p }).check()
++  await form.getByRole('button', { name: 'Add item' }).click()
++}
++
++const transfers = (page: Page) => page.getByTestId('transfer')
++const settle = (page: Page) => page.getByRole('region', { name: 'Settle up' })
++const paidBy = (page: Page) => page.getByRole('region', { name: 'Who paid' })
++
++async function expectNoHorizontalScroll(page: Page) {
++  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
++  expect(overflow).toBeLessThanOrEqual(0)
++}
++
++/** Anna 30, Ben 20, Cat 10; no tax, no tip: total $60.00. */
++async function setUpDinner(page: Page) {
++  for (const n of ['Anna', 'Ben', 'Cat']) await addPerson(page, n)
++  await addItem(page, 'Steak', '30', ['Anna'])
++  await addItem(page, 'Pasta', '20', ['Ben'])
++  await addItem(page, 'Soup', '10', ['Cat'])
++  await page.getByRole('button', { name: 'Custom' }).click()
++  await page.getByLabel('Custom tip percentage').fill('0')
++  await expect(page.getByTestId('bill-total')).toHaveText('$60.00')
++}
++
++test.beforeEach(async ({ page }) => {
++  await page.goto('/')
++  await page.evaluate(() => localStorage.clear())
++  await page.reload()
++})
++
++test('payers, sum validation and settle-up transfers', async ({ page }) => {
++  await setUpDinner(page)
++  await expect(settle(page)).toContainText('Record who paid to see who owes whom.')
++
++  // One payer, prefilled with the bill total
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await expect(page.getByLabel('Payer 1')).toHaveValue(/.+/)
++  await expect(page.getByLabel('Amount paid by Anna')).toHaveValue('60.00')
++  await expect(page.getByTestId('payments-status')).toHaveText('✓ Payments add up to the bill total of $60.00.')
++  await expect(transfers(page)).toHaveText(['Ben pays Anna $20.00', 'Cat pays Anna $10.00'])
++  await expect(settle(page)).toContainText('2 transfers, the fewest needed')
++
++  // Short: clear message, no transfers
++  await page.getByLabel('Amount paid by Anna').fill('40')
++  await expect(paidBy(page).getByRole('alert')).toContainText('Payments add up to $40.00, but the bill total is $60.00. $20.00 is still unpaid.')
++  await expect(transfers(page)).toHaveCount(0)
++  await expect(settle(page)).toContainText('Transfers will appear once the payments add up to the bill total.')
++  await shot(page, 'payments-short')
++
++  // Second payer is prefilled with what's left, and only offers people not already paying
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  const payer2 = page.getByLabel('Payer 2')
++  await expect(payer2.locator('option')).toHaveText(['Ben', 'Cat'])
++  await expect(page.getByLabel('Amount paid by Ben')).toHaveValue('20.00')
++  await expect(transfers(page)).toHaveText(['Cat pays Anna $10.00'])
++  await expect(settle(page)).toContainText('One transfer')
++
++  // Over: message + one-click fix
++  await page.getByLabel('Amount paid by Ben').fill('25')
++  await expect(paidBy(page).getByRole('alert')).toContainText("Payments add up to $65.00, but the bill total is $60.00. That's $5.00 too much.")
++  await page.getByRole('button', { name: "Set Ben's payment to $20.00" }).click()
++  await expect(page.getByLabel('Amount paid by Ben')).toHaveValue('20.00')
++  await expect(transfers(page)).toHaveText(['Cat pays Anna $10.00'])
++
++  // Per-row validation
++  await page.getByLabel('Amount paid by Ben').fill('-5')
++  await expect(paidBy(page).getByText('Amount cannot be negative.')).toBeVisible()
++  await expect(page.getByTestId('payments-status')).toHaveCount(0) // sum message waits for valid rows
++  await page.getByLabel('Amount paid by Ben').fill('')
++  await expect(paidBy(page).getByText('Enter the amount paid.')).toBeVisible()
++  await page.getByLabel('Amount paid by Ben').fill('abc')
++  await expect(paidBy(page).getByText('Amount must be a number, e.g. 12.50.')).toBeVisible()
++  await page.getByLabel('Amount paid by Ben').fill('20')
++  await expect(paidBy(page).getByRole('alert')).toHaveCount(0)
++
++  // Switch payer 2 from Ben to Cat: Anna +10, Cat paid 20 owes 10 (+10), Ben owes 20
++  await payer2.selectOption({ label: 'Cat' })
++  await expect(page.getByLabel('Amount paid by Cat')).toHaveValue('20')
++  await expect(transfers(page)).toHaveText(['Ben pays Anna $10.00', 'Ben pays Cat $10.00'])
++
++  // Third payer: everyone listed -> button disabled
++  await page.getByLabel('Amount paid by Anna').fill('30')
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await expect(page.getByLabel('Amount paid by Ben')).toHaveValue('10.00')
++  await expect(page.getByRole('button', { name: '+ Add payer' })).toBeDisabled()
++  await page.getByLabel('Amount paid by Ben').fill('20')
++  await page.getByLabel('Amount paid by Cat').fill('10')
++  await expect(settle(page)).toContainText('Everyone is even. No transfers needed.')
++
++  // Remove payers
++  await page.getByRole('button', { name: 'Remove payment by Cat' }).click()
++  await page.getByRole('button', { name: 'Remove payment by Ben' }).click()
++  await expect(page.getByTestId('payment-row')).toHaveCount(1)
++  await expect(paidBy(page).getByRole('alert')).toContainText('$30.00 is still unpaid.')
++  await page.getByRole('button', { name: "Set Anna's payment to $60.00" }).click()
++  await expect(transfers(page)).toHaveText(['Ben pays Anna $20.00', 'Cat pays Anna $10.00'])
++  await shot(page, 'settle-up')
++  await expectNoHorizontalScroll(page)
++})
++
++test('changing the bill after recording payments re-checks the total', async ({ page }) => {
++  await setUpDinner(page)
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await expect(transfers(page)).toHaveCount(2)
++  await page.getByRole('button', { name: '20%' }).click() // total becomes $72.00
++  await expect(page.getByTestId('bill-total')).toHaveText('$72.00')
++  await expect(paidBy(page).getByRole('alert')).toContainText('$12.00 is still unpaid.')
++  await expect(transfers(page)).toHaveCount(0)
++  await page.getByRole('button', { name: "Set Anna's payment to $72.00" }).click()
++  // tip is split in proportion too: Ben 20 + 4, Cat 10 + 2
++  await expect(transfers(page)).toHaveText(['Ben pays Anna $24.00', 'Cat pays Anna $12.00'])
++})
++
++test('settle-up uses rounded per-person totals and the fewest transfers', async ({ page }) => {
++  for (const n of ['Anna', 'Ben', 'Cat', 'Dan']) await addPerson(page, n)
++  await addItem(page, 'Platter', '10', ['Anna', 'Ben', 'Cat'])
++  await page.getByLabel('Tax', { exact: true }).fill('8.875')
++  // 18% default tip; Dan had nothing and paid for everything
++  const total = (await page.getByTestId('bill-total').textContent())!
++  expect(total).toBe('$12.69')
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await page.getByLabel('Payer 1').selectOption({ label: 'Dan' })
++  await expect(page.getByLabel('Amount paid by Dan')).toHaveValue('12.69')
++  const shares = await page.getByTestId('share-total').allTextContents()
++  await expect(transfers(page)).toHaveText([`Anna pays Dan ${shares[0]}`, `Ben pays Dan ${shares[1]}`, `Cat pays Dan ${shares[2]}`])
++  const cents = (s: string) => Math.round(Number(s.replace(/[^0-9.]/g, '')) * 100)
++  const sum = (await transfers(page).allTextContents()).map((t) => cents(t.split(' Dan ')[1])).reduce((a, b) => a + b, 0)
++  expect(sum).toBe(1269)
++})
++
++test('copy summary includes payers and transfers; currency applies', async ({ page }) => {
++  await setUpDinner(page)
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await page.getByLabel('Amount paid by Anna').fill('45')
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  // Ben's row is prefilled with the remaining $15. Owed: Anna 30, Ben 20, Cat 10.
++  // Balances: Anna +15, Ben -5, Cat -10.
++  await expect(page.getByLabel('Amount paid by Ben')).toHaveValue('15.00')
++  await expect(transfers(page)).toHaveText(['Cat pays Anna $10.00', 'Ben pays Anna $5.00'])
++  await page.getByLabel('Currency').selectOption('EUR')
++  await expect(transfers(page)).toHaveText(['Cat pays Anna 10,00 €', 'Ben pays Anna 5,00 €'])
++  await page.getByRole('button', { name: 'Copy summary' }).click()
++  await expect(page.getByRole('status')).toHaveText('Summary copied to clipboard')
++  const text = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')
++  expect(text).toContain('Total: 60,00 €')
++  expect(text.endsWith('Paid by:\n- Anna: 45,00 €\n- Ben: 15,00 €\n\nSettle up:\n- Cat pays Anna 10,00 €\n- Ben pays Anna 5,00 €')).toBe(true)
++})
++
++test('payments survive reload, removing a payer person asks first, reset clears them', async ({ page }) => {
++  await setUpDinner(page)
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await page.getByLabel('Amount paid by Anna').fill('50')
++  await page.getByRole('button', { name: '+ Add payer' }).click()
++  await expect(page.getByLabel('Amount paid by Ben')).toHaveValue('10.00')
++  const before = await transfers(page).allTextContents()
++  await page.reload()
++  await expect(page.getByTestId('payment-row')).toHaveCount(2)
++  await expect(page.getByLabel('Amount paid by Anna')).toHaveValue('50')
++  await expect(transfers(page)).toHaveText(before)
++
++  await page.getByRole('button', { name: 'Remove Ben' }).click()
++  const dialog = page.getByRole('dialog', { name: 'Remove Ben?' })
++  await expect(dialog).toContainText('Pasta')
++  await expect(dialog).toContainText('Their payment will be removed too')
++  await shot(page, 'remove-payer-dialog')
++  await dialog.getByRole('button', { name: 'Remove' }).click()
++  await expect(page.getByTestId('payment-row')).toHaveCount(1)
++  // total is now $40; Anna paid $50
++  await expect(paidBy(page).getByRole('alert')).toContainText("That's $10.00 too much.")
++
++  await page.getByRole('button', { name: 'Reset' }).click()
++  await page.getByRole('dialog', { name: 'Reset the bill?' }).getByRole('button', { name: 'Reset' }).click()
++  await expect(page.getByTestId('payment-row')).toHaveCount(0)
++  await expect(paidBy(page)).toContainText('Add people first.')
++  await expect(settle(page)).toContainText('Record who paid')
++})
+diff --git a/src/App.tsx b/src/App.tsx
+index 303bf0f..2a1b9c3 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -3,9 +3,12 @@ import { Breakdown } from './components/Breakdown'
+ import { ConfirmDialog } from './components/ConfirmDialog'
+ import { Items } from './components/Items'
+ import { People } from './components/People'
++import { Payments } from './components/Payments'
++import { SettleUp } from './components/SettleUp'
+ import { TaxTip } from './components/TaxTip'
++import { checkPayments, computeSettlement } from './lib/settle'
++import { buildSummary } from './lib/summary'
+ import {
+-  buildSummary,
+   computeBreakdown,
+   CURRENCIES,
+   deserializeBill,
+@@ -64,6 +67,8 @@ export default function App() {
+   }, [bill])
+ 
+   const breakdown = useMemo(() => computeBreakdown(bill), [bill])
++  const paymentCheck = useMemo(() => checkPayments(bill, breakdown.total), [bill, breakdown])
++  const settlement = useMemo(() => computeSettlement(bill, breakdown), [bill, breakdown])
+   const update = (patch: Partial<Bill>) => setBill((b) => ({ ...b, ...patch }))
+ 
+   const flash = (text: string, tone: 'ok' | 'err') => {
+@@ -78,12 +83,14 @@ export default function App() {
+   }
+ 
+   const requestRemovePerson = (id: string) => {
+-    if (itemsOnlySharedBy(bill, id).length > 0) setConfirm({ kind: 'remove-person', id })
++    const isPayer = bill.payments.some((p) => p.personId === id)
++    if (itemsOnlySharedBy(bill, id).length > 0 || isPayer) setConfirm({ kind: 'remove-person', id })
+     else setBill((b) => removePerson(b, id))
+   }
+ 
+   const pendingPerson = confirm?.kind === 'remove-person' ? bill.people.find((p) => p.id === confirm.id) : undefined
+   const orphaned = confirm?.kind === 'remove-person' ? itemsOnlySharedBy(bill, confirm.id) : []
++  const pendingPaid = confirm?.kind === 'remove-person' && bill.payments.some((p) => p.personId === confirm.id)
+ 
+   return (
+     <div className="min-h-screen">
+@@ -135,7 +142,7 @@ export default function App() {
+             onRemove={(id) => setBill((b) => ({ ...b, items: b.items.filter((x) => x.id !== id) }))}
+           />
+         </div>
+-        <div className="space-y-4 md:sticky md:top-4 md:self-start">
++        <div className="space-y-4">
+           <TaxTip
+             taxPct={bill.taxPct}
+             tipMode={bill.tipMode}
+@@ -145,6 +152,17 @@ export default function App() {
+             onCustomTip={(customTipPct) => update({ customTipPct })}
+           />
+           <Breakdown breakdown={breakdown} currency={bill.currency} />
++          <Payments
++            payments={bill.payments}
++            people={bill.people}
++            currency={bill.currency}
++            totalCents={breakdown.total}
++            check={paymentCheck}
++            onAdd={(personId, amount) => setBill((b) => ({ ...b, payments: [...b.payments, { id: newId(), personId, amount }] }))}
++            onChange={(id, patch) => setBill((b) => ({ ...b, payments: b.payments.map((p) => (p.id === id ? { ...p, ...patch } : p)) }))}
++            onRemove={(id) => setBill((b) => ({ ...b, payments: b.payments.filter((p) => p.id !== id) }))}
++          />
++          <SettleUp settlement={settlement} people={bill.people} currency={bill.currency} />
+         </div>
+       </main>
+ 
+@@ -162,7 +180,7 @@ export default function App() {
+       <ConfirmDialog
+         open={confirm?.kind === 'reset'}
+         title="Reset the bill?"
+-        message="This removes all people, items, tax and tip. It can't be undone."
++        message="This removes all people, items, payments, tax and tip. It can't be undone."
+         confirmLabel="Reset"
+         onCancel={() => setConfirm(null)}
+         onConfirm={() => {
+@@ -175,9 +193,18 @@ export default function App() {
+         title={`Remove ${pendingPerson?.name ?? 'person'}?`}
+         message={
+           <>
+-            {pendingPerson?.name} is the only person on {orphaned.length === 1 ? 'this item' : 'these items'}, so{' '}
+-            {orphaned.length === 1 ? 'it' : 'they'} will be removed too:{' '}
+-            <strong className="text-stone-800">{orphaned.map((i) => i.name).join(', ')}</strong>
++            {orphaned.length > 0 && (
++              <p>
++                {pendingPerson?.name} is the only person on {orphaned.length === 1 ? 'this item' : 'these items'}, so{' '}
++                {orphaned.length === 1 ? 'it' : 'they'} will be removed too:{' '}
++                <strong className="text-stone-800">{orphaned.map((i) => i.name).join(', ')}</strong>
++              </p>
++            )}
++            {pendingPaid && (
++              <p className={orphaned.length > 0 ? 'mt-2' : ''}>
++                Their payment will be removed too, so the payments may no longer add up to the bill total.
++              </p>
++            )}
+           </>
+         }
+         confirmLabel="Remove"
+diff --git a/src/components/Payments.tsx b/src/components/Payments.tsx
+new file mode 100644
+index 0000000..1c39ef7
+--- /dev/null
++++ b/src/components/Payments.tsx
+@@ -0,0 +1,132 @@
++import { formatMoney, parsePrice, type Currency, type Payment, type Person } from '../lib/bill'
++import type { PaymentCheck } from '../lib/settle'
++
++interface Props {
++  payments: Payment[]
++  people: Person[]
++  currency: Currency
++  totalCents: number
++  check: PaymentCheck
++  onAdd: (personId: string, amount: string) => void
++  onChange: (id: string, patch: Partial<Omit<Payment, 'id'>>) => void
++  onRemove: (id: string) => void
++}
++
++const toInput = (cents: number) => (cents / 100).toFixed(2)
++
++export function Payments({ payments, people, currency, totalCents, check, onAdd, onChange, onRemove }: Props) {
++  const m = (c: number) => formatMoney(c, currency)
++  const used = new Set(payments.map((p) => p.personId))
++  const unused = people.filter((p) => !used.has(p.id))
++  const allValid = check.rowErrors.every((e) => !e)
++  const remaining = Math.max(0, totalCents - check.paidCents)
++
++  // Offer a one-click fix for a mismatch by adjusting the last payer.
++  const last = payments[payments.length - 1]
++  const lastCents = last ? parsePrice(last.amount) : undefined
++  const fixed = lastCents?.ok ? lastCents.value - check.difference : -1
++  const lastName = last && people.find((p) => p.id === last.personId)?.name
++
++  return (
++    <section className="card" aria-labelledby="payments-title">
++      <h2 id="payments-title" className="card-title">
++        Who paid
++      </h2>
++
++      {people.length === 0 ? (
++        <p className="text-sm text-stone-500">Add people first.</p>
++      ) : (
++        <>
++          {payments.length === 0 && <p className="mb-3 text-sm text-stone-500">Record who paid the restaurant and how much.</p>}
++          <ul className="space-y-3" aria-label="Payers">
++            {payments.map((p, i) => {
++              const err = check.rowErrors[i]
++              const errId = `payment-error-${p.id}`
++              const name = people.find((x) => x.id === p.personId)?.name ?? 'payer'
++              return (
++                <li key={p.id} data-testid="payment-row">
++                  <div className="flex gap-2">
++                    <label className="sr-only" htmlFor={`payer-${p.id}`}>
++                      Payer {i + 1}
++                    </label>
++                    <select
++                      id={`payer-${p.id}`}
++                      className="input min-w-0 flex-1"
++                      value={p.personId}
++                      onChange={(e) => onChange(p.id, { personId: e.target.value })}
++                    >
++                      {!people.some((x) => x.id === p.personId) && <option value="">Choose…</option>}
++                      {people
++                        .filter((x) => x.id === p.personId || !used.has(x.id))
++                        .map((x) => (
++                          <option key={x.id} value={x.id}>
++                            {x.name}
++                          </option>
++                        ))}
++                    </select>
++                    <label className="sr-only" htmlFor={`amount-${p.id}`}>
++                      Amount paid by {name}
++                    </label>
++                    <input
++                      id={`amount-${p.id}`}
++                      className="input w-28 shrink-0 tabular-nums"
++                      inputMode="decimal"
++                      placeholder="0.00"
++                      value={p.amount}
++                      aria-invalid={!!err}
++                      aria-describedby={err ? errId : undefined}
++                      onChange={(e) => onChange(p.id, { amount: e.target.value })}
++                    />
++                    <button
++                      type="button"
++                      className="btn-ghost shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700"
++                      aria-label={`Remove payment by ${name}`}
++                      onClick={() => onRemove(p.id)}
++                    >
++                      ✕
++                    </button>
++                  </div>
++                  {err && (
++                    <p id={errId} role="alert" className="error-text">
++                      {err}
++                    </p>
++                  )}
++                </li>
++              )
++            })}
++          </ul>
++
++          <button
++            type="button"
++            className="btn-secondary mt-3"
++            disabled={unused.length === 0}
++            onClick={() => onAdd(unused[0].id, allValid && remaining > 0 ? toInput(remaining) : '')}
++          >
++            + Add payer
++          </button>
++
++          {payments.length > 0 && allValid && (
++            <div className="mt-3 text-sm" data-testid="payments-status">
++              {check.sumError ? (
++                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">
++                  <p>{check.sumError}</p>
++                  {last && fixed >= 0 && (
++                    <button
++                      type="button"
++                      className="mt-2 font-medium text-red-800 underline underline-offset-2 hover:no-underline"
++                      onClick={() => onChange(last.id, { amount: toInput(fixed) })}
++                    >
++                      Set {lastName}'s payment to {m(fixed)}
++                    </button>
++                  )}
++                </div>
++              ) : (
++                <p className="text-emerald-700">✓ Payments add up to the bill total of {m(totalCents)}.</p>
++              )}
++            </div>
++          )}
++        </>
++      )}
++    </section>
++  )
++}
+diff --git a/src/components/SettleUp.tsx b/src/components/SettleUp.tsx
+new file mode 100644
+index 0000000..e1bacb2
+--- /dev/null
++++ b/src/components/SettleUp.tsx
+@@ -0,0 +1,42 @@
++import { formatMoney, type Currency, type Person } from '../lib/bill'
++import type { Settlement } from '../lib/settle'
++
++export function SettleUp({ settlement, people, currency }: { settlement: Settlement; people: Person[]; currency: Currency }) {
++  const name = (id: string) => people.find((p) => p.id === id)?.name ?? '?'
++
++  return (
++    <section className="card" aria-labelledby="settle-title">
++      <h2 id="settle-title" className="card-title">
++        Settle up
++      </h2>
++      {settlement.status === 'no-payers' && (
++        <p className="text-sm text-stone-500">Record who paid to see who owes whom.</p>
++      )}
++      {settlement.status === 'invalid' && (
++        <p className="text-sm text-stone-500">Transfers will appear once the payments add up to the bill total.</p>
++      )}
++      {settlement.status === 'ok' &&
++        (settlement.transfers.length === 0 ? (
++          <p className="text-sm text-emerald-700">Everyone is even. No transfers needed.</p>
++        ) : (
++          <ol className="space-y-2" aria-label="Transfers">
++            {settlement.transfers.map((t, i) => (
++              <li
++                key={`${t.from}-${t.to}-${i}`}
++                data-testid="transfer"
++                className="rounded-lg bg-stone-50 px-3 py-2 break-words"
++              >
++                <strong className="font-semibold">{name(t.from)}</strong> pays <strong className="font-semibold">{name(t.to)}</strong>{' '}
++                <span className="font-semibold whitespace-nowrap text-emerald-800 tabular-nums">{formatMoney(t.cents, currency)}</span>
++              </li>
++            ))}
++          </ol>
++        ))}
++      {settlement.status === 'ok' && settlement.transfers.length > 0 && (
++        <p className="mt-3 text-xs text-stone-500">
++          {settlement.transfers.length === 1 ? 'One transfer' : `${settlement.transfers.length} transfers`}, the fewest needed to even everyone out.
++        </p>
++      )}
++    </section>
++  )
++}
+diff --git a/src/lib/bill.test.ts b/src/lib/bill.test.ts
+index 9cba6f3..1fdfeaa 100644
+--- a/src/lib/bill.test.ts
++++ b/src/lib/bill.test.ts
+@@ -1,7 +1,6 @@
+ import { describe, expect, it } from 'vitest'
+ import {
+   allocate,
+-  buildSummary,
+   computeBreakdown,
+   deserializeBill,
+   emptyBill,
+@@ -14,6 +13,7 @@ import {
+   validatePersonName,
+   type Bill,
+ } from './bill'
++import { buildSummary } from './summary'
+ 
+ const people = [
+   { id: 'a', name: 'Ann' },
+diff --git a/src/lib/bill.ts b/src/lib/bill.ts
+index 839b98d..69b6081 100644
+--- a/src/lib/bill.ts
++++ b/src/lib/bill.ts
+@@ -17,9 +17,17 @@ export interface Item {
+   sharedBy: string[] // person ids
+ }
+ 
++/** One person's payment towards the bill. */
++export interface Payment {
++  id: string
++  personId: string
++  amount: string // raw user input, e.g. "40.50"
++}
++
+ export interface Bill {
+   people: Person[]
+   items: Item[]
++  payments: Payment[]
+   taxPct: string // raw user input, e.g. "8.875"
+   tipMode: TipMode
+   customTipPct: string // raw user input
+@@ -29,6 +37,7 @@ export interface Bill {
+ export const emptyBill = (): Bill => ({
+   people: [],
+   items: [],
++  payments: [],
+   taxPct: '0',
+   tipMode: '18',
+   customTipPct: '',
+@@ -234,32 +243,6 @@ export function formatPercent(scaled: number): string {
+   return `${(scaled / PCT_SCALE).toFixed(PCT_DECIMALS).replace(/\.?0+$/, '')}%`
+ }
+ 
+-export function buildSummary(bill: Bill, b: Breakdown = computeBreakdown(bill)): string {
+-  const m = (c: number) => formatMoney(c, bill.currency)
+-  const lines: string[] = ['Bill summary', '']
+-  if (bill.items.length) {
+-    lines.push('Items:')
+-    for (const it of bill.items) {
+-      const names = it.sharedBy
+-        .map((id) => bill.people.find((p) => p.id === id)?.name)
+-        .filter(Boolean)
+-        .join(', ')
+-      lines.push(`- ${it.name}: ${m(it.priceCents)} (${names})`)
+-    }
+-    lines.push('')
+-  }
+-  lines.push(`Subtotal: ${m(b.subtotal)}`)
+-  lines.push(`Tax (${formatPercent(b.taxPctScaled)}): ${m(b.tax)}`)
+-  lines.push(`Tip (${formatPercent(b.tipPctScaled)}): ${m(b.tip)}`)
+-  lines.push(`Total: ${m(b.total)}`)
+-  lines.push('')
+-  lines.push('Per person:')
+-  for (const s of b.shares) {
+-    lines.push(`- ${s.name}: ${m(s.total)} (items ${m(s.subtotal)}, tax ${m(s.tax)}, tip ${m(s.tip)})`)
+-  }
+-  return lines.join('\n')
+-}
+-
+ // ---------- persistence ----------
+ 
+ export const STORAGE_KEY = 'bill-splitter:v1'
+@@ -291,9 +274,15 @@ export function deserializeBill(raw: string | null): Bill {
+           }))
+           .filter((it: Item) => it.sharedBy.length > 0)
+       : []
++    const payments: Payment[] = Array.isArray(d.payments)
++      ? d.payments
++          .filter((p: any) => p && isStr(p.id) && isStr(p.personId) && ids.has(p.personId) && isStr(p.amount))
++          .map((p: any) => ({ id: p.id, personId: p.personId, amount: p.amount }))
++      : []
+     return {
+       people,
+       items,
++      payments,
+       taxPct: isStr(d.taxPct) ? d.taxPct : fallback.taxPct,
+       tipMode: [...TIP_PRESETS, 'custom'].includes(d.tipMode) ? d.tipMode : fallback.tipMode,
+       customTipPct: isStr(d.customTipPct) ? d.customTipPct : '',
+@@ -304,11 +293,12 @@ export function deserializeBill(raw: string | null): Bill {
+   }
+ }
+ 
+-/** Removes a person, their item shares, and any item left with nobody. */
++/** Removes a person, their item shares, any item left with nobody, and their payment. */
+ export function removePerson(bill: Bill, personId: string): Bill {
+   return {
+     ...bill,
+     people: bill.people.filter((p) => p.id !== personId),
++    payments: bill.payments.filter((p) => p.personId !== personId),
+     items: bill.items
+       .map((it) => ({ ...it, sharedBy: it.sharedBy.filter((id) => id !== personId) }))
+       .filter((it) => it.sharedBy.length > 0),
+diff --git a/src/lib/settle.test.ts b/src/lib/settle.test.ts
+new file mode 100644
+index 0000000..b3f2fe2
+--- /dev/null
++++ b/src/lib/settle.test.ts
+@@ -0,0 +1,249 @@
++import { describe, expect, it } from 'vitest'
++import { computeBreakdown, deserializeBill, emptyBill, removePerson, type Bill, type Payment } from './bill'
++import { checkPayments, computeBalances, computeSettlement, EXACT_LIMIT, formatTransfer, minTransfers, type Transfer } from './settle'
++import { buildSummary } from './summary'
++
++const people = [
++  { id: 'a', name: 'Anna' },
++  { id: 'b', name: 'Ben' },
++  { id: 'c', name: 'Cat' },
++  { id: 'd', name: 'Dan' },
++]
++
++let pid = 0
++const pay = (personId: string, amount: string): Payment => ({ id: `pay${pid++}`, personId, amount })
++
++/** Anna 30, Ben 20, Cat 10 in items; no tax; no tip. Total 60. */
++function dinner(payments: Payment[], extra: Partial<Bill> = {}): Bill {
++  return {
++    ...emptyBill(),
++    people: people.slice(0, 3),
++    items: [
++      { id: 'i1', name: 'Steak', priceCents: 3000, sharedBy: ['a'] },
++      { id: 'i2', name: 'Pasta', priceCents: 2000, sharedBy: ['b'] },
++      { id: 'i3', name: 'Soup', priceCents: 1000, sharedBy: ['c'] },
++    ],
++    tipMode: 'custom',
++    customTipPct: '0',
++    payments,
++    ...extra,
++  }
++}
++
++const map = (o: Record<string, number>) => new Map(Object.entries(o))
++
++/** Applies transfers and returns the balances left over. */
++function apply(balances: Map<string, number>, ts: Transfer[]) {
++  const b = new Map(balances)
++  for (const t of ts) {
++    expect(t.cents).toBeGreaterThan(0)
++    expect(t.from).not.toBe(t.to)
++    b.set(t.from, b.get(t.from)! + t.cents)
++    b.set(t.to, b.get(t.to)! - t.cents)
++  }
++  return b
++}
++
++/** Independent brute force: fewest transfers = n - max number of zero-sum blocks over all set partitions. */
++function bruteMin(vals: number[]): number {
++  const nz = vals.filter((v) => v !== 0)
++  let best = 0
++  const rec = (i: number, blocks: number[]) => {
++    if (i === nz.length) {
++      best = Math.max(best, blocks.filter((s) => s === 0).length)
++      return
++    }
++    for (let k = 0; k < blocks.length; k++) {
++      blocks[k] += nz[i]
++      rec(i + 1, blocks)
++      blocks[k] -= nz[i]
++    }
++    blocks.push(nz[i])
++    rec(i + 1, blocks)
++    blocks.pop()
++  }
++  rec(0, [])
++  return nz.length - best
++}
++
++describe('checkPayments', () => {
++  it('accepts payments that add up to the total', () => {
++    const b = dinner([pay('a', '40'), pay('b', '20.00')])
++    expect(checkPayments(b, 6000)).toMatchObject({ ok: true, paidCents: 6000, difference: 0, rowErrors: [undefined, undefined] })
++  })
++  it('explains when payments are short or over', () => {
++    const short = checkPayments(dinner([pay('a', '50')]), 6000)
++    expect(short.ok).toBe(false)
++    expect(short.sumError).toBe('Payments add up to $50.00, but the bill total is $60.00. $10.00 is still unpaid.')
++    const over = checkPayments(dinner([pay('a', '50'), pay('b', '12.5')]), 6000)
++    expect(over.sumError).toBe("Payments add up to $62.50, but the bill total is $60.00. That's $2.50 too much.")
++  })
++  it('formats the message in the selected currency', () => {
++    const r = checkPayments(dinner([pay('a', '50')], { currency: 'EUR' }), 6000)
++    expect(r.sumError).toContain('50,00 €')
++  })
++  it('flags bad amounts, missing and duplicate payers per row', () => {
++    const r = checkPayments(dinner([pay('a', '-5'), pay('b', ''), pay('c', '1.234'), pay('a', '10'), pay('', '3')]), 6000)
++    expect(r.rowErrors).toEqual([
++      'Amount cannot be negative.',
++      'Enter the amount paid.',
++      'Amount can have at most 2 decimal places.',
++      'This person is already listed as a payer.',
++      'Pick who paid.',
++    ])
++    expect(r.ok).toBe(false)
++    expect(r.sumError).toBeUndefined() // fix the rows first
++    expect(checkPayments(dinner([pay('a', 'x')]), 6000).rowErrors).toEqual(['Amount must be a number, e.g. 12.50.'])
++  })
++  it('is not ok with no payers', () => {
++    expect(checkPayments(dinner([]), 6000).ok).toBe(false)
++  })
++})
++
++describe('minTransfers', () => {
++  it('returns nothing when everyone is even', () => {
++    expect(minTransfers(map({ a: 0, b: 0 }))).toEqual([])
++    expect(minTransfers(new Map())).toEqual([])
++  })
++  it('one payer: everyone else pays them', () => {
++    expect(minTransfers(map({ a: 3000, b: -2000, c: -1000 }))).toEqual([
++      { from: 'b', to: 'a', cents: 2000 },
++      { from: 'c', to: 'a', cents: 1000 },
++    ])
++  })
++  it('finds zero-sum pairs that greedy largest-first would miss', () => {
++    // Greedy largest-first: d(-7) -> a(+6), then d(-1)->b... gives 4 transfers.
++    // Optimal pairs a/c and b/d: 2 transfers.
++    const bal = map({ a: 600, b: 500, c: -600, d: -500 })
++    const ts = minTransfers(bal)
++    expect(ts).toHaveLength(2)
++    expect([...apply(bal, ts).values()].every((v) => v === 0)).toBe(true)
++
++    const tricky = map({ a: 400, b: 300, c: 300, d: -700, e: -300 })
++    expect(minTransfers(tricky)).toHaveLength(3)
++  })
++  it('rejects balances that do not sum to zero', () => {
++    expect(() => minTransfers(map({ a: 1, b: 0 }))).toThrow()
++  })
++  it('settles everyone and is minimal on random inputs (checked by brute force)', () => {
++    let seed = 99
++    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31)
++    for (let t = 0; t < 400; t++) {
++      const n = 2 + Math.floor(rnd() * 6) // 2..7 people
++      // small values make zero-sum subsets common, which is the hard case
++      const vals = Array.from({ length: n - 1 }, () => Math.floor(rnd() * 11) - 5)
++      vals.push(-vals.reduce((a, b) => a + b, 0))
++      const bal = new Map(vals.map((v, i) => [`p${i}`, v]))
++      const ts = minTransfers(bal)
++      expect([...apply(bal, ts).values()].every((v) => v === 0)).toBe(true)
++      expect(ts.length).toBe(bruteMin(vals))
++    }
++  })
++  it('falls back to a valid (greedy) plan for very large groups', () => {
++    const n = EXACT_LIMIT + 4
++    const vals = Array.from({ length: n }, (_, i) => (i % 2 ? -(i + 1) * 100 : (i + 2) * 100))
++    vals[n - 1] -= vals.reduce((a, b) => a + b, 0)
++    const bal = new Map(vals.map((v, i) => [`p${i}`, v]))
++    const ts = minTransfers(bal)
++    expect([...apply(bal, ts).values()].every((v) => v === 0)).toBe(true)
++    expect(ts.length).toBeLessThanOrEqual(n - 1)
++  })
++})
++
++describe('computeSettlement', () => {
++  it('uses each person total including tax and tip', () => {
++    // Total 60 + 10% tax = 66. Anna owes 33, Ben 22, Cat 11. Ben paid it all.
++    const b = dinner([pay('b', '66')], { taxPct: '10' })
++    const bd = computeBreakdown(b)
++    expect(bd.total).toBe(6600)
++    const s = computeSettlement(b, bd)
++    expect(s).toEqual({
++      status: 'ok',
++      transfers: [
++        { from: 'a', to: 'b', cents: 3300 },
++        { from: 'c', to: 'b', cents: 1100 },
++      ],
++    })
++    if (s.status === 'ok') expect(s.transfers.map((t) => formatTransfer(t, b))).toEqual(['Anna pays Ben $33.00', 'Cat pays Ben $11.00'])
++  })
++  it('handles several payers', () => {
++    // Anna paid 40 (owes 30: +10), Cat paid 20 (owes 10: +10), Ben owes 20.
++    const b = dinner([pay('a', '40'), pay('c', '20')])
++    const s = computeSettlement(b, computeBreakdown(b))
++    expect(s).toEqual({
++      status: 'ok',
++      transfers: [
++        { from: 'b', to: 'a', cents: 1000 },
++        { from: 'b', to: 'c', cents: 1000 },
++      ],
++    })
++  })
++  it('needs no transfers when everyone paid their share', () => {
++    const b = dinner([pay('a', '30'), pay('b', '20'), pay('c', '10')])
++    expect(computeSettlement(b, computeBreakdown(b))).toEqual({ status: 'ok', transfers: [] })
++  })
++  it('reports no payers and invalid payments', () => {
++    expect(computeSettlement(dinner([]), computeBreakdown(dinner([]))).status).toBe('no-payers')
++    const bad = dinner([pay('a', '10')])
++    expect(computeSettlement(bad, computeBreakdown(bad)).status).toBe('invalid')
++  })
++  it('balances always reconcile on rounded bills', () => {
++    // 3-way split of 10.00 at 8.875% tax and 18% tip; Dan (no items) paid it all.
++    const b: Bill = {
++      ...emptyBill(),
++      people,
++      items: [{ id: 'x', name: 'Shared', priceCents: 1000, sharedBy: ['a', 'b', 'c'] }],
++      taxPct: '8.875',
++      payments: [],
++    }
++    const bd = computeBreakdown(b)
++    b.payments = [pay('d', (bd.total / 100).toFixed(2))]
++    const bal = computeBalances(b, bd)
++    expect([...bal.values()].reduce((x, y) => x + y, 0)).toBe(0)
++    const s = computeSettlement(b, bd)
++    expect(s.status).toBe('ok')
++    if (s.status === 'ok') {
++      expect(s.transfers).toHaveLength(3)
++      expect(s.transfers.every((t) => t.to === 'd')).toBe(true)
++      expect(s.transfers.reduce((x, t) => x + t.cents, 0)).toBe(bd.total)
++    }
++  })
++})
++
++describe('payments in the bill model', () => {
++  it('removing a person removes their payment', () => {
++    const b = dinner([pay('a', '40'), pay('b', '20')])
++    expect(removePerson(b, 'a').payments.map((p) => p.personId)).toEqual(['b'])
++  })
++  it('round-trips payments and drops ones for unknown people', () => {
++    const b = dinner([pay('a', '60')])
++    expect(deserializeBill(JSON.stringify(b))).toEqual(b)
++    const r = deserializeBill(JSON.stringify({ ...b, payments: [pay('ghost', '1'), { id: 1 }, pay('a', '2')] }))
++    expect(r.payments.map((p) => p.personId)).toEqual(['a'])
++    // bills saved before payments existed still load
++    const { payments: _omit, ...old } = b
++    expect(deserializeBill(JSON.stringify(old)).payments).toEqual([])
++  })
++})
++
++describe('summary with settle-up', () => {
++  it('lists payers and transfers', () => {
++    const b = dinner([pay('b', '60')])
++    const s = buildSummary(b)
++    expect(s).toContain('Paid by:\n- Ben: $60.00')
++    expect(s).toContain('Settle up:\n- Anna pays Ben $30.00\n- Cat pays Ben $10.00')
++  })
++  it('says when nobody owes anything', () => {
++    expect(buildSummary(dinner([pay('a', '30'), pay('b', '20'), pay('c', '10')]))).toContain('Settle up:\n- Everyone is even. No transfers needed.')
++  })
++  it('explains when payments do not add up', () => {
++    expect(buildSummary(dinner([pay('a', '50')]))).toContain(
++      'Settle up:\n- Not available: Payments add up to $50.00, but the bill total is $60.00. $10.00 is still unpaid.',
++    )
++  })
++  it('omits the payment sections when nobody is recorded as paying', () => {
++    const s = buildSummary(dinner([]))
++    expect(s).not.toContain('Paid by')
++    expect(s).not.toContain('Settle up')
++  })
++})
+diff --git a/src/lib/settle.ts b/src/lib/settle.ts
+new file mode 100644
+index 0000000..aad6314
+--- /dev/null
++++ b/src/lib/settle.ts
+@@ -0,0 +1,161 @@
++// Who paid, balances, and settle-up transfers. All money is integer cents.
++import { formatMoney, parsePrice, type Bill, type Breakdown, type Currency } from './bill'
++
++export interface Transfer {
++  from: string // person id
++  to: string // person id
++  cents: number
++}
++
++export interface PaymentCheck {
++  /** Per payment row (same order as bill.payments): an error message, if any. */
++  rowErrors: (string | undefined)[]
++  /** Sum of the valid amounts. */
++  paidCents: number
++  /** Set when amounts are valid but don't add up to the bill total. */
++  sumError?: string
++  /** paidCents - total; negative means short. Only meaningful when every row is valid. */
++  difference: number
++  /** True when there is at least one payer, every row is valid, and the sum equals the total. */
++  ok: boolean
++}
++
++/** Validates the payments against the bill total. */
++export function checkPayments(bill: Bill, totalCents: number): PaymentCheck {
++  const seen = new Set<string>()
++  let paidCents = 0
++  const rowErrors = bill.payments.map((p) => {
++    if (!bill.people.some((x) => x.id === p.personId)) return 'Pick who paid.'
++    if (seen.has(p.personId)) return 'This person is already listed as a payer.'
++    seen.add(p.personId)
++    const r = parsePrice(p.amount)
++    if (!r.ok) return r.error === 'Enter a price.' ? 'Enter the amount paid.' : r.error.replace('Price', 'Amount')
++    paidCents += r.value
++    return undefined
++  })
++  const allValid = rowErrors.every((e) => e === undefined)
++  const difference = paidCents - totalCents
++  let sumError: string | undefined
++  if (allValid && bill.payments.length > 0 && difference !== 0) {
++    const m = (c: number) => formatMoney(c, bill.currency)
++    sumError =
++      `Payments add up to ${m(paidCents)}, but the bill total is ${m(totalCents)}. ` +
++      (difference < 0 ? `${m(-difference)} is still unpaid.` : `That's ${m(difference)} too much.`)
++  }
++  return { rowErrors, paidCents, sumError, difference, ok: allValid && bill.payments.length > 0 && difference === 0 }
++}
++
++/** Net balance per person: what they paid minus what they owe. Positive = is owed money. */
++export function computeBalances(bill: Bill, b: Breakdown): Map<string, number> {
++  const bal = new Map<string, number>(b.shares.map((s) => [s.personId, -s.total]))
++  for (const p of bill.payments) {
++    const r = parsePrice(p.amount)
++    if (r.ok && bal.has(p.personId)) bal.set(p.personId, bal.get(p.personId)! + r.value)
++  }
++  return bal
++}
++
++/** Above this many non-zero balances the exact search gets slow, so a greedy match is used. */
++export const EXACT_LIMIT = 16
++
++/**
++ * Returns the fewest transfers that bring every balance to zero.
++ *
++ * The minimum number of transfers is (people with a non-zero balance) minus
++ * (the largest number of groups they can be split into where each group's
++ * balances sum to zero), because a zero-sum group of k people can always be
++ * settled with k - 1 transfers and never with fewer. The grouping is found
++ * exactly with a dynamic program over subsets; each group is then settled by
++ * repeatedly matching its largest debtor with its largest creditor.
++ * `order` (person ids) makes tie-breaks deterministic.
++ */
++export function minTransfers(balances: Map<string, number>, order: string[] = [...balances.keys()]): Transfer[] {
++  const ids = order.filter((id) => (balances.get(id) ?? 0) !== 0)
++  const sum = ids.reduce((a, id) => a + balances.get(id)!, 0)
++  if (sum !== 0) throw new Error(`Balances must sum to zero (got ${sum}).`)
++  if (ids.length === 0) return []
++
++  const groups = ids.length <= EXACT_LIMIT ? zeroSumGroups(ids.map((id) => balances.get(id)!)).map((g) => g.map((i) => ids[i])) : [ids]
++  const out: Transfer[] = []
++  for (const g of groups) out.push(...greedySettle(g, balances, order))
++  return out
++}
++
++/** Partitions indexes into the maximum number of zero-sum groups. */
++function zeroSumGroups(vals: number[]): number[][] {
++  const n = vals.length
++  const full = (1 << n) - 1
++  const sums = new Float64Array(1 << n)
++  const dp = new Int8Array(1 << n)
++  const pick = new Int8Array(1 << n)
++  for (let mask = 1; mask <= full; mask++) {
++    const low = 31 - Math.clz32(mask & -mask)
++    sums[mask] = sums[mask & (mask - 1)] + vals[low]
++    let best = -1
++    for (let i = 0; i < n; i++) {
++      if (mask & (1 << i) && dp[mask ^ (1 << i)] > best) {
++        best = dp[mask ^ (1 << i)]
++        pick[mask] = i
++      }
++    }
++    dp[mask] = best + (sums[mask] === 0 ? 1 : 0)
++  }
++  // Walk back from the full set; every zero-sum prefix closes a group.
++  const groups: number[][] = []
++  let cur: number[] = []
++  for (let mask = full; mask; ) {
++    const i = pick[mask]
++    cur.push(i)
++    mask ^= 1 << i
++    if (sums[mask] === 0) {
++      groups.push(cur.sort((a, b) => a - b))
++      cur = []
++    }
++  }
++  return groups.reverse()
++}
++
++function greedySettle(group: string[], balances: Map<string, number>, order: string[]): Transfer[] {
++  const rank = new Map(order.map((id, i) => [id, i]))
++  const bal = new Map(group.map((id) => [id, balances.get(id)!]))
++  const out: Transfer[] = []
++  for (;;) {
++    let debtor: string | undefined
++    let creditor: string | undefined
++    for (const id of group) {
++      const v = bal.get(id)!
++      const better = (cur: string | undefined, sign: 1 | -1) =>
++        cur === undefined || sign * v > sign * bal.get(cur)! || (v === bal.get(cur)! && rank.get(id)! < rank.get(cur)!)
++      if (v < 0 && better(debtor, -1)) debtor = id
++      if (v > 0 && better(creditor, 1)) creditor = id
++    }
++    if (!debtor || !creditor) return out
++    const cents = Math.min(-bal.get(debtor)!, bal.get(creditor)!)
++    out.push({ from: debtor, to: creditor, cents })
++    bal.set(debtor, bal.get(debtor)! + cents)
++    bal.set(creditor, bal.get(creditor)! - cents)
++  }
++}
++
++export type Settlement =
++  | { status: 'no-payers' }
++  | { status: 'invalid'; check: PaymentCheck }
++  | { status: 'ok'; transfers: Transfer[] }
++
++export function computeSettlement(bill: Bill, b: Breakdown): Settlement {
++  if (bill.payments.length === 0) return { status: 'no-payers' }
++  const check = checkPayments(bill, b.total)
++  if (!check.ok) return { status: 'invalid', check }
++  return {
++    status: 'ok',
++    transfers: minTransfers(
++      computeBalances(bill, b),
++      bill.people.map((p) => p.id),
++    ),
++  }
++}
++
++export function formatTransfer(t: Transfer, bill: Bill, currency: Currency = bill.currency): string {
++  const name = (id: string) => bill.people.find((p) => p.id === id)?.name ?? '?'
++  return `${name(t.from)} pays ${name(t.to)} ${formatMoney(t.cents, currency)}`
++}
+diff --git a/src/lib/summary.ts b/src/lib/summary.ts
+new file mode 100644
+index 0000000..1dff860
+--- /dev/null
++++ b/src/lib/summary.ts
+@@ -0,0 +1,44 @@
++import { computeBreakdown, formatMoney, formatPercent, parsePrice, type Bill, type Breakdown } from './bill'
++import { computeSettlement, formatTransfer } from './settle'
++
++export function buildSummary(bill: Bill, b: Breakdown = computeBreakdown(bill)): string {
++  const m = (c: number) => formatMoney(c, bill.currency)
++  const name = (id: string) => bill.people.find((p) => p.id === id)?.name
++  const lines: string[] = ['Bill summary', '']
++  if (bill.items.length) {
++    lines.push('Items:')
++    for (const it of bill.items) {
++      lines.push(`- ${it.name}: ${m(it.priceCents)} (${it.sharedBy.map(name).filter(Boolean).join(', ')})`)
++    }
++    lines.push('')
++  }
++  lines.push(`Subtotal: ${m(b.subtotal)}`)
++  lines.push(`Tax (${formatPercent(b.taxPctScaled)}): ${m(b.tax)}`)
++  lines.push(`Tip (${formatPercent(b.tipPctScaled)}): ${m(b.tip)}`)
++  lines.push(`Total: ${m(b.total)}`)
++  lines.push('')
++  lines.push('Per person:')
++  for (const s of b.shares) {
++    lines.push(`- ${s.name}: ${m(s.total)} (items ${m(s.subtotal)}, tax ${m(s.tax)}, tip ${m(s.tip)})`)
++  }
++
++  const settlement = computeSettlement(bill, b)
++  if (settlement.status !== 'no-payers') {
++    lines.push('')
++    lines.push('Paid by:')
++    for (const p of bill.payments) {
++      const r = parsePrice(p.amount)
++      lines.push(`- ${name(p.personId) ?? '?'}: ${r.ok ? m(r.value) : `"${p.amount}" (invalid)`}`)
++    }
++    lines.push('')
++    lines.push('Settle up:')
++    if (settlement.status === 'invalid') {
++      lines.push(`- Not available: ${settlement.check.sumError ?? 'some payment amounts are invalid.'}`)
++    } else if (settlement.transfers.length === 0) {
++      lines.push('- Everyone is even. No transfers needed.')
++    } else {
++      for (const t of settlement.transfers) lines.push(`- ${formatTransfer(t, bill)}`)
++    }
++  }
++  return lines.join('\n')
++}

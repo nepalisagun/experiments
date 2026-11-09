@@ -1,0 +1,859 @@
+diff --git a/e2e/stats.spec.ts b/e2e/stats.spec.ts
+new file mode 100644
+index 0000000..8d77b8f
+--- /dev/null
++++ b/e2e/stats.spec.ts
+@@ -0,0 +1,171 @@
++import { expect, test, type Page } from '@playwright/test'
++import { readFile } from 'node:fs/promises'
++
++const MIN = 60_000
++// Monday 9 Nov 2026, 09:00 local.
++const START = new Date(2026, 10, 9, 9, 0, 0)
++const at = (day: number, h: number, m = 0) => new Date(2026, 10, day, h, m).getTime()
++
++// History spanning several days. The chart window is Tue 3 → Mon 9 Nov.
++const HISTORY = [
++  { id: 'a', task: 'Too old', finishedAt: at(2, 10), minutes: 25 },
++  { id: 'b', task: 'Plan, "Q4"', finishedAt: at(5, 9), minutes: 25 },
++  { id: 'c', task: 'Plan', finishedAt: at(5, 10), minutes: 25 },
++  { id: 'd', task: '', finishedAt: at(5, 11), minutes: 25 },
++  { id: 'e', task: 'Read', finishedAt: at(7, 15), minutes: 25 },
++  { id: 'f', task: 'Write', finishedAt: at(8, 20), minutes: 50 },
++  { id: 'g', task: 'Email', finishedAt: at(9, 8, 30), minutes: 25 },
++]
++
++async function seed(page: Page, history: unknown[]) {
++  await page.evaluate((h) => localStorage.setItem('pomodoro.log', JSON.stringify(h)), history)
++  await page.reload()
++}
++
++const openStats = (page: Page) => page.getByTestId('tab-stats').click()
++
++test.beforeEach(async ({ page }) => {
++  await page.clock.install({ time: START })
++  await page.goto('/')
++})
++
++test('tabs switch between Timer and Stats', async ({ page }) => {
++  await expect(page.getByTestId('tab-timer')).toHaveAttribute('aria-selected', 'true')
++  await expect(page.getByTestId('timer-view')).toBeVisible()
++  await openStats(page)
++  await expect(page.getByTestId('tab-stats')).toHaveAttribute('aria-selected', 'true')
++  await expect(page.getByTestId('stats-view')).toBeVisible()
++  await expect(page.getByTestId('timer-view')).toHaveCount(0)
++
++  // Arrow keys move between tabs.
++  await page.getByTestId('tab-stats').focus()
++  await page.keyboard.press('ArrowLeft')
++  await expect(page.getByTestId('timer-view')).toBeVisible()
++  await expect(page.getByTestId('tab-timer')).toBeFocused()
++  await page.keyboard.press('ArrowRight')
++  await expect(page.getByTestId('stats-view')).toBeVisible()
++})
++
++test('timer keeps running on the Stats tab, and Space does nothing there', async ({ page }) => {
++  await page.getByTestId('start-pause').click()
++  await openStats(page)
++  await expect(page.getByTestId('running-dot')).toBeVisible()
++  await page.locator('body').click({ position: { x: 5, y: 5 } })
++  await page.keyboard.press('Space')
++  await page.clock.fastForward(60_000)
++  await page.getByTestId('tab-timer').click()
++  await expect(page.getByTestId('start-pause')).toHaveText('Pause')
++  await expect(page.getByTestId('time')).toHaveText('24:00')
++})
++
++test('chart, weekly total and streak reflect the stored history', async ({ page }, info) => {
++  await seed(page, HISTORY)
++  await openStats(page)
++  const bars = page.getByTestId('bar')
++  await expect(bars).toHaveCount(7)
++  const minutes = await bars.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-minutes'))))
++  expect(minutes).toEqual([0, 0, 75, 0, 25, 50, 25]) // Tue 3 … Mon 9
++  // Monday is the first day of the week, so only today's 25 minutes count.
++  await expect(page.getByTestId('week-total')).toHaveText(/^25\s*min$/)
++  // Sat 7, Sun 8, Mon 9 — Fri 6 is a gap.
++  await expect(page.getByTestId('streak')).toHaveText(/^3\s*days$/)
++  await expect(page.getByTestId('history-count')).toHaveText('7 completed sessions in total')
++
++  // Hover (desktop) or tap (mobile) shows a tooltip for that day.
++  if (info.project.name === 'mobile') await bars.nth(2).tap()
++  else await bars.nth(2).hover()
++  const tip = page.getByTestId('bar-tooltip')
++  await expect(tip).toBeVisible()
++  await expect(tip).toContainText('Nov 5')
++  await expect(tip).toContainText('75 min · 3 sessions')
++  await expect(tip).toBeInViewport({ ratio: 1 })
++  await page.screenshot({ path: `shots/${info.project.name}-stats.png`, fullPage: true })
++
++  // Tooltips on the first and last bars stay on screen too.
++  for (const i of [0, 6]) {
++    await bars.nth(i).focus()
++    await expect(tip).toBeInViewport({ ratio: 1 })
++  }
++
++  // The table view lists the same numbers.
++  await page.getByText('View as table').click()
++  await expect(page.getByTestId('chart-table').locator('tbody tr')).toHaveCount(7)
++  await expect(page.getByTestId('chart-table').locator('tbody tr').nth(2)).toContainText('75')
++})
++
++test('completing a focus session updates the stats', async ({ page }) => {
++  await openStats(page)
++  await expect(page.getByTestId('week-total')).toHaveText(/^0\s*min$/)
++  await expect(page.getByTestId('streak')).toHaveText(/^0\s*days$/)
++  await expect(page.getByTestId('export-csv')).toBeDisabled()
++
++  await page.getByTestId('tab-timer').click()
++  await page.getByTestId('task').fill('Deep work')
++  await page.getByTestId('start-pause').click()
++  await page.clock.fastForward(25 * MIN + 500)
++  await expect(page.getByTestId('log-entry')).toHaveCount(1)
++
++  await openStats(page)
++  await expect(page.getByTestId('week-total')).toHaveText(/^25\s*min$/)
++  await expect(page.getByTestId('streak')).toHaveText(/^1\s*day$/)
++  await expect(page.getByTestId('bar').last()).toHaveAttribute('data-minutes', '25')
++  await expect(page.getByTestId('export-csv')).toBeEnabled()
++})
++
++test('history across days survives reload; today\'s log still shows only today', async ({ page }) => {
++  await seed(page, HISTORY)
++  await expect(page.getByTestId('log-entry')).toHaveCount(1)
++  await expect(page.getByTestId('log-entry')).toContainText('Email')
++  await page.getByTestId('start-pause').click()
++  await page.clock.fastForward(25 * MIN + 500)
++  await page.reload()
++  await openStats(page)
++  await expect(page.getByTestId('history-count')).toHaveText('8 completed sessions in total')
++  await expect(page.getByTestId('bar').last()).toHaveAttribute('data-minutes', '50')
++})
++
++test('Export CSV downloads every completed session', async ({ page }) => {
++  await seed(page, HISTORY)
++  await openStats(page)
++  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-csv').click()])
++  expect(download.suggestedFilename()).toBe('pomodoro-sessions-2026-11-09.csv')
++  const text = await readFile((await download.path())!, 'utf8')
++  expect(text.charCodeAt(0)).toBe(0xfeff)
++  expect(text.slice(1).split('\r\n')).toEqual([
++    'date,time,task,minutes',
++    '2026-11-02,10:00,Too old,25',
++    '2026-11-05,09:00,"Plan, ""Q4""",25',
++    '2026-11-05,10:00,Plan,25',
++    '2026-11-05,11:00,,25',
++    '2026-11-07,15:00,Read,25',
++    '2026-11-08,20:00,Write,50',
++    '2026-11-09,08:30,Email,25',
++    '',
++  ])
++})
++
++test('chart labels and a full-height tooltip stay clear of the heading', async ({ page }) => {
++  // 60 minutes today → axis top is exactly 60, so today's bar is full height.
++  await seed(page, [{ id: 'x', task: '', finishedAt: at(9, 8), minutes: 60 }])
++  await openStats(page)
++  const heading = (await page.locator('#chart-heading').boundingBox())!
++  const topTick = (await page.getByTestId('chart').getByText('60', { exact: true }).boundingBox())!
++  expect(topTick.y).toBeGreaterThanOrEqual(heading.y + heading.height)
++  await page.getByTestId('bar').last().focus()
++  const tip = (await page.getByTestId('bar-tooltip').boundingBox())!
++  expect(tip.y).toBeGreaterThanOrEqual(heading.y + heading.height)
++  await page.screenshot({ path: `shots/${test.info().project.name}-stats-full.png` })
++})
++
++test('stats layout fits the viewport', async ({ page }) => {
++  await seed(page, HISTORY)
++  await openStats(page)
++  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++  expect(overflow).toBeLessThanOrEqual(0)
++  for (const id of ['tab-timer', 'tab-stats', 'mute', 'open-settings', 'week-total', 'streak', 'chart']) {
++    await expect(page.getByTestId(id)).toBeInViewport()
++  }
++  // Day labels don't get truncated.
++  const clipped = await page.getByTestId('chart').locator('span.truncate').evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth).length)
++  expect(clipped).toBe(0)
++})
+diff --git a/src/App.tsx b/src/App.tsx
+index 7a59b90..9775a5c 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -2,14 +2,19 @@ import { useEffect, useRef, useState } from 'react'
+ import { usePomodoro } from './usePomodoro'
+ import { formatTime, PHASE_LABEL, SESSIONS_PER_CYCLE, validateMinutes, type Phase, type Settings } from './lib/timer'
+ import { formatClock, todaysEntries, type LogEntry } from './lib/log'
++import { Stats } from './Stats'
++
++type View = 'timer' | 'stats'
+ 
+ export default function App() {
+   const p = usePomodoro()
+   const [settingsOpen, setSettingsOpen] = useState(false)
++  const [view, setView] = useState<View>('timer')
+   const { phase, status } = p.timer
+ 
+-  // Space bar starts/pauses, unless the user is typing.
++  // Space bar starts/pauses on the Timer view, unless the user is typing.
+   useEffect(() => {
++    if (view !== 'timer') return
+     const isTyping = (el: EventTarget | null) =>
+       el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+     const onDown = (e: KeyboardEvent) => {
+@@ -27,16 +32,17 @@ export default function App() {
+       window.removeEventListener('keydown', onDown)
+       window.removeEventListener('keyup', onUp)
+     }
+-  }, [p.toggle, settingsOpen])
++  }, [p.toggle, settingsOpen, view])
+ 
+   const progress = p.totalMs > 0 ? 1 - p.remainingMs / p.totalMs : 0
+ 
+   return (
+     <div data-phase={phase} className="app min-h-dvh transition-colors duration-700">
+       <main className="mx-auto flex w-full max-w-md flex-col gap-7 px-4 pt-5 pb-12 sm:pt-10">
+-        <header className="flex items-center justify-between">
++        <header className="flex items-center justify-between gap-2">
+           <h1 className="text-base font-semibold tracking-tight text-ink">Pomodoro</h1>
+-          <div className="flex items-center gap-1">
++          <ViewTabs view={view} onChange={setView} running={status === 'running'} />
++          <div className="flex items-center">
+             <IconButton
+               label={p.muted ? 'Unmute sound' : 'Mute sound'}
+               pressed={p.muted}
+@@ -51,6 +57,12 @@ export default function App() {
+           </div>
+         </header>
+ 
++        {view === 'stats' ? (
++          <div id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" data-testid="stats-view">
++            <Stats log={p.log} />
++          </div>
++        ) : (
++        <div id="panel-timer" role="tabpanel" aria-labelledby="tab-timer" className="flex flex-col gap-7" data-testid="timer-view">
+         <section aria-label="Timer" className="flex flex-col items-center gap-5">
+           <PhaseTabs phase={phase} />
+           <Ring progress={progress}>
+@@ -106,6 +118,8 @@ export default function App() {
+         </label>
+ 
+         <TodayLog entries={todaysEntries(p.log, Date.now())} />
++        </div>
++        )}
+       </main>
+ 
+       {settingsOpen && (
+@@ -122,6 +136,49 @@ export default function App() {
+   )
+ }
+ 
++function ViewTabs({ view, onChange, running }: { view: View; onChange: (v: View) => void; running: boolean }) {
++  const views: { id: View; label: string }[] = [
++    { id: 'timer', label: 'Timer' },
++    { id: 'stats', label: 'Stats' },
++  ]
++  const onKeyDown = (e: React.KeyboardEvent) => {
++    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
++    e.preventDefault()
++    const next = view === 'timer' ? 'stats' : 'timer'
++    onChange(next)
++    document.getElementById(`tab-${next}`)?.focus()
++  }
++  return (
++    <div role="tablist" aria-label="View" className="flex rounded-full bg-card/70 p-1 text-sm ring-1 ring-line" onKeyDown={onKeyDown}>
++      {views.map((v) => {
++        const selected = v.id === view
++        return (
++          <button
++            key={v.id}
++            id={`tab-${v.id}`}
++            type="button"
++            role="tab"
++            aria-selected={selected}
++            aria-controls={`panel-${v.id}`}
++            tabIndex={selected ? 0 : -1}
++            data-testid={`tab-${v.id}`}
++            onClick={() => onChange(v.id)}
++            className={`relative rounded-full px-4 py-1.5 font-medium transition focus-visible:outline-2 focus-visible:outline-accent ${selected ? 'bg-ink text-white' : 'text-muted hover:text-ink'}`}
++          >
++            {v.label}
++            {v.id === 'timer' && running && !selected && (
++              <>
++                <span aria-hidden="true" data-testid="running-dot" className="absolute top-1 right-1.5 size-1.5 animate-pulse rounded-full bg-accent" />
++                <span className="sr-only"> (running)</span>
++              </>
++            )}
++          </button>
++        )
++      })}
++    </div>
++  )
++}
++
+ function PhaseTabs({ phase }: { phase: Phase }) {
+   return (
+     <div className="flex rounded-full bg-card/70 p-1 text-sm ring-1 ring-line" data-testid="phase" data-value={phase}>
+diff --git a/src/Stats.tsx b/src/Stats.tsx
+new file mode 100644
+index 0000000..f663042
+--- /dev/null
++++ b/src/Stats.tsx
+@@ -0,0 +1,171 @@
++import { useState } from 'react'
++import { dayKey, type LogEntry } from './lib/log'
++import { currentStreak, formatMinutes, lastNDays, niceScale, toCsv, weekMinutes, type DayStat } from './lib/stats'
++
++export function Stats({ log }: { log: LogEntry[] }) {
++  const now = Date.now()
++  const days = lastNDays(log, now, 7)
++  const week = weekMinutes(log, now)
++  const weekSessions = days.reduce((s, d) => s + d.sessions, 0)
++  const streak = currentStreak(log, now)
++  const doneToday = days[days.length - 1].sessions > 0
++
++  const exportCsv = () => {
++    // BOM so spreadsheet apps read non-ASCII task labels as UTF-8.
++    const blob = new Blob(['﻿' + toCsv(log)], { type: 'text/csv;charset=utf-8' })
++    const url = URL.createObjectURL(blob)
++    const a = document.createElement('a')
++    a.href = url
++    a.download = `pomodoro-sessions-${dayKey(now)}.csv`
++    document.body.appendChild(a)
++    a.click()
++    a.remove()
++    setTimeout(() => URL.revokeObjectURL(url), 1000)
++  }
++
++  return (
++    <div className="flex flex-col gap-5">
++      <div className="grid grid-cols-2 gap-3">
++        <Tile label="This week" testId="week-total" value={String(week)} unit="min"
++          note={week >= 60 ? `${formatMinutes(week)} since Monday` : 'Since Monday'} />
++        <Tile label="Current streak" testId="streak" value={String(streak)} unit={streak === 1 ? 'day' : 'days'}
++          note={streak === 0 ? 'Finish a session to start one' : doneToday ? 'Including today' : 'Focus today to keep it'} />
++      </div>
++
++      <section aria-labelledby="chart-heading" className="rounded-2xl bg-card p-4 ring-1 ring-line sm:p-5">
++        <div className="mb-1 flex items-baseline justify-between gap-3">
++          <h2 id="chart-heading" className="text-sm font-semibold text-ink">Focus minutes, last 7 days</h2>
++          <span className="text-xs text-muted">{weekSessions} {weekSessions === 1 ? 'session' : 'sessions'}</span>
++        </div>
++        <BarChart days={days} />
++        <details className="mt-4 text-sm">
++          <summary className="cursor-pointer text-muted hover:text-ink">View as table</summary>
++          <table className="mt-2 w-full text-left tabular-nums" data-testid="chart-table">
++            <thead className="text-xs text-muted">
++              <tr><th className="py-1 font-medium">Day</th><th className="py-1 text-right font-medium">Sessions</th><th className="py-1 text-right font-medium">Minutes</th></tr>
++            </thead>
++            <tbody className="divide-y divide-line">
++              {days.map((d) => (
++                <tr key={d.key}><td className="py-1.5">{longDay(d.date)}</td><td className="py-1.5 text-right">{d.sessions}</td><td className="py-1.5 text-right">{d.minutes}</td></tr>
++              ))}
++            </tbody>
++          </table>
++        </details>
++      </section>
++
++      <section className="flex items-center justify-between gap-3 rounded-2xl bg-card p-4 ring-1 ring-line sm:p-5">
++        <div className="min-w-0">
++          <h2 className="text-sm font-semibold text-ink">Your history</h2>
++          <p className="text-xs text-muted" data-testid="history-count">
++            {log.length} completed {log.length === 1 ? 'session' : 'sessions'} in total
++          </p>
++        </div>
++        <button
++          type="button"
++          data-testid="export-csv"
++          onClick={exportCsv}
++          disabled={log.length === 0}
++          className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-accent px-4 text-sm font-medium text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
++        >
++          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++            <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
++          </svg>
++          Export CSV
++        </button>
++      </section>
++    </div>
++  )
++}
++
++function Tile({ label, value, unit, note, testId }: { label: string; value: string; unit: string; note: string; testId: string }) {
++  return (
++    <div className="rounded-2xl bg-card p-4 ring-1 ring-line">
++      <div className="text-xs font-medium text-muted">{label}</div>
++      <div className="mt-1 flex items-baseline gap-1.5" data-testid={testId}>
++        <span className="text-3xl font-light tabular-nums text-ink">{value}</span>
++        <span className="text-sm text-muted">{unit}</span>
++      </div>
++      <div className="mt-1 text-xs text-muted">{note}</div>
++    </div>
++  )
++}
++
++const shortDay = (d: Date, isToday: boolean) => (isToday ? 'Today' : d.toLocaleDateString([], { weekday: 'short' }))
++const longDay = (d: Date) => d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
++
++function BarChart({ days }: { days: DayStat[] }) {
++  const [active, setActive] = useState<number | null>(null)
++  const { top, step } = niceScale(Math.max(...days.map((d) => d.minutes)))
++  const ticks = Array.from({ length: top / step + 1 }, (_, i) => i * step)
++
++  return (
++    // Hover uses pointer events filtered to a real mouse: a touch tap also emits a compatibility
++    // mouseleave right after the click, which would immediately hide the tapped bar's tooltip.
++    <div className="flex gap-2 pt-12" data-testid="chart" onPointerLeave={(e) => e.pointerType === 'mouse' && setActive(null)}>
++      {/* Y axis */}
++      <div className="relative h-44 w-8 shrink-0 text-right text-[11px] tabular-nums text-muted" aria-hidden="true">
++        {ticks.map((t) => (
++          <span key={t} className="absolute right-0 -translate-y-1/2" style={{ bottom: `${(t / top) * 100}%` }}>{t}</span>
++        ))}
++      </div>
++      <div className="min-w-0 flex-1">
++        <div className="relative h-44">
++          {/* Gridlines */}
++          {ticks.map((t) => (
++            <div key={t} aria-hidden="true" className={`absolute inset-x-0 border-t ${t === 0 ? 'border-muted/40' : 'border-line'}`}
++              style={{ bottom: `${(t / top) * 100}%` }} />
++          ))}
++          {/* Bars */}
++          <ul className="absolute inset-0 flex gap-0.5" role="list" aria-label="Focus minutes per day">
++            {days.map((d, i) => {
++              const isToday = i === days.length - 1
++              const label = `${longDay(d.date)}: ${d.minutes} focus minutes, ${d.sessions} ${d.sessions === 1 ? 'session' : 'sessions'}`
++              const align = i === 0 ? 'left-0' : i === days.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'
++              return (
++                <li
++                  key={d.key}
++                  tabIndex={0}
++                  aria-label={label}
++                  data-testid="bar"
++                  data-minutes={d.minutes}
++                  onPointerEnter={(e) => e.pointerType === 'mouse' && setActive(i)}
++                  onFocus={() => setActive(i)}
++                  onBlur={() => setActive((a) => (a === i ? null : a))}
++                  onClick={() => setActive(i)}
++                  className="relative flex flex-1 cursor-default items-end justify-center outline-none"
++                >
++                  {d.minutes > 0 && (
++                    <div
++                      className={`w-full max-w-8 rounded-t-[4px] bg-[var(--focus)] transition-[height,opacity] duration-300 ${active !== null && active !== i ? 'opacity-60' : ''}`}
++                      style={{ height: `${(d.minutes / top) * 100}%` }}
++                    />
++                  )}
++                  {active === i && (
++                    <div
++                      role="tooltip"
++                      data-testid="bar-tooltip"
++                      className={`pointer-events-none absolute z-10 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-xs text-white shadow-md ${align}`}
++                      style={{ bottom: `calc(${(d.minutes / top) * 100}% + 6px)` }}
++                    >
++                      <div className="font-medium">{longDay(d.date)}</div>
++                      <div className="text-white/80">{d.minutes} min · {d.sessions} {d.sessions === 1 ? 'session' : 'sessions'}</div>
++                    </div>
++                  )}
++                  {isToday && <span className="sr-only">(today)</span>}
++                </li>
++              )
++            })}
++          </ul>
++        </div>
++        {/* X axis labels */}
++        <div className="mt-2 flex gap-0.5 text-center text-[11px] text-muted" aria-hidden="true">
++          {days.map((d, i) => (
++            <span key={d.key} className={`flex-1 truncate ${i === days.length - 1 ? 'font-semibold text-ink' : ''}`}>
++              {shortDay(d.date, i === days.length - 1)}
++            </span>
++          ))}
++        </div>
++      </div>
++    </div>
++  )
++}
+diff --git a/src/index.css b/src/index.css
+index da297ca..80f9ca5 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -16,6 +16,8 @@
+   --card: #fffdf9;
+   --bg: #f6f2ec;
+   --accent: #a8553a;
++  /* Chart bars always use the focus colour (validated: chroma + 3:1 contrast on the card surface). */
++  --focus: #a8553a;
+   color-scheme: light;
+   -webkit-tap-highlight-color: transparent;
+ }
+diff --git a/src/lib/log.ts b/src/lib/log.ts
+index 7ba13e5..89a739a 100644
+--- a/src/lib/log.ts
++++ b/src/lib/log.ts
+@@ -10,25 +10,28 @@ export function dayKey(ts: number): string {
+   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+ }
+ 
+-/** Keep only entries finished on the same local day as `now`, newest first. */
++/** Entries finished on the same local day as `now`, newest first. */
+ export function todaysEntries(entries: LogEntry[], now: number): LogEntry[] {
+   const today = dayKey(now)
+   return entries.filter((e) => dayKey(e.finishedAt) === today).sort((a, b) => b.finishedAt - a.finishedAt)
+ }
+ 
+-export function addEntry(entries: LogEntry[], entry: Omit<LogEntry, 'id'>, now: number): LogEntry[] {
++/** Append a completed session to the full history (kept oldest first). */
++export function addEntry(entries: LogEntry[], entry: Omit<LogEntry, 'id'>): LogEntry[] {
+   const id = `${entry.finishedAt}-${Math.random().toString(36).slice(2, 8)}`
+-  return todaysEntries([...entries, { ...entry, id }], now)
++  return [...entries, { ...entry, id }].sort((a, b) => a.finishedAt - b.finishedAt)
+ }
+ 
+-export function sanitizeLog(value: unknown, now: number): LogEntry[] {
++/** Validate stored history: drop malformed entries, keep every day. */
++export function sanitizeHistory(value: unknown): LogEntry[] {
+   if (!Array.isArray(value)) return []
+-  const valid = value.filter(
+-    (e): e is LogEntry =>
+-      !!e && typeof e === 'object' && typeof e.id === 'string' && typeof e.task === 'string' &&
+-      typeof e.finishedAt === 'number' && typeof e.minutes === 'number',
+-  )
+-  return todaysEntries(valid, now)
++  return value
++    .filter(
++      (e): e is LogEntry =>
++        !!e && typeof e === 'object' && typeof e.id === 'string' && typeof e.task === 'string' &&
++        Number.isFinite(e.finishedAt) && Number.isFinite(e.minutes) && e.minutes > 0,
++    )
++    .sort((a, b) => a.finishedAt - b.finishedAt)
+ }
+ 
+ export function formatClock(ts: number): string {
+diff --git a/src/lib/stats.test.ts b/src/lib/stats.test.ts
+new file mode 100644
+index 0000000..467280d
+--- /dev/null
++++ b/src/lib/stats.test.ts
+@@ -0,0 +1,118 @@
++import { describe, expect, it } from 'vitest'
++import type { LogEntry } from './log'
++import { currentStreak, formatMinutes, lastNDays, niceScale, startOfWeek, toCsv, weekMinutes } from './stats'
++
++// Wednesday 11 Nov 2026, 15:00 local time.
++const NOW = new Date(2026, 10, 11, 15, 0).getTime()
++const at = (month: number, day: number, h = 10, m = 0) => new Date(2026, month, day, h, m).getTime()
++let n = 0
++const e = (finishedAt: number, minutes = 25, task = ''): LogEntry => ({ id: String(n++), task, finishedAt, minutes })
++
++describe('lastNDays', () => {
++  it('returns 7 days oldest→newest ending today, summing minutes and sessions per local day', () => {
++    const log = [e(at(10, 11, 9)), e(at(10, 11, 14), 50), e(at(10, 9, 23, 59)), e(at(10, 5, 0, 0)), e(at(10, 4, 23, 59))]
++    const days = lastNDays(log, NOW)
++    expect(days.map((d) => d.key)).toEqual(['2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10', '2026-11-11'])
++    expect(days.map((d) => d.minutes)).toEqual([25, 0, 0, 0, 25, 0, 75])
++    expect(days.map((d) => d.sessions)).toEqual([1, 0, 0, 0, 1, 0, 2])
++  })
++
++  it('handles an empty history', () => {
++    expect(lastNDays([], NOW).every((d) => d.minutes === 0)).toBe(true)
++  })
++
++  it('crosses a month boundary and a DST change without skipping or repeating days', () => {
++    // Tests run in America/New_York (see vite.config.ts), where 1 Nov 2026 is a 25-hour day.
++    expect(new Date(2026, 9, 31).getTimezoneOffset()).not.toBe(new Date(2026, 10, 2).getTimezoneOffset())
++    const keys = lastNDays([], new Date(2026, 10, 3, 12).getTime()).map((d) => d.key)
++    expect(keys).toEqual(['2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02', '2026-11-03'])
++    expect(new Set(lastNDays([], new Date(2026, 3, 2).getTime(), 30).map((d) => d.key)).size).toBe(30)
++  })
++})
++
++describe('weekMinutes', () => {
++  it('sums minutes since Monday 00:00 of the current week', () => {
++    expect(startOfWeek(NOW)).toEqual(new Date(2026, 10, 9)) // Monday
++    const log = [e(at(10, 8, 23, 59), 25), e(at(10, 9, 0, 0), 30), e(at(10, 11, 9), 50)]
++    expect(weekMinutes(log, NOW)).toBe(80)
++  })
++
++  it('treats Sunday as the end of the week, not the start', () => {
++    const sunday = new Date(2026, 10, 15, 20).getTime()
++    expect(startOfWeek(sunday)).toEqual(new Date(2026, 10, 9))
++    expect(weekMinutes([e(at(10, 9)), e(at(10, 15, 8))], sunday)).toBe(50)
++  })
++
++  it('is 0 with no sessions this week', () => {
++    expect(weekMinutes([e(at(10, 1))], NOW)).toBe(0)
++  })
++})
++
++describe('currentStreak', () => {
++  it('counts consecutive days ending today', () => {
++    expect(currentStreak([e(at(10, 11)), e(at(10, 10)), e(at(10, 10, 12)), e(at(10, 9)), e(at(10, 7))], NOW)).toBe(3)
++  })
++
++  it('stays alive from yesterday if today has no session yet', () => {
++    expect(currentStreak([e(at(10, 10)), e(at(10, 9))], NOW)).toBe(2)
++  })
++
++  it('is broken by a missed day', () => {
++    expect(currentStreak([e(at(10, 9)), e(at(10, 8))], NOW)).toBe(0)
++    expect(currentStreak([], NOW)).toBe(0)
++  })
++
++  it('spans month boundaries', () => {
++    const now = new Date(2026, 11, 2, 9).getTime()
++    const log = [e(new Date(2026, 11, 2, 8).getTime()), e(new Date(2026, 11, 1).getTime()), e(new Date(2026, 10, 30).getTime())]
++    expect(currentStreak(log, now)).toBe(3)
++  })
++})
++
++describe('niceScale', () => {
++  it('picks a round top with at most 4 steps', () => {
++    expect(niceScale(0)).toEqual({ top: 60, step: 30 })
++    expect(niceScale(25)).toEqual({ top: 30, step: 15 })
++    expect(niceScale(75)).toEqual({ top: 90, step: 30 })
++    expect(niceScale(100)).toEqual({ top: 120, step: 30 })
++    expect(niceScale(200)).toEqual({ top: 240, step: 60 })
++    for (const max of [1, 59, 61, 333, 1000, 5000]) {
++      const { top, step } = niceScale(max)
++      expect(top).toBeGreaterThanOrEqual(max)
++      expect(top / step).toBeLessThanOrEqual(4)
++      expect(Number.isInteger(top / step)).toBe(true)
++    }
++  })
++})
++
++describe('toCsv', () => {
++  it('writes a header and one row per session, oldest first, with local date and 24h time', () => {
++    const csv = toCsv([e(at(10, 11, 14, 5), 50, 'Second'), e(at(10, 10, 9, 30), 25, 'First')])
++    expect(csv).toBe('date,time,task,minutes\r\n2026-11-10,09:30,First,25\r\n2026-11-11,14:05,Second,50\r\n')
++  })
++
++  it('quotes commas, quotes and newlines, and defuses spreadsheet formulas', () => {
++    const rows = toCsv([
++      e(at(10, 11, 9), 25, 'Write "intro", then edit'),
++      e(at(10, 11, 10), 25, 'line1\nline2'),
++      e(at(10, 11, 11), 25, '=HYPERLINK("x")'),
++      e(at(10, 11, 12), 25, ''),
++    ]).split('\r\n')
++    expect(rows[1]).toBe('2026-11-11,09:00,"Write ""intro"", then edit",25')
++    expect(rows[2]).toBe('2026-11-11,10:00,"line1\nline2",25')
++    expect(rows[3]).toBe(`2026-11-11,11:00,"'=HYPERLINK(""x"")",25`)
++    expect(rows[4]).toBe('2026-11-11,12:00,,25')
++  })
++
++  it('exports just the header when there is no history', () => {
++    expect(toCsv([])).toBe('date,time,task,minutes\r\n')
++  })
++})
++
++describe('formatMinutes', () => {
++  it('formats minutes and hours', () => {
++    expect(formatMinutes(45)).toBe('45 min')
++    expect(formatMinutes(60)).toBe('1 h')
++    expect(formatMinutes(125)).toBe('2 h 5 min')
++  })
++})
+diff --git a/src/lib/stats.ts b/src/lib/stats.ts
+new file mode 100644
+index 0000000..d03765b
+--- /dev/null
++++ b/src/lib/stats.ts
+@@ -0,0 +1,98 @@
++import { dayKey, type LogEntry } from './log'
++
++export interface DayStat {
++  key: string // YYYY-MM-DD (local)
++  date: Date // local midnight
++  minutes: number
++  sessions: number
++}
++
++/** Local midnight of the day `offset` days from the day containing `ts` (DST-safe). */
++function startOfDay(ts: number, offset = 0): Date {
++  const d = new Date(ts)
++  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset)
++}
++
++function totalsByDay(entries: LogEntry[]): Map<string, { minutes: number; sessions: number }> {
++  const map = new Map<string, { minutes: number; sessions: number }>()
++  for (const e of entries) {
++    const k = dayKey(e.finishedAt)
++    const t = map.get(k) ?? { minutes: 0, sessions: 0 }
++    t.minutes += e.minutes
++    t.sessions += 1
++    map.set(k, t)
++  }
++  return map
++}
++
++/** One entry per day for the last `days` days, oldest first, ending with today. */
++export function lastNDays(entries: LogEntry[], now: number, days = 7): DayStat[] {
++  const totals = totalsByDay(entries)
++  return Array.from({ length: days }, (_, i) => {
++    const date = startOfDay(now, i - (days - 1))
++    const key = dayKey(date.getTime())
++    const t = totals.get(key)
++    return { key, date, minutes: t?.minutes ?? 0, sessions: t?.sessions ?? 0 }
++  })
++}
++
++/** Monday 00:00 (local) of the calendar week containing `now`. */
++export function startOfWeek(now: number): Date {
++  const day = new Date(now).getDay() // 0 = Sunday
++  return startOfDay(now, -((day + 6) % 7))
++}
++
++/** Total focus minutes in the current calendar week (Monday through now). */
++export function weekMinutes(entries: LogEntry[], now: number): number {
++  const from = startOfWeek(now).getTime()
++  return entries.filter((e) => e.finishedAt >= from && e.finishedAt <= now).reduce((s, e) => s + e.minutes, 0)
++}
++
++/**
++ * Consecutive days with at least one completed focus session, counting back from today.
++ * If today has none yet, the streak is still alive and counts back from yesterday.
++ */
++export function currentStreak(entries: LogEntry[], now: number): number {
++  const days = new Set(entries.filter((e) => e.finishedAt <= now).map((e) => dayKey(e.finishedAt)))
++  let offset = days.has(dayKey(now)) ? 0 : -1
++  let streak = 0
++  while (days.has(dayKey(startOfDay(now, offset).getTime()))) {
++    streak++
++    offset--
++  }
++  return streak
++}
++
++/** A "nice" axis maximum and tick step for a bar chart of minutes. */
++export function niceScale(max: number): { top: number; step: number } {
++  const steps = [15, 30, 60, 120, 180, 240, 360, 480, 720, 960, 1440]
++  if (max <= 0) return { top: 60, step: 30 }
++  const step = steps.find((s) => Math.ceil(max / s) <= 4) ?? Math.ceil(max / 4 / 60) * 60
++  return { top: Math.ceil(max / step) * step, step }
++}
++
++export function formatMinutes(min: number): string {
++  if (min < 60) return `${min} min`
++  const h = Math.floor(min / 60)
++  const m = min % 60
++  return m === 0 ? `${h} h` : `${h} h ${m} min`
++}
++
++function csvCell(value: string | number): string {
++  let s = String(value)
++  // Neutralise spreadsheet formula injection from user-typed task labels.
++  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`
++  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
++}
++
++/** All sessions, oldest first, as CSV with a header row. Dates and times are local. */
++export function toCsv(entries: LogEntry[]): string {
++  const rows = [...entries]
++    .sort((a, b) => a.finishedAt - b.finishedAt)
++    .map((e) => {
++      const d = new Date(e.finishedAt)
++      const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
++      return [dayKey(e.finishedAt), time, e.task, e.minutes].map(csvCell).join(',')
++    })
++  return ['date,time,task,minutes', ...rows].join('\r\n') + '\r\n'
++}
+diff --git a/src/lib/timer.test.ts b/src/lib/timer.test.ts
+index 8afbb09..902ea43 100644
+--- a/src/lib/timer.test.ts
++++ b/src/lib/timer.test.ts
+@@ -3,7 +3,7 @@ import {
+   applySettings, DEFAULT_SETTINGS as S, formatTime, formatTitle, getRemainingMs, initialState, pause,
+   reset, sanitizeSettings, sanitizeTimer, skip, start, tick, toggle, validateMinutes, type TimerState,
+ } from './timer'
+-import { addEntry, sanitizeLog, todaysEntries } from './log'
++import { addEntry, sanitizeHistory, todaysEntries } from './log'
+ 
+ const MIN = 60_000
+ const T0 = new Date(2026, 10, 9, 9, 0, 0).getTime()
+@@ -158,21 +158,25 @@ describe('display', () => {
+   })
+ })
+ 
+-describe("today's log", () => {
+-  it('adds entries newest first and keeps only today', () => {
++describe('session history and today\'s log', () => {
++  it('keeps sessions from every day; today\'s log shows only today, newest first', () => {
+     const yesterday = T0 - 24 * 60 * MIN
+-    let log = sanitizeLog([{ id: 'old', task: 'old', finishedAt: yesterday, minutes: 25 }], T0)
+-    expect(log).toEqual([])
+-    log = addEntry(log, { task: 'Write', finishedAt: T0, minutes: 25 }, T0)
+-    log = addEntry(log, { task: '', finishedAt: T0 + 30 * MIN, minutes: 25 }, T0 + 30 * MIN)
+-    expect(log.map((e) => e.task)).toEqual(['', 'Write'])
+-    expect(new Set(log.map((e) => e.id)).size).toBe(2)
+-    // At midnight the list empties.
++    let log = sanitizeHistory([{ id: 'old', task: 'old', finishedAt: yesterday, minutes: 25 }])
++    expect(log).toHaveLength(1) // history is no longer pruned
++    log = addEntry(log, { task: 'Write', finishedAt: T0, minutes: 25 })
++    log = addEntry(log, { task: '', finishedAt: T0 + 30 * MIN, minutes: 25 })
++    expect(log.map((e) => e.task)).toEqual(['old', 'Write', ''])
++    expect(new Set(log.map((e) => e.id)).size).toBe(3)
++    expect(todaysEntries(log, T0 + 31 * MIN).map((e) => e.task)).toEqual(['', 'Write'])
++    // After midnight today's list empties, but the history keeps everything.
+     expect(todaysEntries(log, T0 + 24 * 60 * MIN)).toEqual([])
++    expect(log).toHaveLength(3)
+   })
+ 
+-  it('drops malformed stored entries', () => {
+-    expect(sanitizeLog('x', T0)).toEqual([])
+-    expect(sanitizeLog([{ id: 1 }, null, { id: 'a', task: 't', finishedAt: T0, minutes: 25 }], T0)).toHaveLength(1)
++  it('drops malformed stored entries and sorts the rest oldest first', () => {
++    expect(sanitizeHistory('x')).toEqual([])
++    const ok = (id: string, finishedAt: number) => ({ id, task: 't', finishedAt, minutes: 25 })
++    const out = sanitizeHistory([{ id: 1 }, null, { ...ok('z', T0), minutes: 0 }, ok('b', T0 + 1), ok('a', T0)])
++    expect(out.map((e) => e.id)).toEqual(['a', 'b'])
+   })
+ })
+diff --git a/src/usePomodoro.ts b/src/usePomodoro.ts
+index 775de71..d7b4d3c 100644
+--- a/src/usePomodoro.ts
++++ b/src/usePomodoro.ts
+@@ -4,7 +4,7 @@ import {
+   sanitizeSettings, sanitizeTimer, skip as skipTimer, tick, toggle as toggleTimer,
+   type Settings, type TimerState,
+ } from './lib/timer'
+-import { addEntry, sanitizeLog, type LogEntry } from './lib/log'
++import { addEntry, sanitizeHistory, type LogEntry } from './lib/log'
+ import { KEYS, load, save } from './lib/storage'
+ import { playChime, unlockAudio } from './lib/sound'
+ 
+@@ -21,11 +21,12 @@ function boot(): Boot {
+   const now = Date.now()
+   const settings = sanitizeSettings(load(KEYS.settings))
+   let timer = sanitizeTimer(load(KEYS.timer), settings)
+-  let log = sanitizeLog(load(KEYS.log), now)
++  // The full history of completed sessions across all days (today's log is derived from it).
++  let log = sanitizeHistory(load(KEYS.log))
+   const task = typeof load(KEYS.task) === 'string' ? (load(KEYS.task) as string) : ''
+   const result = tick(timer, settings, now)
+   if (result.ended?.phase === 'focus') {
+-    log = addEntry(log, { task: task.trim(), finishedAt: result.ended.at, minutes: settings.focus }, now)
++    log = addEntry(log, { task: task.trim(), finishedAt: result.ended.at, minutes: settings.focus })
+   }
+   timer = result.state
+   return { settings, timer, log, muted: load(KEYS.muted) === true, task }
+@@ -61,10 +62,7 @@ export function usePomodoro() {
+     setTimer(result.state)
+     if (result.ended.phase === 'focus') {
+       const entry = { task: task.trim(), finishedAt: result.ended.at, minutes: settings.focus }
+-      setLog((prev) => addEntry(prev, entry, t))
+-    } else {
+-      // Day may have rolled over during a break; drop stale entries.
+-      setLog((prev) => sanitizeLog(prev, t))
++      setLog((prev) => addEntry(prev, entry))
+     }
+     if (!muted) playChime()
+   }, [])
+diff --git a/vite.config.ts b/vite.config.ts
+index cf78d49..791b759 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -6,5 +6,6 @@ import { defineConfig } from 'vite'
+ export default defineConfig({
+   plugins: [react(), tailwindcss()],
+   server: { port: 5210, strictPort: true },
+-  test: { include: ['src/**/*.test.ts'] },
++  // A fixed zone with a DST change on 1 Nov 2026, so day-boundary tests are meaningful everywhere.
++  test: { include: ['src/**/*.test.ts'], env: { TZ: 'America/New_York' } },
+ })

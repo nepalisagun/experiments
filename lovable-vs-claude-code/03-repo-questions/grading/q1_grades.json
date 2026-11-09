@@ -1,0 +1,123 @@
+{
+  "A": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "The six deployed parts never call each other directly; they hand work off only through Postgres.",
+        "truth": "Several parts call each other over HTTP: probes call peer probes (POST /confirm and /report), the app POSTs signed withdraw requests to the edge's /_edge/withdraw, and Caddy on the edge box asks the app's /api/edge/ask before issuing certificates.",
+        "evidence": "src/lib/edge-control.ts:12; edge/main.ts:60; examples/edge/Caddyfile:7-9; probe/peer.ts:9-16",
+        "severity": "medium"
+      },
+      {
+        "claim": "'The probe decides on a verdict' right after its own check and confirmation, then writes the result.",
+        "truth": "The probe that ran the check only sends the outcome. The monitor's home probe (first in the ranking) computes the verdict inside Store.apply under the row lock. A non-home checker queues the outcome and POSTs it to the home.",
+        "evidence": "probe/runtime.ts:605-638; probe/store.ts:303-353",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Home-probe routing: non-home probes queue outcomes and POST /report them to the home once a second; only the home writes",
+      "The self-recheck also happens when every peer declines (409); a failure stays unconfirmed when peers are live but none answers within 30 s",
+      "Retry backoff (30 s to 1 h, max 8 attempts) and the 300 s lease",
+      "alert_expand and alert_claim were later redefined in 20261023120000_alert_channels.sql (routing); the alerts_email.sql header still describes a Netlify sender",
+      "CLI/stdio MCP package as a separately shipped client"
+    ]
+  },
+  "B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      {
+        "claim": "alert_expand is cited at alerts_email.sql:284.",
+        "truth": "That definition is superseded. The live alert_expand is in 20261023120000_alert_channels.sql:132-201 and adds alert_route_matches routing, so a developer reading line 284 sees outdated logic.",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:132",
+        "severity": "low"
+      },
+      {
+        "claim": "If Postmark never answered, the next run searches Postmark first.",
+        "truth": "The search runs only once the claim's 300 s lease has expired and the receipt comes back as inDoubt, not on the very next minute's run.",
+        "evidence": "src/lib/alerts/sender.ts:30-32,47,336-345",
+        "severity": "low"
+      },
+      {
+        "claim": "tick() calls runCheck.",
+        "truth": "tick() calls checkAndReport, which calls runCheck and then confirm/deliver.",
+        "evidence": "probe/runtime.ts:528,543",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Self-recheck also when every peer declines (409), not only when no other location is live",
+      "Watchdog's Telegram operator channel and per-minute cron/Durable Object detail",
+      "The stale alerts_email.sql header that still says Netlify scheduled function / server key"
+    ]
+  },
+  "C": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 10,
+    "errors": [
+      {
+        "claim": "PgStore.apply opens a transaction...",
+        "truth": "The class is named Store (export class Store), not PgStore. The method and line range are right.",
+        "evidence": "probe/store.ts:137,303",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Retry backoff schedule (30 s to 1 h) and the 8-attempt cap",
+      "Self-recheck also when every peer declines (409)",
+      "Resolved event goes only to channels/recipients that got the opened alert, and only if the monitor is up/degraded"
+    ]
+  },
+  "D": {
+    "correctness": 9,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      {
+        "claim": "The edge unit has caps 'so it can't starve the probe on the same box' (quoted from staygreen-edge.service).",
+        "truth": "This is a paraphrase presented as a quote. The unit says 'The limits keep it from starving the probe on the same box'; the 'can't starve the probe' wording is in examples/edge/setup.sh about Caddy.",
+        "evidence": "examples/edge/staygreen-edge.service:7; examples/edge/setup.sh:8-9",
+        "severity": "low"
+      },
+      {
+        "claim": "The incidents_alert_events trigger runs on every new incident and inserts an opened event.",
+        "truth": "It inserts 'opened' only for incidents inserted open (resolved_at null). It also fires on update of resolved_at to queue 'resolved'.",
+        "evidence": "supabase/migrations/20261022195510_alerts_email.sql:218-239",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "The canary network check that drops failures when the probe itself looks isolated (runtime.ts:499, canary.ts)",
+      "That the incident insert and its alert_events row land in the same transaction (no alert without incident, none after rollback)",
+      "Retry backoff / attempt cap",
+      "Citations are approximate (~L) rather than exact"
+    ]
+  },
+  "E": {
+    "correctness": 9,
+    "completeness": 6,
+    "usefulness": 6,
+    "errors": [
+      {
+        "claim": "The 'dashboard, database, sign-in, check runners..., status edge and three small Workers' sentence is in the 'What you need' section of docs/deploying.md.",
+        "truth": "The sentence is the document's opening line, above the 'What you need' heading.",
+        "evidence": "docs/deploying.md:3,9",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "The canary network check that vetoes failures on an isolated probe",
+      "Home-probe routing (outbox, POST /report, only the home writes) and the row lock/fences in Store.apply",
+      "The incidents_alert_events trigger as the mechanism that writes alert_events in the same transaction (it hedges instead)",
+      "That the sender itself calls alert_pending_events and alert_expand before claiming",
+      "Watchdog runtime details (cron, Durable Object), which it says it didn't open",
+      "Unconfirmed outcome when peers are live but none answers; self-recheck when all decline",
+      "Retry backoff / attempt cap"
+    ]
+  }
+}

@@ -1,0 +1,1849 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+new file mode 100644
+index 0000000..4361784
+--- /dev/null
++++ b/e2e/app.spec.ts
+@@ -0,0 +1,281 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const shot = (page: Page, name: string) =>
++  page.screenshot({ path: `shots/${test.info().project.name}-${name}.png`, fullPage: true })
++
++async function addPerson(page: Page, name: string) {
++  await page.getByLabel("New person's name").fill(name)
++  await page.getByRole('button', { name: 'Add', exact: true }).click()
++}
++
++async function addItem(page: Page, name: string, price: string, people: string[]) {
++  const form = page.getByRole('form', { name: 'Add item' })
++  await form.getByLabel('Item').fill(name)
++  await form.getByLabel('Price').fill(price)
++  for (const p of people) await form.getByRole('checkbox', { name: p }).check()
++  await form.getByRole('button', { name: 'Add item' }).click()
++}
++
++const share = (page: Page, name: string) => page.getByTestId('share').filter({ has: page.getByTestId('share-name').getByText(name, { exact: true }) })
++
++async function expectNoHorizontalScroll(page: Page) {
++  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
++  expect(overflow).toBeLessThanOrEqual(0)
++}
++
++test.beforeEach(async ({ page }) => {
++  await page.goto('/')
++  await page.evaluate(() => localStorage.clear())
++  await page.reload()
++})
++
++test('people: add, rename, remove, with validation', async ({ page }) => {
++  // empty name
++  await page.getByRole('button', { name: 'Add', exact: true }).click()
++  await expect(page.getByRole('alert')).toHaveText('Name cannot be empty.')
++
++  await addPerson(page, 'Ann')
++  await addPerson(page, 'Ben')
++  await addPerson(page, 'ann')
++  await expect(page.getByRole('alert')).toHaveText('There is already someone called "ann".')
++  await page.getByLabel("New person's name").fill('Cat')
++  await expect(page.getByRole('alert')).toHaveCount(0) // error clears on typing
++  await page.getByRole('button', { name: 'Add', exact: true }).click()
++  await expect(page.getByRole('heading', { name: 'People (3)' })).toBeVisible()
++
++  // rename
++  await page.getByRole('button', { name: 'Rename Ben' }).click()
++  await page.getByLabel('New name for Ben').fill('Ann')
++  await page.getByRole('button', { name: 'Save' }).click()
++  await expect(page.getByRole('alert')).toHaveText('There is already someone called "Ann".')
++  await page.getByLabel('New name for Ben').fill('Benjamin')
++  await page.getByRole('button', { name: 'Save' }).click()
++  await expect(page.getByRole('button', { name: 'Rename Benjamin' })).toBeVisible()
++  await expect(share(page, 'Benjamin')).toBeVisible()
++
++  // remove (no items -> no confirmation)
++  await page.getByRole('button', { name: 'Remove Cat' }).click()
++  await expect(page.getByRole('heading', { name: 'People (2)' })).toBeVisible()
++  await expect(share(page, 'Cat')).toHaveCount(0)
++  await shot(page, 'people')
++  await expectNoHorizontalScroll(page)
++})
++
++test('items: add, edit, remove, validation, and breakdown with tax and tip', async ({ page }) => {
++  await addPerson(page, 'Ann')
++  await addPerson(page, 'Ben')
++  await addPerson(page, 'Cat')
++
++  const form = page.getByRole('form', { name: 'Add item' })
++  // validation: everything missing
++  await form.getByRole('button', { name: 'Add item' }).click()
++  await expect(form.getByText('Give the item a name.')).toBeVisible()
++  await expect(form.getByText('Enter a price.')).toBeVisible()
++  await expect(form.getByText('Pick at least one person who shared this item.')).toBeVisible()
++  // negative price
++  await form.getByLabel('Item').fill('Bad')
++  await form.getByLabel('Price').fill('-5')
++  await form.getByRole('button', { name: 'Add item' }).click()
++  await expect(form.getByText('Price cannot be negative.')).toBeVisible()
++  await expect(page.getByTestId('item-row')).toHaveCount(0)
++  await shot(page, 'item-validation')
++
++  await addItem(page, 'Pizza', '30', ['Ann', 'Ben', 'Cat'])
++  await addItem(page, 'Wine', '20.00', ['Ann'])
++  await expect(page.getByTestId('item-row')).toHaveCount(2)
++  await expect(form.getByLabel('Item')).toHaveValue('') // form cleared
++
++  // "Everyone" shortcut
++  await form.getByLabel('Item').fill('Bread')
++  await form.getByLabel('Price').fill('4.5')
++  await form.getByRole('button', { name: 'Everyone' }).click()
++  await expect(form.getByRole('checkbox', { name: 'Cat' })).toBeChecked()
++  await form.getByRole('button', { name: 'Add item' }).click()
++  await page.getByRole('button', { name: 'Remove Bread' }).click()
++  await expect(page.getByTestId('item-row')).toHaveCount(2)
++
++  // Defaults: tax 0, tip 15%
++  await expect(page.getByTestId('bill-subtotal')).toHaveText('$50.00')
++  await expect(page.getByTestId('bill-tip')).toHaveText('$7.50')
++
++  // Tax 10%, tip presets
++  await page.getByLabel('Tax', { exact: true }).fill('10')
++  await page.getByRole('button', { name: '20%' }).click()
++  await expect(page.getByRole('button', { name: '20%' })).toHaveAttribute('aria-pressed', 'true')
++  await expect(page.getByTestId('bill-tax')).toHaveText('$5.00')
++  await expect(page.getByTestId('bill-tip')).toHaveText('$10.00')
++  await expect(page.getByTestId('bill-total')).toHaveText('$65.00')
++  await expect(share(page, 'Ann').getByTestId('share-subtotal')).toHaveText('$30.00')
++  await expect(share(page, 'Ann').getByTestId('share-tax')).toHaveText('$3.00')
++  await expect(share(page, 'Ann').getByTestId('share-tip')).toHaveText('$6.00')
++  await expect(share(page, 'Ann').getByTestId('share-total')).toHaveText('$39.00')
++  await expect(share(page, 'Ben').getByTestId('share-total')).toHaveText('$13.00')
++
++  await page.getByRole('button', { name: '10%' }).click()
++  await expect(page.getByTestId('bill-tip')).toHaveText('$5.00')
++  await page.getByRole('button', { name: '15%' }).click()
++  await expect(page.getByTestId('bill-tip')).toHaveText('$7.50')
++
++  // custom tip + validation
++  await page.getByRole('button', { name: 'Custom' }).click()
++  await expect(page.getByLabel('Custom tip percentage')).toBeFocused()
++  await page.getByLabel('Custom tip percentage').fill('-4')
++  await expect(page.getByText('Tip cannot be negative. Tip is counted as 0% until fixed.')).toBeVisible()
++  await page.getByLabel('Custom tip percentage').fill('18')
++  await expect(page.getByTestId('bill-tip')).toHaveText('$9.00')
++  await page.getByLabel('Tax', { exact: true }).fill('-1')
++  await expect(page.getByText('Tax cannot be negative. Tax is counted as 0% until fixed.')).toBeVisible()
++  await page.getByLabel('Tax', { exact: true }).fill('10')
++
++  // edit an item: change price and sharers
++  await page.getByRole('button', { name: 'Edit Wine' }).click()
++  const edit = page.getByRole('form', { name: 'Edit item' })
++  await expect(edit.getByLabel('Price')).toHaveValue('20.00')
++  await edit.getByRole('checkbox', { name: 'Ann' }).uncheck()
++  await edit.getByRole('button', { name: 'Save' }).click()
++  await expect(edit.getByText('Pick at least one person who shared this item.')).toBeVisible()
++  await edit.getByRole('checkbox', { name: 'Ben' }).check()
++  await edit.getByLabel('Price').fill('12.345')
++  await edit.getByRole('button', { name: 'Save' }).click()
++  await expect(edit.getByText('Price can have at most 2 decimal places.')).toBeVisible()
++  await edit.getByLabel('Price').fill('24')
++  await edit.getByLabel('Item').fill('Red wine')
++  await edit.getByRole('button', { name: 'Save' }).click()
++  await expect(page.getByTestId('item-row').filter({ hasText: 'Red wine' })).toContainText('$24.00')
++  await expect(page.getByTestId('item-row').filter({ hasText: 'Red wine' })).toContainText('For Ben')
++  await expect(share(page, 'Ben').getByTestId('share-subtotal')).toHaveText('$34.00')
++  await shot(page, 'breakdown')
++  await expectNoHorizontalScroll(page)
++})
++
++test('rounding: per-person totals add up exactly to the bill total', async ({ page }) => {
++  for (const n of ['Ann', 'Ben', 'Cat']) await addPerson(page, n)
++  await addItem(page, 'Dessert', '10', ['Ann', 'Ben', 'Cat'])
++  await addItem(page, 'Coffee', '3.33', ['Ben', 'Cat'])
++  await page.getByLabel('Tax', { exact: true }).fill('8.875')
++  await page.getByRole('button', { name: 'Custom' }).click()
++  await page.getByLabel('Custom tip percentage').fill('17.3')
++
++  const toCents = (s: string) => Math.round(Number(s.replace(/[^0-9.]/g, '')) * 100)
++  const totals = (await page.getByTestId('share-total').allTextContents()).map(toCents)
++  const billTotal = toCents((await page.getByTestId('bill-total').textContent())!)
++  expect(totals.reduce((a, b) => a + b, 0)).toBe(billTotal)
++  for (const col of ['share-subtotal', 'share-tax', 'share-tip'] as const) {
++    const vals = (await page.getByTestId(col).allTextContents()).map(toCents)
++    const billCol = { 'share-subtotal': 'bill-subtotal', 'share-tax': 'bill-tax', 'share-tip': 'bill-tip' }[col]
++    expect(vals.reduce((a, b) => a + b, 0)).toBe(toCents((await page.getByTestId(billCol).textContent())!))
++  }
++  // 13.33 subtotal; tax 1.183 -> 1.18; tip 2.306 -> 2.31; total 16.82
++  await expect(page.getByTestId('bill-total')).toHaveText('$16.82')
++})
++
++test('currency selector changes formatting', async ({ page }) => {
++  await addPerson(page, 'Ann')
++  await addItem(page, 'Feast', '1234.5', ['Ann'])
++  await page.getByLabel('Tax', { exact: true }).fill('0')
++  await page.getByRole('button', { name: 'Custom' }).click()
++  await page.getByLabel('Custom tip percentage').fill('0')
++  await expect(page.getByTestId('bill-total')).toHaveText('$1,234.50')
++  await page.getByLabel('Currency').selectOption('EUR')
++  await expect(page.getByTestId('bill-total')).toHaveText('1.234,50 €')
++  await expect(page.getByTestId('item-row')).toContainText('1.234,50 €')
++  await page.getByLabel('Currency').selectOption('PLN')
++  await expect(page.getByTestId('bill-total')).toHaveText('1234,50 zł')
++  await shot(page, 'pln')
++})
++
++test('copy summary puts plain text on the clipboard', async ({ page }) => {
++  await addPerson(page, 'Ann')
++  await addPerson(page, 'Ben')
++  await addItem(page, 'Pizza', '30', ['Ann', 'Ben'])
++  await page.getByLabel('Tax', { exact: true }).fill('10')
++  await page.getByRole('button', { name: '20%' }).click()
++  await page.getByRole('button', { name: 'Copy summary' }).click()
++  await expect(page.getByRole('status')).toHaveText('Summary copied to clipboard')
++  // The OS clipboard on Windows hands text back with CRLF line endings.
++  const text = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')
++  expect(text).toBe(
++    [
++      'Bill summary',
++      '',
++      'Items:',
++      '- Pizza: $30.00 (Ann, Ben)',
++      '',
++      'Subtotal: $30.00',
++      'Tax (10%): $3.00',
++      'Tip (20%): $6.00',
++      'Total: $39.00',
++      '',
++      'Per person:',
++      '- Ann: $19.50 (items $15.00, tax $1.50, tip $3.00)',
++      '- Ben: $19.50 (items $15.00, tax $1.50, tip $3.00)',
++    ].join('\n'),
++  )
++})
++
++test('removing the only sharer of an item asks first', async ({ page }) => {
++  await addPerson(page, 'Ann')
++  await addPerson(page, 'Ben')
++  await addItem(page, 'Wine', '20', ['Ann'])
++  await addItem(page, 'Pizza', '30', ['Ann', 'Ben'])
++  await page.getByRole('button', { name: 'Remove Ann' }).click()
++  const dialog = page.getByRole('dialog', { name: 'Remove Ann?' })
++  await expect(dialog).toContainText('Wine')
++  await shot(page, 'remove-person-dialog')
++  await dialog.getByRole('button', { name: 'Cancel' }).click()
++  await expect(dialog).toBeHidden()
++  await expect(page.getByTestId('item-row')).toHaveCount(2)
++  await page.getByRole('button', { name: 'Remove Ann' }).click()
++  await dialog.getByRole('button', { name: 'Remove' }).click()
++  await expect(page.getByTestId('item-row')).toHaveCount(1)
++  await expect(page.getByTestId('item-row')).toContainText('For Ben')
++  await expect(page.getByTestId('bill-subtotal')).toHaveText('$30.00')
++})
++
++test('reset asks for confirmation', async ({ page }) => {
++  await addPerson(page, 'Ann')
++  await addItem(page, 'Soup', '7', ['Ann'])
++  await page.getByRole('button', { name: 'Reset' }).click()
++  const dialog = page.getByRole('dialog', { name: 'Reset the bill?' })
++  await expect(dialog).toBeVisible()
++  await shot(page, 'reset-dialog')
++  await dialog.getByRole('button', { name: 'Cancel' }).click()
++  await expect(page.getByTestId('item-row')).toHaveCount(1)
++  // Escape also cancels
++  await page.getByRole('button', { name: 'Reset' }).click()
++  await page.keyboard.press('Escape')
++  await expect(dialog).toBeHidden()
++  await expect(page.getByTestId('item-row')).toHaveCount(1)
++
++  await page.getByRole('button', { name: 'Reset' }).click()
++  await dialog.getByRole('button', { name: 'Reset' }).click()
++  await expect(page.getByTestId('item-row')).toHaveCount(0)
++  await expect(page.getByRole('heading', { name: 'People (0)' })).toBeVisible()
++  await page.reload()
++  await expect(page.getByRole('heading', { name: 'People (0)' })).toBeVisible()
++})
++
++test('the bill survives a reload', async ({ page }) => {
++  await addPerson(page, 'Ann')
++  await addPerson(page, 'Ben')
++  await addItem(page, 'Pasta', '18.40', ['Ann', 'Ben'])
++  await page.getByLabel('Tax', { exact: true }).fill('7.5')
++  await page.getByRole('button', { name: 'Custom' }).click()
++  await page.getByLabel('Custom tip percentage').fill('12')
++  await page.getByLabel('Currency').selectOption('EUR')
++  const before = await page.getByTestId('bill-total').textContent()
++  await page.reload()
++  await expect(page.getByRole('heading', { name: 'People (2)' })).toBeVisible()
++  await expect(page.getByTestId('item-row')).toContainText('Pasta')
++  await expect(page.getByLabel('Tax', { exact: true })).toHaveValue('7.5')
++  await expect(page.getByRole('button', { name: 'Custom' })).toHaveAttribute('aria-pressed', 'true')
++  await expect(page.getByLabel('Custom tip percentage')).toHaveValue('12')
++  await expect(page.getByLabel('Currency')).toHaveValue('EUR')
++  await expect(page.getByTestId('bill-total')).toHaveText(before!)
++})
++
++test('corrupt saved data does not break the app', async ({ page }) => {
++  await page.evaluate(() => localStorage.setItem('bill-splitter:v1', '{not json'))
++  await page.reload()
++  await expect(page.getByRole('heading', { name: 'People (0)' })).toBeVisible()
++})
+diff --git a/index.html b/index.html
+index 3d7efb3..27108ef 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,7 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Split the Bill</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..bdc5358 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,9 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
+-    "preview": "vite preview"
++    "preview": "vite preview",
++    "test": "vitest run --dir src",
++    "e2e": "playwright test"
+   },
+   "dependencies": {
+     "react": "^19.3.1",
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/playwright.config.ts b/playwright.config.ts
+index a47ce7c..6d9af8f 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -4,6 +4,15 @@ const PORT = 5211
+ 
+ export default defineConfig({
+   testDir: './e2e',
+-  use: { baseURL: `http://localhost:${PORT}`, channel: 'chrome', headless: true },
++  use: {
++    baseURL: `http://localhost:${PORT}`,
++    channel: 'chrome',
++    headless: true,
++    permissions: ['clipboard-read', 'clipboard-write'],
++  },
++  projects: [
++    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
++    { name: 'mobile', use: { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true } },
++  ],
+   webServer: { command: 'npm run dev', url: `http://localhost:${PORT}`, reuseExistingServer: true, timeout: 60_000 },
+ })
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..303bf0f 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,192 @@
++import { useEffect, useMemo, useRef, useState } from 'react'
++import { Breakdown } from './components/Breakdown'
++import { ConfirmDialog } from './components/ConfirmDialog'
++import { Items } from './components/Items'
++import { People } from './components/People'
++import { TaxTip } from './components/TaxTip'
++import {
++  buildSummary,
++  computeBreakdown,
++  CURRENCIES,
++  deserializeBill,
++  emptyBill,
++  itemsOnlySharedBy,
++  removePerson,
++  STORAGE_KEY,
++  type Bill,
++  type Currency,
++} from './lib/bill'
++
++const newId = () =>
++  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
++
++function loadBill(): Bill {
++  try {
++    return deserializeBill(localStorage.getItem(STORAGE_KEY))
++  } catch {
++    return emptyBill()
++  }
++}
++
++async function copyText(text: string) {
++  try {
++    await navigator.clipboard.writeText(text)
++    return true
++  } catch {
++    // Fallback for browsers/contexts without the async clipboard API.
++    const ta = document.createElement('textarea')
++    ta.value = text
++    ta.setAttribute('readonly', '')
++    ta.style.position = 'fixed'
++    ta.style.opacity = '0'
++    document.body.appendChild(ta)
++    ta.select()
++    const ok = document.execCommand('copy')
++    ta.remove()
++    return ok
++  }
++}
++
++type Confirm = { kind: 'reset' } | { kind: 'remove-person'; id: string } | null
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [bill, setBill] = useState<Bill>(loadBill)
++  const [confirm, setConfirm] = useState<Confirm>(null)
++  const [status, setStatus] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null)
++  const statusTimer = useRef<number | undefined>(undefined)
++
++  useEffect(() => {
++    try {
++      localStorage.setItem(STORAGE_KEY, JSON.stringify(bill))
++    } catch {
++      /* storage full or unavailable: the app still works for this session */
++    }
++  }, [bill])
++
++  const breakdown = useMemo(() => computeBreakdown(bill), [bill])
++  const update = (patch: Partial<Bill>) => setBill((b) => ({ ...b, ...patch }))
++
++  const flash = (text: string, tone: 'ok' | 'err') => {
++    setStatus({ text, tone })
++    window.clearTimeout(statusTimer.current)
++    statusTimer.current = window.setTimeout(() => setStatus(null), 2500)
++  }
++
++  const copySummary = async () => {
++    const ok = await copyText(buildSummary(bill, breakdown))
++    flash(ok ? 'Summary copied to clipboard' : 'Could not copy. Your browser blocked clipboard access.', ok ? 'ok' : 'err')
++  }
++
++  const requestRemovePerson = (id: string) => {
++    if (itemsOnlySharedBy(bill, id).length > 0) setConfirm({ kind: 'remove-person', id })
++    else setBill((b) => removePerson(b, id))
++  }
++
++  const pendingPerson = confirm?.kind === 'remove-person' ? bill.people.find((p) => p.id === confirm.id) : undefined
++  const orphaned = confirm?.kind === 'remove-person' ? itemsOnlySharedBy(bill, confirm.id) : []
++
++  return (
++    <div className="min-h-screen">
++      <header className="border-b border-stone-200 bg-white">
++        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
++          <h1 className="mr-auto text-xl font-bold tracking-tight">
++            Split<span className="text-emerald-700">the</span>Bill
++          </h1>
++          <div className="flex flex-wrap items-center gap-2">
++            <label htmlFor="currency" className="sr-only">
++              Currency
++            </label>
++            <select
++              id="currency"
++              className="input w-auto py-2"
++              value={bill.currency}
++              onChange={(e) => update({ currency: e.target.value as Currency })}
++            >
++              {CURRENCIES.map((c) => (
++                <option key={c} value={c}>
++                  {c}
++                </option>
++              ))}
++            </select>
++            <button type="button" className="btn-primary" onClick={copySummary}>
++              Copy summary
++            </button>
++            <button type="button" className="btn-secondary" onClick={() => setConfirm({ kind: 'reset' })}>
++              Reset
++            </button>
++          </div>
++        </div>
++      </header>
++
++      <main className="mx-auto grid max-w-6xl gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] md:py-6">
++        <div className="space-y-4">
++          <People
++            people={bill.people}
++            onAdd={(name) => setBill((b) => ({ ...b, people: [...b.people, { id: newId(), name }] }))}
++            onRename={(id, name) => setBill((b) => ({ ...b, people: b.people.map((p) => (p.id === id ? { ...p, name } : p)) }))}
++            onRemove={requestRemovePerson}
++          />
++          <Items
++            items={bill.items}
++            people={bill.people}
++            currency={bill.currency}
++            onAdd={(it) => setBill((b) => ({ ...b, items: [...b.items, { ...it, id: newId() }] }))}
++            onUpdate={(id, it) => setBill((b) => ({ ...b, items: b.items.map((x) => (x.id === id ? { ...it, id } : x)) }))}
++            onRemove={(id) => setBill((b) => ({ ...b, items: b.items.filter((x) => x.id !== id) }))}
++          />
++        </div>
++        <div className="space-y-4 md:sticky md:top-4 md:self-start">
++          <TaxTip
++            taxPct={bill.taxPct}
++            tipMode={bill.tipMode}
++            customTipPct={bill.customTipPct}
++            onTax={(taxPct) => update({ taxPct })}
++            onTipMode={(tipMode) => update({ tipMode })}
++            onCustomTip={(customTipPct) => update({ customTipPct })}
++          />
++          <Breakdown breakdown={breakdown} currency={bill.currency} />
++        </div>
++      </main>
++
++      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 flex justify-center px-4">
++        {status && (
++          <div
++            role="status"
++            className={`rounded-lg px-4 py-2 text-sm font-medium text-white shadow-lg ${status.tone === 'ok' ? 'bg-stone-900' : 'bg-red-600'}`}
++          >
++            {status.text}
++          </div>
++        )}
++      </div>
++
++      <ConfirmDialog
++        open={confirm?.kind === 'reset'}
++        title="Reset the bill?"
++        message="This removes all people, items, tax and tip. It can't be undone."
++        confirmLabel="Reset"
++        onCancel={() => setConfirm(null)}
++        onConfirm={() => {
++          setBill((b) => ({ ...emptyBill(), currency: b.currency }))
++          setConfirm(null)
++        }}
++      />
++      <ConfirmDialog
++        open={confirm?.kind === 'remove-person'}
++        title={`Remove ${pendingPerson?.name ?? 'person'}?`}
++        message={
++          <>
++            {pendingPerson?.name} is the only person on {orphaned.length === 1 ? 'this item' : 'these items'}, so{' '}
++            {orphaned.length === 1 ? 'it' : 'they'} will be removed too:{' '}
++            <strong className="text-stone-800">{orphaned.map((i) => i.name).join(', ')}</strong>
++          </>
++        }
++        confirmLabel="Remove"
++        onCancel={() => setConfirm(null)}
++        onConfirm={() => {
++          if (confirm?.kind === 'remove-person') setBill((b) => removePerson(b, confirm.id))
++          setConfirm(null)
++        }}
++      />
++    </div>
++  )
+ }
+diff --git a/src/components/Breakdown.tsx b/src/components/Breakdown.tsx
+new file mode 100644
+index 0000000..ea4d6d4
+--- /dev/null
++++ b/src/components/Breakdown.tsx
+@@ -0,0 +1,74 @@
++import { formatMoney, formatPercent, type Breakdown as B, type Currency } from '../lib/bill'
++
++export function Breakdown({ breakdown: b, currency }: { breakdown: B; currency: Currency }) {
++  const m = (c: number) => formatMoney(c, currency)
++
++  return (
++    <section className="card" aria-labelledby="breakdown-title">
++      <h2 id="breakdown-title" className="card-title">
++        Per person
++      </h2>
++
++      {b.shares.length === 0 ? (
++        <p className="text-sm text-stone-500">Add people and items to see who owes what.</p>
++      ) : (
++        <ul className="space-y-3" aria-label="Per-person breakdown">
++          {b.shares.map((s) => (
++            <li key={s.personId} className="rounded-lg border border-stone-200 p-3" data-testid="share">
++              <div className="flex items-baseline justify-between gap-2">
++                <span className="truncate font-semibold" data-testid="share-name">
++                  {s.name}
++                </span>
++                <span className="shrink-0 text-lg font-semibold tabular-nums" data-testid="share-total">
++                  {m(s.total)}
++                </span>
++              </div>
++              <dl className="mt-1 grid grid-cols-3 gap-2 text-sm text-stone-600">
++                <div>
++                  <dt className="text-xs text-stone-500">Items</dt>
++                  <dd className="tabular-nums" data-testid="share-subtotal">{m(s.subtotal)}</dd>
++                </div>
++                <div>
++                  <dt className="text-xs text-stone-500">Tax</dt>
++                  <dd className="tabular-nums" data-testid="share-tax">{m(s.tax)}</dd>
++                </div>
++                <div>
++                  <dt className="text-xs text-stone-500">Tip</dt>
++                  <dd className="tabular-nums" data-testid="share-tip">{m(s.tip)}</dd>
++                </div>
++              </dl>
++              {s.items.length > 0 && (
++                <p className="mt-1 truncate text-xs text-stone-500" title={s.items.map((i) => i.name).join(', ')}>
++                  {s.items.map((i) => (i.sharedWith > 1 ? `${i.name} (1/${i.sharedWith})` : i.name)).join(', ')}
++                </p>
++              )}
++            </li>
++          ))}
++        </ul>
++      )}
++
++      <dl className="mt-4 space-y-1 border-t border-stone-200 pt-3 text-sm" aria-label="Bill totals">
++        <Row label="Subtotal" value={m(b.subtotal)} testId="bill-subtotal" />
++        <Row label={`Tax (${formatPercent(b.taxPctScaled)})`} value={m(b.tax)} testId="bill-tax" />
++        <Row label={`Tip (${formatPercent(b.tipPctScaled)})`} value={m(b.tip)} testId="bill-tip" />
++        <div className="flex justify-between pt-1 text-base font-semibold">
++          <dt>Total</dt>
++          <dd className="tabular-nums" data-testid="bill-total">
++            {m(b.total)}
++          </dd>
++        </div>
++      </dl>
++    </section>
++  )
++}
++
++function Row({ label, value, testId }: { label: string; value: string; testId: string }) {
++  return (
++    <div className="flex justify-between text-stone-600">
++      <dt>{label}</dt>
++      <dd className="tabular-nums" data-testid={testId}>
++        {value}
++      </dd>
++    </div>
++  )
++}
+diff --git a/src/components/ConfirmDialog.tsx b/src/components/ConfirmDialog.tsx
+new file mode 100644
+index 0000000..1373b20
+--- /dev/null
++++ b/src/components/ConfirmDialog.tsx
+@@ -0,0 +1,52 @@
++import { useEffect, useId, useRef } from 'react'
++
++interface Props {
++  open: boolean
++  title: string
++  message: React.ReactNode
++  confirmLabel: string
++  onConfirm: () => void
++  onCancel: () => void
++}
++
++export function ConfirmDialog({ open, title, message, confirmLabel, onConfirm, onCancel }: Props) {
++  const ref = useRef<HTMLDialogElement>(null)
++  const titleId = useId()
++
++  useEffect(() => {
++    const d = ref.current
++    if (!d) return
++    if (open && !d.open) d.showModal()
++    if (!open && d.open) d.close()
++  }, [open])
++
++  return (
++    <dialog
++      ref={ref}
++      onCancel={(e) => {
++        e.preventDefault()
++        onCancel()
++      }}
++      onClick={(e) => {
++        if (e.target === ref.current) onCancel()
++      }}
++      aria-labelledby={titleId}
++      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl bg-white p-0 text-stone-900 shadow-xl backdrop:bg-stone-900/40"
++    >
++      <div className="p-5">
++        <h2 id={titleId} className="text-lg font-semibold">
++          {title}
++        </h2>
++        <div className="mt-2 text-sm text-stone-600">{message}</div>
++        <div className="mt-5 flex justify-end gap-2">
++          <button type="button" className="btn-secondary" onClick={onCancel} autoFocus>
++            Cancel
++          </button>
++          <button type="button" className="btn-danger" onClick={onConfirm}>
++            {confirmLabel}
++          </button>
++        </div>
++      </div>
++    </dialog>
++  )
++}
+diff --git a/src/components/Items.tsx b/src/components/Items.tsx
+new file mode 100644
+index 0000000..c464760
+--- /dev/null
++++ b/src/components/Items.tsx
+@@ -0,0 +1,224 @@
++import { useState } from 'react'
++import { formatMoney, validateItem, type Currency, type Item, type ItemDraft, type ItemErrors, type Person } from '../lib/bill'
++
++interface Props {
++  items: Item[]
++  people: Person[]
++  currency: Currency
++  onAdd: (item: Omit<Item, 'id'>) => void
++  onUpdate: (id: string, item: Omit<Item, 'id'>) => void
++  onRemove: (id: string) => void
++}
++
++export function Items({ items, people, currency, onAdd, onUpdate, onRemove }: Props) {
++  const [editingId, setEditingId] = useState<string | null>(null)
++  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? '?'
++
++  return (
++    <section className="card" aria-labelledby="items-title">
++      <h2 id="items-title" className="card-title">
++        Items <span className="font-normal text-stone-500">({items.length})</span>
++      </h2>
++
++      <ItemForm
++        idPrefix="new-item"
++        people={people}
++        submitLabel="Add item"
++        onSubmit={(it) => {
++          onAdd(it)
++          return true
++        }}
++      />
++
++      {items.length === 0 ? (
++        <p className="mt-4 text-sm text-stone-500">No items yet.</p>
++      ) : (
++        <ul className="mt-4 divide-y divide-stone-100 border-t border-stone-100" aria-label="Item list">
++          {items.map((it) =>
++            editingId === it.id ? (
++              <li key={it.id} className="py-3">
++                <ItemForm
++                  idPrefix={`edit-${it.id}`}
++                  people={people}
++                  initial={{ name: it.name, price: (it.priceCents / 100).toFixed(2), sharedBy: it.sharedBy }}
++                  submitLabel="Save"
++                  onCancel={() => setEditingId(null)}
++                  onSubmit={(upd) => {
++                    onUpdate(it.id, upd)
++                    setEditingId(null)
++                    return true
++                  }}
++                />
++              </li>
++            ) : (
++              <li key={it.id} className="flex items-start gap-2 py-3" data-testid="item-row">
++                <div className="min-w-0 flex-1">
++                  <div className="flex items-baseline justify-between gap-2">
++                    <span className="truncate font-medium">{it.name}</span>
++                    <span className="shrink-0 tabular-nums">{formatMoney(it.priceCents, currency)}</span>
++                  </div>
++                  <p className="mt-0.5 text-sm text-stone-500">
++                    {it.sharedBy.length === 1 ? 'For ' : `Shared by ${it.sharedBy.length}: `}
++                    {it.sharedBy.map(nameOf).join(', ')}
++                  </p>
++                </div>
++                <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
++                  <button type="button" className="btn-ghost" aria-label={`Edit ${it.name}`} onClick={() => setEditingId(it.id)}>
++                    Edit
++                  </button>
++                  <button
++                    type="button"
++                    className="btn-ghost text-red-600 hover:bg-red-50 hover:text-red-700"
++                    aria-label={`Remove ${it.name}`}
++                    onClick={() => {
++                      if (editingId === it.id) setEditingId(null)
++                      onRemove(it.id)
++                    }}
++                  >
++                    Remove
++                  </button>
++                </div>
++              </li>
++            ),
++          )}
++        </ul>
++      )}
++    </section>
++  )
++}
++
++function ItemForm({
++  idPrefix,
++  people,
++  initial,
++  submitLabel,
++  onSubmit,
++  onCancel,
++}: {
++  idPrefix: string
++  people: Person[]
++  initial?: ItemDraft
++  submitLabel: string
++  onSubmit: (item: Omit<Item, 'id'>) => boolean
++  onCancel?: () => void
++}) {
++  const [draft, setDraft] = useState<ItemDraft>(initial ?? { name: '', price: '', sharedBy: [] })
++  const [errors, setErrors] = useState<ItemErrors>({})
++  const set = (patch: Partial<ItemDraft>, clear: keyof ItemErrors) => {
++    setDraft((d) => ({ ...d, ...patch }))
++    if (errors[clear]) setErrors((e) => ({ ...e, [clear]: undefined }))
++  }
++  const toggle = (id: string) =>
++    set({ sharedBy: draft.sharedBy.includes(id) ? draft.sharedBy.filter((x) => x !== id) : [...draft.sharedBy, id] }, 'sharedBy')
++  const allSelected = people.length > 0 && people.every((p) => draft.sharedBy.includes(p.id))
++
++  const submit = (e: React.FormEvent) => {
++    e.preventDefault()
++    const { errors: errs, priceCents } = validateItem(draft, people)
++    setErrors(errs)
++    if (Object.keys(errs).length > 0 || priceCents === undefined) {
++      const first = (['name', 'price'] as const).find((k) => errs[k])
++      if (first) document.getElementById(`${idPrefix}-${first}`)?.focus()
++      return
++    }
++    // keep sharers in people order
++    const sharedBy = people.filter((p) => draft.sharedBy.includes(p.id)).map((p) => p.id)
++    if (onSubmit({ name: draft.name.trim(), priceCents, sharedBy }) && !initial) {
++      setDraft({ name: '', price: '', sharedBy: [] })
++      document.getElementById(`${idPrefix}-name`)?.focus()
++    }
++  }
++
++  const err = (k: keyof ItemErrors) =>
++    errors[k] ? (
++      <p id={`${idPrefix}-${k}-error`} role="alert" className="error-text">
++        {errors[k]}
++      </p>
++    ) : null
++
++  return (
++    <form onSubmit={submit} noValidate aria-label={initial ? 'Edit item' : 'Add item'} className="space-y-3">
++      <div className="grid grid-cols-[1fr_7.5rem] gap-2">
++        <div className="min-w-0">
++          <label htmlFor={`${idPrefix}-name`} className="mb-1 block text-sm font-medium text-stone-700">
++            Item
++          </label>
++          <input
++            id={`${idPrefix}-name`}
++            className="input"
++            placeholder="e.g. Margherita pizza"
++            value={draft.name}
++            maxLength={80}
++            aria-invalid={!!errors.name}
++            aria-describedby={errors.name ? `${idPrefix}-name-error` : undefined}
++            onChange={(e) => set({ name: e.target.value }, 'name')}
++          />
++        </div>
++        <div className="min-w-0">
++          <label htmlFor={`${idPrefix}-price`} className="mb-1 block text-sm font-medium text-stone-700">
++            Price
++          </label>
++          <input
++            id={`${idPrefix}-price`}
++            className="input tabular-nums"
++            placeholder="0.00"
++            inputMode="decimal"
++            value={draft.price}
++            aria-invalid={!!errors.price}
++            aria-describedby={errors.price ? `${idPrefix}-price-error` : undefined}
++            onChange={(e) => set({ price: e.target.value }, 'price')}
++          />
++        </div>
++      </div>
++      {err('name')}
++      {err('price')}
++
++      <fieldset aria-describedby={errors.sharedBy ? `${idPrefix}-sharedBy-error` : undefined}>
++        <div className="mb-1 flex items-center justify-between">
++          <legend className="text-sm font-medium text-stone-700">Shared by</legend>
++          {people.length > 1 && (
++            <button
++              type="button"
++              className="text-sm font-medium text-emerald-700 hover:underline"
++              onClick={() => set({ sharedBy: allSelected ? [] : people.map((p) => p.id) }, 'sharedBy')}
++            >
++              {allSelected ? 'Clear' : 'Everyone'}
++            </button>
++          )}
++        </div>
++        {people.length === 0 ? (
++          <p className="text-sm text-stone-500">Add people above first.</p>
++        ) : (
++          <div className="flex flex-wrap gap-2">
++            {people.map((p) => {
++              const on = draft.sharedBy.includes(p.id)
++              return (
++                <label
++                  key={p.id}
++                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm select-none has-focus-visible:ring-2 has-focus-visible:ring-emerald-600/40 ${
++                    on ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-stone-300 bg-white text-stone-700'
++                  } ${errors.sharedBy ? 'border-red-400' : ''}`}
++                >
++                  <input type="checkbox" className="accent-emerald-700" checked={on} onChange={() => toggle(p.id)} />
++                  <span className="max-w-[10rem] truncate">{p.name}</span>
++                </label>
++              )
++            })}
++          </div>
++        )}
++        {err('sharedBy')}
++      </fieldset>
++
++      <div className="flex gap-2">
++        <button type="submit" className="btn-primary">
++          {submitLabel}
++        </button>
++        {onCancel && (
++          <button type="button" className="btn-secondary" onClick={onCancel}>
++            Cancel
++          </button>
++        )}
++      </div>
++    </form>
++  )
++}
+diff --git a/src/components/People.tsx b/src/components/People.tsx
+new file mode 100644
+index 0000000..9318478
+--- /dev/null
++++ b/src/components/People.tsx
+@@ -0,0 +1,168 @@
++import { useState } from 'react'
++import { validatePersonName, type Person } from '../lib/bill'
++
++interface Props {
++  people: Person[]
++  onAdd: (name: string) => void
++  onRename: (id: string, name: string) => void
++  onRemove: (id: string) => void
++}
++
++export function People({ people, onAdd, onRename, onRemove }: Props) {
++  const [name, setName] = useState('')
++  const [error, setError] = useState<string | null>(null)
++
++  const add = (e: React.FormEvent) => {
++    e.preventDefault()
++    const err = validatePersonName(name, people)
++    setError(err)
++    if (err) return
++    onAdd(name.trim())
++    setName('')
++  }
++
++  return (
++    <section className="card" aria-labelledby="people-title">
++      <h2 id="people-title" className="card-title">
++        People <span className="font-normal text-stone-500">({people.length})</span>
++      </h2>
++      <form onSubmit={add} noValidate>
++        <div className="flex gap-2">
++          <label htmlFor="new-person" className="sr-only">
++            New person's name
++          </label>
++          <input
++            id="new-person"
++            className="input"
++            placeholder="Add a person, e.g. Alex"
++            value={name}
++            maxLength={60}
++            aria-invalid={!!error}
++            aria-describedby={error ? 'new-person-error' : undefined}
++            onChange={(e) => {
++              setName(e.target.value)
++              if (error) setError(null)
++            }}
++          />
++          <button type="submit" className="btn-primary">
++            Add
++          </button>
++        </div>
++        {error && (
++          <p id="new-person-error" role="alert" className="error-text">
++            {error}
++          </p>
++        )}
++      </form>
++
++      {people.length === 0 ? (
++        <p className="mt-3 text-sm text-stone-500">No one yet. Add everyone who was at the dinner.</p>
++      ) : (
++        <ul className="mt-3 divide-y divide-stone-100">
++          {people.map((p) => (
++            <PersonRow key={p.id} person={p} people={people} onRename={onRename} onRemove={onRemove} />
++          ))}
++        </ul>
++      )}
++    </section>
++  )
++}
++
++function PersonRow({
++  person,
++  people,
++  onRename,
++  onRemove,
++}: {
++  person: Person
++  people: Person[]
++  onRename: Props['onRename']
++  onRemove: Props['onRemove']
++}) {
++  const [editing, setEditing] = useState(false)
++  const [draft, setDraft] = useState(person.name)
++  const [error, setError] = useState<string | null>(null)
++  const errId = `rename-error-${person.id}`
++
++  const save = (e: React.FormEvent) => {
++    e.preventDefault()
++    const err = validatePersonName(draft, people, person.id)
++    setError(err)
++    if (err) return
++    onRename(person.id, draft.trim())
++    setEditing(false)
++  }
++
++  if (editing) {
++    return (
++      <li className="py-2">
++        <form onSubmit={save} noValidate className="flex flex-wrap gap-2">
++          <input
++            className="input flex-1 basis-40"
++            aria-label={`New name for ${person.name}`}
++            value={draft}
++            maxLength={60}
++            autoFocus
++            aria-invalid={!!error}
++            aria-describedby={error ? errId : undefined}
++            onChange={(e) => {
++              setDraft(e.target.value)
++              if (error) setError(null)
++            }}
++            onKeyDown={(e) => {
++              if (e.key === 'Escape') {
++                setEditing(false)
++                setError(null)
++              }
++            }}
++          />
++          <div className="flex gap-2">
++            <button type="submit" className="btn-primary">
++              Save
++            </button>
++            <button
++              type="button"
++              className="btn-secondary"
++              onClick={() => {
++                setEditing(false)
++                setError(null)
++              }}
++            >
++              Cancel
++            </button>
++          </div>
++        </form>
++        {error && (
++          <p id={errId} role="alert" className="error-text">
++            {error}
++          </p>
++        )}
++      </li>
++    )
++  }
++
++  return (
++    <li className="flex items-center gap-2 py-2">
++      <span className="flex-1 truncate font-medium">{person.name}</span>
++      <button
++        type="button"
++        className="btn-ghost"
++        aria-label={`Rename ${person.name}`}
++        onClick={() => {
++          setDraft(person.name)
++          setEditing(true)
++        }}
++      >
++        Rename
++      </button>
++      <button
++        type="button"
++        className="btn-ghost text-red-600 hover:bg-red-50 hover:text-red-700"
++        aria-label={`Remove ${person.name}`}
++        onClick={() => onRemove(person.id)}
++      >
++        Remove
++      </button>
++    </li>
++  )
++}
+diff --git a/src/components/TaxTip.tsx b/src/components/TaxTip.tsx
+new file mode 100644
+index 0000000..4870bf9
+--- /dev/null
++++ b/src/components/TaxTip.tsx
+@@ -0,0 +1,105 @@
++import { parsePercent, TIP_PRESETS, type TipMode } from '../lib/bill'
++
++interface Props {
++  taxPct: string
++  tipMode: TipMode
++  customTipPct: string
++  onTax: (v: string) => void
++  onTipMode: (m: TipMode) => void
++  onCustomTip: (v: string) => void
++}
++
++export function TaxTip({ taxPct, tipMode, customTipPct, onTax, onTipMode, onCustomTip }: Props) {
++  const tax = parsePercent(taxPct, 'Tax')
++  const tip = parsePercent(customTipPct, 'Tip')
++  const taxErr = tax.ok ? null : tax.error
++  const tipErr = tipMode === 'custom' && !tip.ok ? tip.error : null
++
++  return (
++    <section className="card" aria-labelledby="taxtip-title">
++      <h2 id="taxtip-title" className="card-title">
++        Tax &amp; tip
++      </h2>
++      <div className="space-y-4">
++        <div>
++          <label htmlFor="tax" className="mb-1 block text-sm font-medium text-stone-700">
++            Tax
++          </label>
++          <div className="relative w-36">
++            <input
++              id="tax"
++              className="input pr-8 tabular-nums"
++              inputMode="decimal"
++              value={taxPct}
++              aria-invalid={!!taxErr}
++              aria-describedby={taxErr ? 'tax-error' : undefined}
++              onChange={(e) => onTax(e.target.value)}
++            />
++            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-stone-500">%</span>
++          </div>
++          {taxErr && (
++            <p id="tax-error" role="alert" className="error-text">
++              {taxErr} Tax is counted as 0% until fixed.
++            </p>
++          )}
++        </div>
++
++        <div>
++          <span id="tip-label" className="mb-1 block text-sm font-medium text-stone-700">
++            Tip
++          </span>
++          <div role="group" aria-labelledby="tip-label" className="flex flex-wrap gap-2">
++            {TIP_PRESETS.map((p) => (
++              <button
++                key={p}
++                type="button"
++                aria-pressed={tipMode === p}
++                className={tipMode === p ? 'btn-primary' : 'btn-secondary'}
++                onClick={() => onTipMode(p)}
++              >
++                {p}%
++              </button>
++            ))}
++            <button
++              type="button"
++              aria-pressed={tipMode === 'custom'}
++              className={tipMode === 'custom' ? 'btn-primary' : 'btn-secondary'}
++              onClick={() => {
++                onTipMode('custom')
++                requestAnimationFrame(() => document.getElementById('custom-tip')?.focus())
++              }}
++            >
++              Custom
++            </button>
++          </div>
++          {tipMode === 'custom' && (
++            <div className="mt-2">
++              <label htmlFor="custom-tip" className="sr-only">
++                Custom tip percentage
++              </label>
++              <div className="relative w-36">
++                <input
++                  id="custom-tip"
++                  className="input pr-8 tabular-nums"
++                  inputMode="decimal"
++                  placeholder="e.g. 18"
++                  value={customTipPct}
++                  aria-invalid={!!tipErr}
++                  aria-describedby={tipErr ? 'tip-error' : undefined}
++                  onChange={(e) => onCustomTip(e.target.value)}
++                />
++                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-stone-500">%</span>
++              </div>
++              {tipErr && (
++                <p id="tip-error" role="alert" className="error-text">
++                  {tipErr} Tip is counted as 0% until fixed.
++                </p>
++              )}
++            </div>
++          )}
++          <p className="mt-2 text-xs text-stone-500">Tax and tip are calculated on the items subtotal and split in proportion to what each person had.</p>
++        </div>
++      </div>
++    </section>
++  )
++}
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..34c6d61 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,38 @@
+ @import "tailwindcss";
++
++@layer base {
++  body {
++    @apply bg-stone-100 text-stone-900 antialiased;
++  }
++}
++
++@utility card {
++  @apply rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5;
++}
++@utility card-title {
++  @apply mb-3 text-base font-semibold;
++}
++@utility input {
++  @apply w-full min-w-0 rounded-lg border border-stone-300 bg-white px-3 py-2 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 sm:text-sm;
++  &[aria-invalid="true"] {
++    @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
++  }
++}
++@utility btn {
++  @apply inline-flex cursor-pointer items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
++}
++@utility btn-primary {
++  @apply btn bg-emerald-700 text-white hover:bg-emerald-800;
++}
++@utility btn-secondary {
++  @apply btn border border-stone-300 bg-white text-stone-800 hover:bg-stone-50;
++}
++@utility btn-danger {
++  @apply btn bg-red-600 text-white hover:bg-red-700;
++}
++@utility btn-ghost {
++  @apply btn px-2 text-stone-600 hover:bg-stone-100 hover:text-stone-900;
++}
++@utility error-text {
++  @apply mt-1 text-sm text-red-600;
++}
+diff --git a/src/lib/bill.test.ts b/src/lib/bill.test.ts
+new file mode 100644
+index 0000000..2f33f55
+--- /dev/null
++++ b/src/lib/bill.test.ts
+@@ -0,0 +1,277 @@
++import { describe, expect, it } from 'vitest'
++import {
++  allocate,
++  buildSummary,
++  computeBreakdown,
++  deserializeBill,
++  emptyBill,
++  formatMoney,
++  itemsOnlySharedBy,
++  parsePercent,
++  parsePrice,
++  removePerson,
++  validateItem,
++  validatePersonName,
++  type Bill,
++} from './bill'
++
++const people = [
++  { id: 'a', name: 'Ann' },
++  { id: 'b', name: 'Ben' },
++  { id: 'c', name: 'Cat' },
++]
++
++function bill(partial: Partial<Bill>): Bill {
++  return { ...emptyBill(), people, ...partial }
++}
++
++const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
++
++describe('parsePrice', () => {
++  it('parses valid prices into cents', () => {
++    expect(parsePrice('12')).toEqual({ ok: true, value: 1200 })
++    expect(parsePrice('12.5')).toEqual({ ok: true, value: 1250 })
++    expect(parsePrice('12,05')).toEqual({ ok: true, value: 1205 })
++    expect(parsePrice(' .99 ')).toEqual({ ok: true, value: 99 })
++    expect(parsePrice('0')).toEqual({ ok: true, value: 0 })
++    expect(parsePrice('0.1')).toEqual({ ok: true, value: 10 })
++  })
++  it('rejects negatives, junk, empty and too many decimals', () => {
++    expect(parsePrice('-1')).toEqual({ ok: false, error: 'Price cannot be negative.' })
++    expect(parsePrice('')).toMatchObject({ ok: false, error: 'Enter a price.' })
++    expect(parsePrice('abc')).toMatchObject({ ok: false })
++    expect(parsePrice('.')).toMatchObject({ ok: false })
++    expect(parsePrice('1e3')).toMatchObject({ ok: false })
++    expect(parsePrice('1.234')).toMatchObject({ ok: false, error: 'Price can have at most 2 decimal places.' })
++    expect(parsePrice('99999999999')).toMatchObject({ ok: false, error: 'Price is too large.' })
++  })
++})
++
++describe('parsePercent', () => {
++  it('scales by 10^4', () => {
++    expect(parsePercent('8.875')).toEqual({ ok: true, value: 88750 })
++    expect(parsePercent('')).toEqual({ ok: true, value: 0 })
++    expect(parsePercent('100')).toEqual({ ok: true, value: 1_000_000 })
++  })
++  it('rejects bad input', () => {
++    expect(parsePercent('-5', 'Tax')).toEqual({ ok: false, error: 'Tax cannot be negative.' })
++    expect(parsePercent('101', 'Tip')).toMatchObject({ ok: false, error: 'Tip cannot be more than 100%.' })
++    expect(parsePercent('x')).toMatchObject({ ok: false })
++    expect(parsePercent('1.23456')).toMatchObject({ ok: false })
++  })
++})
++
++describe('validation', () => {
++  it('validates person names', () => {
++    expect(validatePersonName('  ', people)).toBe('Name cannot be empty.')
++    expect(validatePersonName('ann', people)).toBe('There is already someone called "ann".')
++    expect(validatePersonName('Ann', people, 'a')).toBeNull() // renaming self
++    expect(validatePersonName('Dan', people)).toBeNull()
++  })
++  it('requires at least one person on an item', () => {
++    expect(validateItem({ name: 'Soup', price: '5', sharedBy: [] }, people).errors.sharedBy).toBe(
++      'Pick at least one person who shared this item.',
++    )
++    expect(validateItem({ name: 'Soup', price: '5', sharedBy: ['ghost'] }, people).errors.sharedBy).toBeDefined()
++    expect(validateItem({ name: 'Soup', price: '5', sharedBy: [] }, []).errors.sharedBy).toBe('Add at least one person first.')
++  })
++  it('rejects negative prices and empty names', () => {
++    const r = validateItem({ name: '', price: '-3', sharedBy: ['a'] }, people)
++    expect(r.errors.name).toBeDefined()
++    expect(r.errors.price).toBe('Price cannot be negative.')
++  })
++  it('accepts a valid item', () => {
++    expect(validateItem({ name: 'Soup', price: '5.10', sharedBy: ['a'] }, people)).toEqual({ errors: {}, priceCents: 510 })
++  })
++})
++
++describe('allocate', () => {
++  it('sums exactly to the total', () => {
++    expect(allocate(100, [1n, 1n, 1n])).toEqual([34, 33, 33])
++    expect(allocate(1, [1n, 1n])).toEqual([1, 0])
++    expect(allocate(0, [5n, 3n])).toEqual([0, 0])
++    expect(allocate(10, [0n, 0n])).toEqual([5, 5])
++    expect(allocate(7, [])).toEqual([])
++  })
++  it('gives remainders to the largest fractional parts', () => {
++    // 10 * 1/6 = 1.67, 10 * 2/6 = 3.33, 10 * 3/6 = 5 -> 2, 3, 5
++    expect(allocate(10, [1n, 2n, 3n])).toEqual([2, 3, 5])
++  })
++  it('is exact for random inputs', () => {
++    let seed = 42
++    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31)
++    for (let t = 0; t < 500; t++) {
++      const n = 1 + Math.floor(rnd() * 8)
++      const w = Array.from({ length: n }, () => BigInt(Math.floor(rnd() * 10000)))
++      const total = Math.floor(rnd() * 100000)
++      const parts = allocate(total, w)
++      expect(sum(parts)).toBe(total)
++      parts.forEach((p) => expect(p).toBeGreaterThanOrEqual(0))
++    }
++  })
++})
++
++describe('computeBreakdown', () => {
++  it('splits shared items equally and individual items to their owner', () => {
++    const b = computeBreakdown(
++      bill({
++        items: [
++          { id: 'i1', name: 'Pizza', priceCents: 3000, sharedBy: ['a', 'b', 'c'] },
++          { id: 'i2', name: 'Wine', priceCents: 2000, sharedBy: ['a'] },
++        ],
++        taxPct: '0',
++        tipMode: 'custom',
++        customTipPct: '0',
++      }),
++    )
++    expect(b.shares.map((s) => s.subtotal)).toEqual([3000, 1000, 1000])
++    expect(b.total).toBe(5000)
++  })
++
++  it('applies tax and tip proportionally', () => {
++    const b = computeBreakdown(
++      bill({
++        items: [
++          { id: 'i1', name: 'Steak', priceCents: 3000, sharedBy: ['a'] },
++          { id: 'i2', name: 'Salad', priceCents: 1000, sharedBy: ['b'] },
++        ],
++        taxPct: '10',
++        tipMode: '20',
++      }),
++    )
++    expect(b.subtotal).toBe(4000)
++    expect(b.tax).toBe(400)
++    expect(b.tip).toBe(800)
++    expect(b.total).toBe(5200)
++    expect(b.shares[0]).toMatchObject({ subtotal: 3000, tax: 300, tip: 600, total: 3900 })
++    expect(b.shares[1]).toMatchObject({ subtotal: 1000, tax: 100, tip: 200, total: 1300 })
++    expect(b.shares[2]).toMatchObject({ subtotal: 0, tax: 0, tip: 0, total: 0 })
++  })
++
++  it('uses tip presets and custom tip', () => {
++    const items = [{ id: 'i', name: 'X', priceCents: 10000, sharedBy: ['a'] }]
++    expect(computeBreakdown(bill({ items, tipMode: '10' })).tip).toBe(1000)
++    expect(computeBreakdown(bill({ items, tipMode: '15' })).tip).toBe(1500)
++    expect(computeBreakdown(bill({ items, tipMode: 'custom', customTipPct: '17.5' })).tip).toBe(1750)
++    // invalid custom tip is treated as 0
++    expect(computeBreakdown(bill({ items, tipMode: 'custom', customTipPct: '-3' })).tip).toBe(0)
++  })
++
++  it('rounds so per-person totals add up exactly (thirds)', () => {
++    const b = computeBreakdown(
++      bill({
++        items: [{ id: 'i', name: 'Shared', priceCents: 1000, sharedBy: ['a', 'b', 'c'] }],
++        taxPct: '8.875',
++        tipMode: '15',
++      }),
++    )
++    expect(b.tax).toBe(89) // 88.75 -> 89
++    expect(b.tip).toBe(150)
++    expect(sum(b.shares.map((s) => s.subtotal))).toBe(b.subtotal)
++    expect(sum(b.shares.map((s) => s.tax))).toBe(b.tax)
++    expect(sum(b.shares.map((s) => s.tip))).toBe(b.tip)
++    expect(sum(b.shares.map((s) => s.total))).toBe(b.total)
++    expect(b.total).toBe(1239)
++    // nobody differs by more than a cent per column
++    const totals = b.shares.map((s) => s.total)
++    expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(3)
++  })
++
++  it('totals always reconcile on random bills', () => {
++    let seed = 7
++    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31)
++    const many = Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, name: `P${i}` }))
++    for (let t = 0; t < 300; t++) {
++      const items = Array.from({ length: 1 + Math.floor(rnd() * 10) }, (_, k) => {
++        const sharedBy = many.filter(() => rnd() < 0.5).map((p) => p.id)
++        return { id: `i${k}`, name: `I${k}`, priceCents: Math.floor(rnd() * 20000), sharedBy: sharedBy.length ? sharedBy : ['p0'] }
++      })
++      const b = computeBreakdown({
++        ...emptyBill(),
++        people: many,
++        items,
++        taxPct: (rnd() * 25).toFixed(3),
++        tipMode: 'custom',
++        customTipPct: (rnd() * 30).toFixed(2),
++      })
++      expect(sum(b.shares.map((s) => s.total))).toBe(b.total)
++      expect(sum(b.shares.map((s) => s.subtotal))).toBe(b.subtotal)
++      expect(sum(b.shares.map((s) => s.tax))).toBe(b.tax)
++      expect(sum(b.shares.map((s) => s.tip))).toBe(b.tip)
++      expect(b.subtotal).toBe(sum(items.map((i) => i.priceCents)))
++    }
++  })
++
++  it('handles no items and no people', () => {
++    expect(computeBreakdown(bill({})).shares.every((s) => s.total === 0)).toBe(true)
++    expect(computeBreakdown(emptyBill())).toMatchObject({ total: 0, shares: [] })
++  })
++
++  it('ignores sharers who no longer exist', () => {
++    const b = computeBreakdown(bill({ items: [{ id: 'i', name: 'X', priceCents: 900, sharedBy: ['a', 'ghost'] }] }))
++    expect(b.shares[0].subtotal).toBe(900)
++  })
++})
++
++describe('people removal', () => {
++  const b = bill({
++    items: [
++      { id: 'i1', name: 'Solo', priceCents: 100, sharedBy: ['a'] },
++      { id: 'i2', name: 'Shared', priceCents: 200, sharedBy: ['a', 'b'] },
++    ],
++  })
++  it('finds items only that person shared', () => {
++    expect(itemsOnlySharedBy(b, 'a').map((i) => i.id)).toEqual(['i1'])
++    expect(itemsOnlySharedBy(b, 'b')).toEqual([])
++  })
++  it('removes the person, their shares, and orphaned items', () => {
++    const r = removePerson(b, 'a')
++    expect(r.people.map((p) => p.id)).toEqual(['b', 'c'])
++    expect(r.items).toEqual([{ id: 'i2', name: 'Shared', priceCents: 200, sharedBy: ['b'] }])
++  })
++})
++
++describe('formatMoney', () => {
++  it('formats per currency', () => {
++    expect(formatMoney(123456, 'USD')).toBe('$1,234.56')
++    expect(formatMoney(123456, 'EUR')).toBe('1.234,56 €')
++    expect(formatMoney(123456, 'PLN')).toBe('1234,56 zł')
++    expect(formatMoney(5, 'USD')).toBe('$0.05')
++  })
++})
++
++describe('buildSummary', () => {
++  it('produces a plain-text summary', () => {
++    const b = bill({
++      items: [{ id: 'i', name: 'Pizza', priceCents: 3000, sharedBy: ['a', 'b'] }],
++      taxPct: '10',
++      tipMode: '20',
++    })
++    const s = buildSummary(b)
++    expect(s).toContain('- Pizza: $30.00 (Ann, Ben)')
++    expect(s).toContain('Tax (10%): $3.00')
++    expect(s).toContain('Tip (20%): $6.00')
++    expect(s).toContain('Total: $39.00')
++    expect(s).toContain('- Ann: $19.50 (items $15.00, tax $1.50, tip $3.00)')
++    expect(s).toContain('- Cat: $0.00')
++  })
++})
++
++describe('deserializeBill', () => {
++  it('round-trips a bill', () => {
++    const b = bill({ items: [{ id: 'i', name: 'X', priceCents: 1, sharedBy: ['a'] }], currency: 'PLN', tipMode: 'custom', customTipPct: '12' })
++    expect(deserializeBill(JSON.stringify(b))).toEqual(b)
++  })
++  it('falls back on garbage', () => {
++    expect(deserializeBill(null)).toEqual(emptyBill())
++    expect(deserializeBill('not json')).toEqual(emptyBill())
++    expect(deserializeBill('42')).toEqual(emptyBill())
++    const r = deserializeBill(
++      JSON.stringify({ people: [{ id: 'a', name: 'A' }, { bad: 1 }], items: [{ id: 'i', name: 'X', priceCents: -5, sharedBy: ['a'] }], currency: 'GBP', tipMode: '99' }),
++    )
++    expect(r.people).toEqual([{ id: 'a', name: 'A' }])
++    expect(r.items).toEqual([])
++    expect(r.currency).toBe('USD')
++    expect(r.tipMode).toBe('15')
++  })
++})
+diff --git a/src/lib/bill.ts b/src/lib/bill.ts
+new file mode 100644
+index 0000000..02bdbb8
+--- /dev/null
++++ b/src/lib/bill.ts
+@@ -0,0 +1,321 @@
++// Pure bill-splitting logic. All money is handled as integer cents.
++
++export type Currency = 'USD' | 'EUR' | 'PLN'
++export const CURRENCIES: Currency[] = ['USD', 'EUR', 'PLN']
++export const TIP_PRESETS = ['10', '15', '20'] as const
++export type TipMode = (typeof TIP_PRESETS)[number] | 'custom'
++
++export interface Person {
++  id: string
++  name: string
++}
++
++export interface Item {
++  id: string
++  name: string
++  priceCents: number
++  sharedBy: string[] // person ids
++}
++
++export interface Bill {
++  people: Person[]
++  items: Item[]
++  taxPct: string // raw user input, e.g. "8.875"
++  tipMode: TipMode
++  customTipPct: string // raw user input
++  currency: Currency
++}
++
++export const emptyBill = (): Bill => ({
++  people: [],
++  items: [],
++  taxPct: '0',
++  tipMode: '15',
++  customTipPct: '',
++  currency: 'USD',
++})
++
++// ---------- parsing & validation ----------
++
++export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string }
++
++/** Parses a price such as "12", "12.5", "12,50" into integer cents. */
++export function parsePrice(input: string): ParseResult<number> {
++  const s = input.trim().replace(',', '.')
++  if (s === '') return { ok: false, error: 'Enter a price.' }
++  if (s.startsWith('-')) return { ok: false, error: 'Price cannot be negative.' }
++  if (!/^\d*\.?\d*$/.test(s) || s === '.') return { ok: false, error: 'Price must be a number, e.g. 12.50.' }
++  const [whole, frac = ''] = s.split('.')
++  if (frac.length > 2) return { ok: false, error: 'Price can have at most 2 decimal places.' }
++  const cents = Number(whole || '0') * 100 + Number(frac.padEnd(2, '0'))
++  if (!Number.isSafeInteger(cents) || cents > 100_000_000_00) return { ok: false, error: 'Price is too large.' }
++  return { ok: true, value: cents }
++}
++
++const PCT_DECIMALS = 4
++const PCT_SCALE = 10 ** PCT_DECIMALS
++
++/**
++ * Parses a percentage such as "8.875" into an integer scaled by 10^4
++ * (so 8.875% -> 88750). Empty input counts as 0.
++ */
++export function parsePercent(input: string, label = 'Percentage'): ParseResult<number> {
++  const s = input.trim().replace(',', '.')
++  if (s === '') return { ok: true, value: 0 }
++  if (s.startsWith('-')) return { ok: false, error: `${label} cannot be negative.` }
++  if (!/^\d*\.?\d*$/.test(s) || s === '.') return { ok: false, error: `${label} must be a number, e.g. 8.5.` }
++  const [whole, frac = ''] = s.split('.')
++  if (frac.length > PCT_DECIMALS) return { ok: false, error: `${label} can have at most ${PCT_DECIMALS} decimal places.` }
++  const scaled = Number(whole || '0') * PCT_SCALE + Number(frac.padEnd(PCT_DECIMALS, '0'))
++  if (scaled > 100 * PCT_SCALE) return { ok: false, error: `${label} cannot be more than 100%.` }
++  return { ok: true, value: scaled }
++}
++
++export function validatePersonName(name: string, people: Person[], selfId?: string): string | null {
++  const n = name.trim()
++  if (!n) return 'Name cannot be empty.'
++  if (n.length > 40) return 'Name must be 40 characters or fewer.'
++  const dup = people.some((p) => p.id !== selfId && p.name.trim().toLowerCase() === n.toLowerCase())
++  if (dup) return `There is already someone called "${n}".`
++  return null
++}
++
++export interface ItemDraft {
++  name: string
++  price: string
++  sharedBy: string[]
++}
++
++export type ItemErrors = Partial<Record<'name' | 'price' | 'sharedBy', string>>
++
++export function validateItem(draft: ItemDraft, people: Person[]): { errors: ItemErrors; priceCents?: number } {
++  const errors: ItemErrors = {}
++  if (!draft.name.trim()) errors.name = 'Give the item a name.'
++  else if (draft.name.trim().length > 60) errors.name = 'Item name must be 60 characters or fewer.'
++  const price = parsePrice(draft.price)
++  if (!price.ok) errors.price = price.error
++  const valid = draft.sharedBy.filter((id) => people.some((p) => p.id === id))
++  if (people.length === 0) errors.sharedBy = 'Add at least one person first.'
++  else if (valid.length === 0) errors.sharedBy = 'Pick at least one person who shared this item.'
++  return { errors, priceCents: price.ok ? price.value : undefined }
++}
++
++// ---------- allocation ----------
++
++/**
++ * Splits `total` (integer cents) across `weights` proportionally so the parts
++ * are integers summing exactly to `total`. Uses the largest-remainder method;
++ * ties go to the earlier index. Weights are BigInt so the math is exact.
++ * If all weights are zero, the total is split as evenly as possible.
++ */
++export function allocate(total: number, weights: bigint[]): number[] {
++  const n = weights.length
++  if (n === 0) return []
++  let W = weights.reduce((a, b) => a + b, 0n)
++  let w = weights
++  if (W === 0n) {
++    w = weights.map(() => 1n)
++    W = BigInt(n)
++  }
++  const T = BigInt(total)
++  const base = w.map((wi) => (T * wi) / W)
++  const rem = w.map((wi, i) => ({ i, r: T * wi - base[i] * W }))
++  let left = T - base.reduce((a, b) => a + b, 0n)
++  rem.sort((a, b) => (a.r === b.r ? a.i - b.i : a.r > b.r ? -1 : 1))
++  for (let k = 0; left > 0n; k++, left--) base[rem[k % n].i] += 1n
++  return base.map(Number)
++}
++
++const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b))
++const lcm = (a: bigint, b: bigint) => (a / gcd(a, b)) * b
++
++/** Rounds num/den to the nearest integer, halves away from zero (inputs are non-negative). */
++function divRound(num: bigint, den: bigint): bigint {
++  return (num * 2n + den) / (den * 2n)
++}
++
++// ---------- computing the breakdown ----------
++
++export interface PersonShare {
++  personId: string
++  name: string
++  items: { itemId: string; name: string; sharedWith: number }[]
++  subtotal: number
++  tax: number
++  tip: number
++  total: number
++}
++
++export interface Breakdown {
++  shares: PersonShare[]
++  subtotal: number
++  tax: number
++  tip: number
++  total: number
++  taxPctScaled: number
++  tipPctScaled: number
++}
++
++export function tipPercentInput(bill: Bill): string {
++  return bill.tipMode === 'custom' ? bill.customTipPct : bill.tipMode
++}
++
++/**
++ * Computes everyone's share. Each item is split equally among the people who
++ * shared it. Tax and tip are computed on the bill subtotal, rounded to the
++ * cent, and then divided in proportion to each person's exact (unrounded)
++ * share of the items. Every column is allocated with the largest-remainder
++ * method, so per-person values always add up exactly to the bill totals.
++ * Invalid percentages are treated as 0.
++ */
++export function computeBreakdown(bill: Bill): Breakdown {
++  const people = bill.people
++  const ids = new Set(people.map((p) => p.id))
++  const items = bill.items
++    .map((it) => ({ ...it, sharedBy: it.sharedBy.filter((id) => ids.has(id)) }))
++    .filter((it) => it.sharedBy.length > 0 && it.priceCents >= 0)
++
++  // Exact per-person subtotal as numerator over a common denominator L.
++  const L = items.reduce((acc, it) => lcm(acc, BigInt(it.sharedBy.length)), 1n)
++  const exact = new Map<string, bigint>(people.map((p) => [p.id, 0n]))
++  for (const it of items) {
++    const per = (BigInt(it.priceCents) * L) / BigInt(it.sharedBy.length)
++    for (const id of it.sharedBy) exact.set(id, exact.get(id)! + per)
++  }
++  const weights = people.map((p) => exact.get(p.id)!)
++
++  const subtotal = items.reduce((a, it) => a + it.priceCents, 0)
++  const taxP = parsePercent(bill.taxPct)
++  const tipP = parsePercent(tipPercentInput(bill))
++  const taxPctScaled = taxP.ok ? taxP.value : 0
++  const tipPctScaled = tipP.ok ? tipP.value : 0
++  const den = BigInt(100 * PCT_SCALE)
++  const tax = Number(divRound(BigInt(subtotal) * BigInt(taxPctScaled), den))
++  const tip = Number(divRound(BigInt(subtotal) * BigInt(tipPctScaled), den))
++
++  // With no items, nobody owes anything (allocate() would otherwise split evenly).
++  const hasWeight = weights.some((w) => w > 0n)
++  const zeros = people.map(() => 0)
++  const subs = hasWeight ? allocate(subtotal, weights) : zeros
++  const taxes = hasWeight ? allocate(tax, weights) : zeros
++  const tips = hasWeight ? allocate(tip, weights) : zeros
++
++  const shares: PersonShare[] = people.map((p, i) => ({
++    personId: p.id,
++    name: p.name,
++    items: items
++      .filter((it) => it.sharedBy.includes(p.id))
++      .map((it) => ({ itemId: it.id, name: it.name, sharedWith: it.sharedBy.length })),
++    subtotal: subs[i],
++    tax: taxes[i],
++    tip: tips[i],
++    total: subs[i] + taxes[i] + tips[i],
++  }))
++
++  return { shares, subtotal, tax, tip, total: subtotal + tax + tip, taxPctScaled, tipPctScaled }
++}
++
++// ---------- formatting ----------
++
++const LOCALES: Record<Currency, string> = { USD: 'en-US', EUR: 'de-DE', PLN: 'pl-PL' }
++
++export function formatMoney(cents: number, currency: Currency): string {
++  return new Intl.NumberFormat(LOCALES[currency], {
++    style: 'currency',
++    currency,
++    minimumFractionDigits: 2,
++    maximumFractionDigits: 2,
++  })
++    .format(cents / 100)
++    .replace(/[  ]/g, ' ')
++}
++
++export function formatPercent(scaled: number): string {
++  return `${(scaled / PCT_SCALE).toFixed(PCT_DECIMALS).replace(/\.?0+$/, '')}%`
++}
++
++export function buildSummary(bill: Bill, b: Breakdown = computeBreakdown(bill)): string {
++  const m = (c: number) => formatMoney(c, bill.currency)
++  const lines: string[] = ['Bill summary', '']
++  if (bill.items.length) {
++    lines.push('Items:')
++    for (const it of bill.items) {
++      const names = it.sharedBy
++        .map((id) => bill.people.find((p) => p.id === id)?.name)
++        .filter(Boolean)
++        .join(', ')
++      lines.push(`- ${it.name}: ${m(it.priceCents)} (${names})`)
++    }
++    lines.push('')
++  }
++  lines.push(`Subtotal: ${m(b.subtotal)}`)
++  lines.push(`Tax (${formatPercent(b.taxPctScaled)}): ${m(b.tax)}`)
++  lines.push(`Tip (${formatPercent(b.tipPctScaled)}): ${m(b.tip)}`)
++  lines.push(`Total: ${m(b.total)}`)
++  lines.push('')
++  lines.push('Per person:')
++  for (const s of b.shares) {
++    lines.push(`- ${s.name}: ${m(s.total)} (items ${m(s.subtotal)}, tax ${m(s.tax)}, tip ${m(s.tip)})`)
++  }
++  return lines.join('\n')
++}
++
++// ---------- persistence ----------
++
++export const STORAGE_KEY = 'bill-splitter:v1'
++
++const isStr = (v: unknown): v is string => typeof v === 'string'
++
++/** Reads a stored bill, discarding anything malformed. */
++export function deserializeBill(raw: string | null): Bill {
++  const fallback = emptyBill()
++  if (!raw) return fallback
++  try {
++    const d = JSON.parse(raw)
++    if (!d || typeof d !== 'object') return fallback
++    const people: Person[] = Array.isArray(d.people)
++      ? d.people.filter((p: any) => p && isStr(p.id) && isStr(p.name)).map((p: any) => ({ id: p.id, name: p.name }))
++      : []
++    const ids = new Set(people.map((p) => p.id))
++    const items: Item[] = Array.isArray(d.items)
++      ? d.items
++          .filter(
++            (it: any) =>
++              it && isStr(it.id) && isStr(it.name) && Number.isSafeInteger(it.priceCents) && it.priceCents >= 0 && Array.isArray(it.sharedBy),
++          )
++          .map((it: any) => ({
++            id: it.id,
++            name: it.name,
++            priceCents: it.priceCents,
++            sharedBy: it.sharedBy.filter((id: unknown) => isStr(id) && ids.has(id)),
++          }))
++          .filter((it: Item) => it.sharedBy.length > 0)
++      : []
++    return {
++      people,
++      items,
++      taxPct: isStr(d.taxPct) ? d.taxPct : fallback.taxPct,
++      tipMode: [...TIP_PRESETS, 'custom'].includes(d.tipMode) ? d.tipMode : fallback.tipMode,
++      customTipPct: isStr(d.customTipPct) ? d.customTipPct : '',
++      currency: CURRENCIES.includes(d.currency) ? d.currency : fallback.currency,
++    }
++  } catch {
++    return fallback
++  }
++}
++
++/** Removes a person, their item shares, and any item left with nobody. */
++export function removePerson(bill: Bill, personId: string): Bill {
++  return {
++    ...bill,
++    people: bill.people.filter((p) => p.id !== personId),
++    items: bill.items
++      .map((it) => ({ ...it, sharedBy: it.sharedBy.filter((id) => id !== personId) }))
++      .filter((it) => it.sharedBy.length > 0),
++  }
++}
++
++/** Items that would be deleted if this person were removed (they are the only sharer). */
++export function itemsOnlySharedBy(bill: Bill, personId: string): Item[] {
++  return bill.items.filter((it) => it.sharedBy.length === 1 && it.sharedBy[0] === personId)
++}

@@ -1,0 +1,710 @@
+[
+ {
+  "kind": "build",
+  "rc": 0,
+  "wall_s": 369,
+  "diff": {
+   "files": 8,
+   "added": 700,
+   "deleted": 4
+  },
+  "result": {
+   "duration_api_ms": 192865,
+   "stop_reason": "end_turn",
+   "session_id": "21085757-f929-4864-bf76-ba15c3049aca",
+   "total_cost_usd": 0.5393323000000001,
+   "usage": {
+    "input_tokens": 26,
+    "cache_creation_input_tokens": 45814,
+    "cache_read_input_tokens": 659908,
+    "output_tokens": 28986,
+    "output_tokens_details": {
+     "thinking_tokens": 2286
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 45814,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 995,
+      "cache_read_input_tokens": 68797,
+      "cache_creation_input_tokens": 2811,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2811
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 26,
+     "outputTokens": 28986,
+     "cacheReadInputTokens": 659908,
+     "cacheCreationInputTokens": 45814,
+     "webSearchRequests": 0,
+     "costUSD": 0.5391588,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2286,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 45814,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01CqukmbH7szSnBJCAtEJK7T",
+     "tool_input": {
+      "command": "mkdir -p src && cat > src/timer.ts <<'EOF'\nexport type Phase = 'focus' | 'short' | 'long'\nexport interface Settings { focus: number; short: number; long: number; muted: boolean }\nexport interface LogEntry { id: string; label: string; finishedAt: number }\n\nexport const DEFAULT_SETTINGS: Settings = { focus: 25, short: 5, long: 15, muted: false }\nexport const CYCLE = 4\nexport const PHASE_NAME: Record<Phase, string> = { focus: 'Focus', short: 'Short break', long: 'Long break' }\n\nexport interface TimerState {\n  phase: Phase\n  /** timestamp (ms) when the running phase ends; null while paused/idle */\n  endAt: number | null\n  /** ms left while paused/idle */\n  remaining: number\n  /** focus sessions completed in the current cycle (0-3, or 4 during the long break) */\n  cycle: number\n}\n\nexport const phaseMs = (s: Settings, p: Phase) => s[p] * 60_000\n\nexport function initialState(s: Settings): TimerState {\n  return { phase: 'focus', endAt: null, remaining: phaseMs(s, 'focus'), cycle: 0 }\n}\n\nexport const isRunning = (st: TimerState) => st.endAt !== null\n\nexport function remainingMs(st: TimerState, now: number) {\n  return st.endAt === null ? st.remaining : Math.max(0, st.endAt - now)\n}\n\nexport function start(st: TimerState, now: number): TimerState {\n  if (isRunning(st)) return st\n  return { ...st, endAt: now + st.remaining }\n}\n\nexport function pause(st: TimerState, now: number): TimerState {\n  if (!isRunning(st)) return st\n  return { ...st, endAt: null, remaining: remainingMs(st, now) }\n}\n\nexport function reset(st: TimerState, s: Settings): TimerState {\n  return { ...st, endAt: null, remaining: phaseMs(s, st.phase) }\n}\n\n/** Phase that follows `st.phase`, and the cycle count it begins with. */\nexport function advance(st: TimerState, s: Settings, completedFocus: boolean): TimerState {\n  if (st.phase === 'focus') {\n    const cycle = completedFocus ? st.cycle + 1 : st.cycle\n    const phase: Phase = cycle >= CYCLE ? 'long' : 'short'\n    return { phase, endAt: null, remaining: phaseMs(s, phase), cycle }\n  }\n  // after a break go back to focus; after the long break the cycle starts over\n  const cycle = st.phase === 'long' ? 0 : st.cycle\n  return { phase: 'focus', endAt: null, remaining: phaseMs(s, 'focus'), cycle }\n}\n\nexport function skip(st: TimerState, s: Settings): TimerState {\n  return advance(st, s, false)\n}\n\n/** If the running phase has ended, move on. Returns the finished phase when it ended. */\nexport function tick(st: TimerState, s: Settings, now: number): { state: TimerState; finished: Phase | null } {\n  if (st.endAt === null || now < st.endAt) return { state: st, finished: null }\n  return { state: advance(st, s, true), finished: st.phase }\n}\n\n/** Dots filled toward the long break. */\nexport const filledDots = (st: TimerState) => Math.min(st.cycle, CYCLE)\n\nexport function formatTime(ms: number) {\n  const total = Math.ceil(ms / 1000)\n  const m = Math.floor(total / 60)\n  const sec = total % 60\n  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`\n}\n\nexport const titleFor = (st: TimerState, now: number) =>\n  `${formatTime(remainingMs(st, now))} - ${PHASE_NAME[st.phase]}`\n\n/** Returns the whole-minute value if valid (integer 1-90), else null. */\nexport function parseMinutes(raw: string): number | null {\n  const t = raw.trim()\n  if (!/^\\d+$/.test(t)) return null\n  const n = Number(t)\n  return n >= 1 && n <= 90 ? n : null\n}\n\nexport const dayKey = (ts: number) => {\n  const d = new Date(ts)\n  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`\n}\n\nexport const todaysEntries = (log: LogEntry[], now: number) =>\n  log.filter((e) => dayKey(e.finishedAt) === dayKey(now))\n\n/** Settings loader tolerant of corrupt / partial data. */\nexport function sanitizeSettings(raw: unknown): Settings {\n  const out = { ...DEFAULT_SETTINGS }\n  if (raw && typeof raw === 'object') {\n    const r = raw as Record<string, unknown>\n    for (const k of ['focus', 'short', 'long'] as const) {\n      const v = r[k]\n      if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 90) out[k] = v\n    }\n    if (typeof r.muted === 'boolean') out.muted = r.muted\n  }\n  return out\n}\n\nexport function sanitizeLog(raw: unknown): LogEntry[] {\n  if (!Array.isArray(raw)) return []\n  return raw.filter(\n    (e): e is LogEntry =>\n      !!e && typeof e.id === 'string' && typeof e.label === 'string' && typeof e.finishedAt === 'number',\n  )\n}\nEOF\ncat > src/timer.test.ts <<'EOF'\nimport { describe, expect, it } from 'vitest'\nimport * as T from './timer'\n\nconst S = T.DEFAULT_SETTINGS\nconst T0 = 1_000_000\n\ndescribe('timer', () => {\n  it('starts with 25 min focus', () => {\n    const st = T.initialState(S)\n    expect(st.remaining).toBe(25 * 60_000)\n    expect(T.formatTime(st.remaining)).toBe('25:00')\n  })\n  it('is timestamp based: remaining derives from now, not tick count', () => {\n    const st = T.start(T.initialState(S), T0)\n    expect(T.remainingMs(st, T0 + 10 * 60_000)).toBe(15 * 60_000)\n    // one tick after a long background gap is still exact\n    expect(T.titleFor(st, T0 + 12 * 60_000 + 56_000)).toBe('12:04 - Focus')\n  })\n  it('pause freezes and resume continues', () => {\n    let st = T.start(T.initialState(S), T0)\n    st = T.pause(st, T0 + 60_000)\n    expect(T.remainingMs(st, T0 + 999_999)).toBe(24 * 60_000)\n    st = T.start(st, T0 + 500_000)\n    expect(T.remainingMs(st, T0 + 500_000 + 1000)).toBe(24 * 60_000 - 1000)\n  })\n  it('reset restores full phase duration and stops', () => {\n    let st = T.start(T.initialState(S), T0)\n    st = T.reset(st, S)\n    expect(st.endAt).toBeNull()\n    expect(st.remaining).toBe(25 * 60_000)\n  })\n  it('does not finish early, finishes at endAt', () => {\n    const st = T.start(T.initialState(S), T0)\n    expect(T.tick(st, S, T0 + 25 * 60_000 - 1).finished).toBeNull()\n    const r = T.tick(st, S, T0 + 25 * 60_000)\n    expect(r.finished).toBe('focus')\n    expect(r.state.phase).toBe('short')\n    expect(r.state.endAt).toBeNull()\n    expect(r.state.cycle).toBe(1)\n  })\n  it('long break after 4 focus sessions, then cycle resets', () => {\n    let st = T.initialState(S)\n    const phases: string[] = []\n    for (let i = 0; i < 9; i++) {\n      st = T.start(st, T0)\n      st = T.tick(st, S, T0 + 90 * 60_000).state\n      phases.push(st.phase)\n    }\n    expect(phases).toEqual(['short', 'focus', 'short', 'focus', 'short', 'focus', 'long', 'focus', 'short'])\n  })\n  it('dots track the cycle', () => {\n    let st = T.initialState(S)\n    expect(T.filledDots(st)).toBe(0)\n    st = T.tick(T.start(st, 0), S, 1e9).state\n    expect(T.filledDots(st)).toBe(1)\n    st = { ...st, cycle: 4, phase: 'long' }\n    expect(T.filledDots(st)).toBe(4)\n    st = T.tick(T.start(st, 0), S, 1e9).state\n    expect(T.filledDots(st)).toBe(0)\n  })\n  it('skip moves on without counting a focus session', () => {\n    const st = T.skip(T.initialState(S), S)\n    expect(st.phase).toBe('short')\n    expect(st.cycle).toBe(0)\n    expect(T.skip(st, S).phase).toBe('focus')\n  })\n  it('uses custom durations', () => {\n    const s = { ...S, short: 7 }\n    const st = T.tick(T.start(T.initialState(s), 0), s, 1e9).state\n    expect(st.remaining).toBe(7 * 60_000)\n  })\n  it('formats time rounding up', () => {\n    expect(T.formatTime(1)).toBe('00:01')\n    expect(T.formatTime(0)).toBe('00:00')\n    expect(T.formatTime(90 * 60_000)).toBe('90:00')\n  })\n})\n\ndescribe('validation & storage', () => {\n  it('parseMinutes accepts 1-90 integers only', () => {\n    expect(T.parseMinutes('1')).toBe(1)\n    expect(T.parseMinutes('90')).toBe(90)\n    expect(T.parseMinutes(' 25 ')).toBe(25)\n    for (const bad of ['0', '91', '', '-5', '2.5', 'abc', '1e1']) expect(T.parseMinutes(bad)).toBeNull()\n  })\n  it('sanitizeSettings falls back on bad data', () => {\n    expect(T.sanitizeSettings(null)).toEqual(S)\n    expect(T.sanitizeSettings({ focus: 50, short: 0, long: 'x', muted: true })).toEqual({ ...S, focus: 50, muted: true })\n  })\n  it('filters today\\'s entries', () => {\n    const now = new Date(2025, 5, 10, 12).getTime()\n    const log = [\n      { id: 'a', label: '', finishedAt: new Date(2025, 5, 9, 23, 59).getTime() },\n      { id: 'b', label: 'x', finishedAt: new Date(2025, 5, 10, 0, 1).getTime() },\n    ]\n    expect(T.todaysEntries(log, now).map((e) => e.id)).toEqual(['b'])\n  })\n  it('sanitizeLog drops junk', () => {\n    expect(T.sanitizeLog('x')).toEqual([])\n    expect(T.sanitizeLog([{ id: 'a', label: '', finishedAt: 1 }, { nope: 1 }, null])).toHaveLength(1)\n  })\n})\nEOF\nnpx vitest run 2>&1 | tail -15"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_019dUCEa3zu3my7EXVHV25cM",
+     "tool_input": {
+      "command": "cat > src/App.tsx <<'EOF'\nimport { useCallback, useEffect, useMemo, useRef, useState } from 'react'\nimport * as T from './timer'\nimport type { LogEntry, Phase, Settings, TimerState } from './timer'\n\nconst SETTINGS_KEY = 'pomodoro.settings'\nconst LOG_KEY = 'pomodoro.log'\n\nfunction load<V>(key: string, sanitize: (raw: unknown) => V): V {\n  try {\n    const s = localStorage.getItem(key)\n    return sanitize(s ? JSON.parse(s) : null)\n  } catch {\n    return sanitize(null)\n  }\n}\nfunction save(key: string, value: unknown) {\n  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage unavailable */ }\n}\n\nlet audioCtx: AudioContext | null = null\nfunction primeAudio() {\n  try {\n    audioCtx ??= new AudioContext()\n    if (audioCtx.state === 'suspended') void audioCtx.resume()\n  } catch { /* no audio */ }\n}\nfunction chime() {\n  try {\n    primeAudio()\n    const ctx = audioCtx\n    if (!ctx) return\n    ;[660, 880, 1320].forEach((freq, i) => {\n      const t = ctx.currentTime + i * 0.18\n      const osc = ctx.createOscillator()\n      const gain = ctx.createGain()\n      osc.type = 'sine'\n      osc.frequency.value = freq\n      gain.gain.setValueAtTime(0.0001, t)\n      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02)\n      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3)\n      osc.connect(gain).connect(ctx.destination)\n      osc.start(t)\n      osc.stop(t + 0.32)\n    })\n  } catch { /* ignore */ }\n}\n\nconst THEME: Record<Phase, { ring: string; soft: string; text: string; dot: string }> = {\n  focus: { ring: 'bg-rose-500 hover:bg-rose-600', soft: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' },\n  short: { ring: 'bg-teal-600 hover:bg-teal-700', soft: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-600' },\n  long: { ring: 'bg-sky-600 hover:bg-sky-700', soft: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-600' },\n}\n\nexport default function App() {\n  const [settings, setSettings] = useState<Settings>(() => load(SETTINGS_KEY, T.sanitizeSettings))\n  const [log, setLog] = useState<LogEntry[]>(() => load(LOG_KEY, T.sanitizeLog))\n  const [timer, setTimer] = useState<TimerState>(() => T.initialState(load(SETTINGS_KEY, T.sanitizeSettings)))\n  const [now, setNow] = useState(() => Date.now())\n  const [label, setLabel] = useState('')\n  const [showSettings, setShowSettings] = useState(false)\n\n  const timerRef = useRef(timer)\n  const settingsRef = useRef(settings)\n  const labelRef = useRef(label)\n  settingsRef.current = settings\n  labelRef.current = label\n\n  const commit = useCallback((next: TimerState) => {\n    timerRef.current = next\n    setTimer(next)\n    setNow(Date.now())\n  }, [])\n\n  useEffect(() => save(SETTINGS_KEY, settings), [settings])\n  useEffect(() => save(LOG_KEY, log), [log])\n\n  // Re-evaluate against the wall clock; safe to call as often as we like.\n  const sync = useCallback(() => {\n    const t = Date.now()\n    const { state, finished } = T.tick(timerRef.current, settingsRef.current, t)\n    if (finished) {\n      if (!settingsRef.current.muted) chime()\n      if (finished === 'focus') {\n        const entry: LogEntry = { id: `${t}-${Math.random().toString(36).slice(2, 7)}`, label: labelRef.current.trim(), finishedAt: t }\n        setLog((l) => [...l, entry])\n      }\n      commit(state)\n    } else {\n      setNow(t)\n    }\n  }, [commit])\n\n  const running = T.isRunning(timer)\n  useEffect(() => {\n    if (!running) return\n    const id = setInterval(sync, 250)\n    document.addEventListener('visibilitychange', sync)\n    return () => { clearInterval(id); document.removeEventListener('visibilitychange', sync) }\n  }, [running, sync])\n\n  const toggle = useCallback(() => {\n    primeAudio()\n    const t = Date.now()\n    commit(T.isRunning(timerRef.current) ? T.pause(timerRef.current, t) : T.start(timerRef.current, t))\n  }, [commit])\n  const doReset = () => commit(T.reset(timerRef.current, settingsRef.current))\n  const doSkip = () => commit(T.skip(timerRef.current, settingsRef.current))\n\n  // Space bar toggles, unless typing in a field.\n  useEffect(() => {\n    const isField = (e: KeyboardEvent) => {\n      const el = e.target as HTMLElement | null\n      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)\n    }\n    const down = (e: KeyboardEvent) => {\n      if (e.code !== 'Space' || isField(e)) return\n      e.preventDefault()\n      if (!e.repeat) toggle()\n    }\n    const up = (e: KeyboardEvent) => {\n      if (e.code === 'Space' && !isField(e)) e.preventDefault() // stop focused buttons also \"clicking\"\n    }\n    window.addEventListener('keydown', down)\n    window.addEventListener('keyup', up)\n    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }\n  }, [toggle])\n\n  const ms = T.remainingMs(timer, now)\n  useEffect(() => { document.title = T.titleFor(timer, now) }, [timer, now])\n\n  const updateSettings = (next: Settings) => {\n    const old = settingsRef.current\n    settingsRef.current = next\n    setSettings(next)\n    // An untouched (idle, full-length) phase picks up the new duration straight away.\n    const cur = timerRef.current\n    if (!T.isRunning(cur) && cur.remaining === T.phaseMs(old, cur.phase)) {\n      commit({ ...cur, remaining: T.phaseMs(next, cur.phase) })\n    }\n  }\n\n  const today = useMemo(() => T.todaysEntries(log, now), [log, now])\n  const th = THEME[timer.phase]\n  const dots = T.filledDots(timer)\n  const total = T.phaseMs(settings, timer.phase)\n  const progress = Math.min(1, Math.max(0, 1 - ms / total))\n  const fmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })\n\n  return (\n    <div className={`min-h-screen transition-colors duration-500 ${th.soft} text-slate-800`}>\n      <main className=\"mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-6 sm:py-10\">\n        <header className=\"flex items-center justify-between\">\n          <h1 className=\"text-lg font-semibold tracking-tight\">Pomodoro</h1>\n          <div className=\"flex gap-2\">\n            <button\n              type=\"button\"\n              aria-pressed={settings.muted}\n              onClick={() => updateSettings({ ...settings, muted: !settings.muted })}\n              className=\"rounded-full bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:bg-slate-50\"\n            >\n              {settings.muted ? '\ud83d\udd07 Muted' : '\ud83d\udd14 Sound on'}\n            </button>\n            <button\n              type=\"button\"\n              aria-expanded={showSettings}\n              onClick={() => setShowSettings((s) => !s)}\n              className=\"rounded-full bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:bg-slate-50\"\n            >\n              \u2699 Settings\n            </button>\n          </div>\n        </header>\n\n        {showSettings && <SettingsPanel settings={settings} onChange={updateSettings} />}\n\n        <section className=\"rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200\">\n          <p data-testid=\"phase\" className={`text-sm font-semibold uppercase tracking-widest ${th.text}`}>\n            {T.PHASE_NAME[timer.phase]}\n          </p>\n          <div\n            data-testid=\"countdown\"\n            role=\"timer\"\n            aria-live=\"off\"\n            className=\"my-3 text-[clamp(4.5rem,24vw,7.5rem)] font-light leading-none tabular-nums tracking-tight\"\n          >\n            {T.formatTime(ms)}\n          </div>\n          <div className=\"mx-auto mb-5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100\">\n            <div className={`h-full ${th.dot} transition-[width] duration-300`} style={{ width: `${progress * 100}%` }} />\n          </div>\n\n          <label className=\"block text-left text-sm text-slate-500\">\n            <span className=\"mb-1 block\">{timer.phase === 'focus' ? 'What are you working on?' : 'Task for next focus session'}</span>\n            <input\n              value={label}\n              onChange={(e) => setLabel(e.target.value)}\n              maxLength={80}\n              placeholder=\"Optional task label\"\n              className=\"w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 outline-none focus:border-slate-400 focus:bg-white\"\n            />\n          </label>\n\n          <div className=\"mt-5 grid grid-cols-[2fr_1fr_1fr] gap-2\">\n            <button\n              type=\"button\"\n              onClick={toggle}\n              className={`rounded-xl px-4 py-3.5 text-base font-semibold text-white ${th.ring}`}\n            >\n              {running ? 'Pause' : 'Start'}\n            </button>\n            <button type=\"button\" onClick={doReset} className=\"rounded-xl bg-slate-100 px-3 py-3.5 text-base font-medium hover:bg-slate-200\">\n              Reset\n            </button>\n            <button type=\"button\" onClick={doSkip} className=\"rounded-xl bg-slate-100 px-3 py-3.5 text-base font-medium hover:bg-slate-200\">\n              Skip\n            </button>\n          </div>\n          <p className=\"mt-3 hidden text-xs text-slate-400 sm:block\">Press Space to start / pause</p>\n\n          <div className=\"mt-5 flex flex-col items-center gap-2\" data-testid=\"dots\" aria-label={`${dots} of ${T.CYCLE} focus sessions done before the long break`}>\n            <div className=\"flex gap-2\">\n              {Array.from({ length: T.CYCLE }, (_, i) => (\n                <span key={i} data-filled={i < dots} className={`h-3 w-3 rounded-full ${i < dots ? th.dot : 'bg-slate-200'}`} />\n              ))}\n            </div>\n            <span className=\"text-xs text-slate-500\">{dots} of {T.CYCLE} until long break</span>\n          </div>\n        </section>\n\n        <section className=\"rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200\">\n          <h2 className=\"mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500\">Today</h2>\n          {today.length === 0 ? (\n            <p className=\"text-sm text-slate-400\">No focus sessions finished yet.</p>\n          ) : (\n            <ul data-testid=\"log\" className=\"divide-y divide-slate-100\">\n              {[...today].reverse().map((e) => (\n                <li key={e.id} className=\"flex items-baseline justify-between gap-3 py-2 text-sm\">\n                  <span className={`min-w-0 break-words ${e.label ? '' : 'italic text-slate-400'}`}>{e.label || 'Untitled session'}</span>\n                  <time className=\"shrink-0 tabular-nums text-slate-500\">{fmt.format(e.finishedAt)}</time>\n                </li>\n              ))}\n            </ul>\n          )}\n          <p className=\"mt-3 text-xs text-slate-400\">{today.length} focus session{today.length === 1 ? '' : 's'} today</p>\n        </section>\n      </main>\n    </div>\n  )\n}\n\nfunction SettingsPanel({ settings, onChange }: { settings: Settings; onChange: (s: Settings) => void }) {\n  const fields: { key: 'focus' | 'short' | 'long'; label: string }[] = [\n    { key: 'focus', label: 'Focus' },\n    { key: 'short', label: 'Short break' },\n    { key: 'long', label: 'Long break' },\n  ]\n  const [draft, setDraft] = useState({ focus: String(settings.focus), short: String(settings.short), long: String(settings.long) })\n  const [errors, setErrors] = useState<Record<string, boolean>>({})\n\n  const edit = (key: 'focus' | 'short' | 'long', raw: string) => {\n    setDraft((d) => ({ ...d, [key]: raw }))\n    const v = T.parseMinutes(raw)\n    setErrors((e) => ({ ...e, [key]: v === null }))\n    if (v !== null) onChange({ ...settings, [key]: v })\n  }\n\n  return (\n    <section aria-label=\"Settings\" className=\"rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200\">\n      <h2 className=\"mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500\">Durations (minutes)</h2>\n      <div className=\"grid grid-cols-3 gap-3\">\n        {fields.map((f) => (\n          <label key={f.key} className=\"text-sm text-slate-600\">\n            {f.label}\n            <input\n              inputMode=\"numeric\"\n              value={draft[f.key]}\n              onChange={(e) => edit(f.key, e.target.value)}\n              onBlur={() => { if (errors[f.key]) { setDraft((d) => ({ ...d, [f.key]: String(settings[f.key]) })); setErrors((e) => ({ ...e, [f.key]: false })) } }}\n              aria-invalid={!!errors[f.key]}\n              aria-describedby={errors[f.key] ? `err-${f.key}` : undefined}\n              className={`mt-1 w-full rounded-xl border px-3 py-3 text-base outline-none ${errors[f.key] ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50 focus:border-slate-400'}`}\n            />\n            {errors[f.key] && <span id={`err-${f.key}`} role=\"alert\" className=\"mt-1 block text-xs text-red-600\">Enter a whole number from 1 to 90</span>}\n          </label>\n        ))}\n      </div>\n    </section>\n  )\n}\nEOF\ncat > index.html <<'EOF'\n<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>25:00 - Focus</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.tsx\"></script>\n  </body>\n</html>\nEOF\ncat > vitest.config.ts <<'EOF'\nimport { defineConfig } from 'vitest/config'\nexport default defineConfig({ test: { include: ['src/**/*.test.ts'] } })\nEOF\nnpx tsc -b 2>&1 | head; npx oxlint 2>&1 | tail -5"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01KzKfN8csZ3Y161LGo9gLQB",
+     "tool_input": {
+      "command": "python - <<'EOF'\np='e2e/app.spec.ts'\ns=open(p).read()\na=s.index(\"      await page.clock.runFor(13 * 60_000 - 4_000\")\nb=s.index(\"      await expect(countdown(page)).toHaveText('12:04')\")\ns=s[:a]+\"      await page.clock.runFor(13 * 60_000 + 56_000) // 13:56 elapsed => 12:04 left\\n\"+s[b:]\nopen(p,'w').write(s)\nEOF\nnpx playwright test 2>&1 | tail -30"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 25,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The Pomodoro timer is built and working at 1280px and 375px. The 14 logic tests and the 4 browser tests pass, and `tsc` and `oxlint` are clean.\n\nThe logic is in `src/timer.ts` and the UI in `src/App.tsx`. Start it with `npm run dev`.\n\nTwo behaviours you didn't specify:\n- **Reload mid-session:** the timer itself isn't saved, so a reload resets the current countdown to a fresh phase. The dot indicator is rebuilt from today's log, so it keeps its progress.\n- **Phase changes:** each phase ends stopped, so you press Start for the next one rather than it auto-running.\n\n## What I tested and how\n- **Logic (14 tests, `npx vitest run`):** phase order with the long break after every 4th focus session, then the cycle resetting. Also pause/resume, reset, skip not counting as a session, custom durations and time formatting. The 1\u201390 validation rejects `0`, `91`, empty, `abc`, `2.5`, `-5` and `1e1`. Corrupt saved data falls back to defaults, and \"today\" is filtered by local date.\n- **Browser (`npx playwright test`):** I ran the same walkthrough in real Chrome at 1280px and 375px. Playwright's fake clock lets it jump forward in time, and I checked the screenshots by eye, including the mobile break view, desktop long break and mobile invalid-input state.\n  - **Display and title:** 25:00 on load, and the tab title reads \"12:04 - Focus\" at 12:04.\n  - **Buttons and Space bar:** Start, Pause, Reset and Skip all work. Space toggles once, including when a button has focus, and does nothing while typing in a text field.\n  - **Background accuracy:** a single 10-minute jump forward showed exactly 15:00 left, because the timer reads timestamps rather than counting ticks.\n  - **Phases and dots:** a full focus session moves to the short break. Four sessions reach the long break with the dots at 4 of 4, and Skip works.\n  - **Task label and log:** the label shows up in today's log with the finish time, and the log survives a reload (5 entries).\n  - **Settings:** invalid values show an error and are never applied. Valid durations take effect at once and survive a reload.\n  - **Sound:** a chime plays at the end of a phase, and the mute toggle (also saved across reloads) silences it.\n  - **Layout:** there is no horizontal scroll at 375px and no page errors.\n- **Not tested:** I couldn't hear the chime, only confirm the audio calls fire, and I didn't test a genuinely backgrounded tab.\n\nOne bug turned up during testing: the dot progress reset on reload, which is why it is now rebuilt from the log.",
+   "ttft_ms": 3117,
+   "type": "result",
+   "duration_ms": 367488,
+   "uuid": "9c28a8e7-5bc7-4633-a9c2-e8240a72dd24",
+   "ttft_stream_ms": 2247,
+   "time_to_request_ms": 409,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 77,
+    "resume_other": 0,
+    "process_user_input": 4,
+    "input_attachments": 32,
+    "input_hooks": 6,
+    "conversation_append": 1,
+    "transcript_persist": 198,
+    "tool_pool_refresh": 3,
+    "init_message": 25,
+    "init_frame_send": 6,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 1,
+    "model_config_wait": 2,
+    "autocompact": 3,
+    "request_announcements": 12,
+    "query_setup": 2,
+    "model_gates": 0,
+    "tool_schema_build": 8,
+    "message_normalization": 2,
+    "client_creation": 9,
+    "request_build": 8
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 77,
+   "time_to_request_cpu_ms": 704,
+   "time_to_request_major_faults": 8541,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 14,
+    "cpu_ms": 62,
+    "major_faults": 848,
+    "setup_ms": 0,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 11,
+    "ambient_wait_ms": 14,
+    "render_ms": 3,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 6,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 1,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 1,
+    "plans_ms": 1,
+    "retry_setup_ms": 1,
+    "sent_build_ms": 1,
+    "record_attempt_ms": 3,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 2247,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 26,
+     "outputTokens": 28986,
+     "cacheReadInputTokens": 659908,
+     "cacheCreationInputTokens": 45814,
+     "webSearchRequests": 0,
+     "costUSD": 0.5391588,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2286,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 45814,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "small",
+  "rc": 0,
+  "wall_s": 90,
+  "diff": {
+   "files": 4,
+   "added": 42,
+   "deleted": 12
+  },
+  "result": {
+   "duration_api_ms": 246139,
+   "stop_reason": "end_turn",
+   "session_id": "21085757-f929-4864-bf76-ba15c3049aca",
+   "total_cost_usd": 0.6986690000000001,
+   "usage": {
+    "input_tokens": 16,
+    "cache_creation_input_tokens": 11671,
+    "cache_read_input_tokens": 531007,
+    "output_tokens": 5952,
+    "output_tokens_details": {
+     "thinking_tokens": 571
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11671,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 520,
+      "cache_read_input_tokens": 81024,
+      "cache_creation_input_tokens": 2255,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2255
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 42,
+     "outputTokens": 34938,
+     "thinkingTokens": 2857,
+     "cacheReadInputTokens": 1190915,
+     "cacheCreationInputTokens": 57485,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 57485,
+     "webSearchRequests": 0,
+     "costUSD": 0.6984955,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_013YYrbzgx98DBQgnk7L3rVJ",
+     "tool_input": {
+      "command": "sed -i \"s/until long break/until Recharge/; s/before the long break/before Recharge/; s/label: 'Long break'/label: 'Recharge'/\" src/App.tsx\nsed -i \"s/long: 'Long break'/long: 'Recharge'/; s/during the long break/during Recharge/; s/after the long break/after Recharge/; s/toward the long break/toward Recharge/\" src/timer.ts\nsed -i \"s/-> long break/-> Recharge/; s/toHaveText('Long break')/toHaveText('Recharge')/\" e2e/app.spec.ts\nsed -i \"s/long break after 4/Recharge (long break) after 4/\" src/timer.test.ts\nsed -i \"s/text-\\[clamp(4.5rem,24vw,7.5rem)\\]/text-[clamp(5rem,31vw,7.5rem)]/; s/rounded-3xl bg-white p-6 text-center/rounded-3xl bg-white p-4 text-center sm:p-6/\" src/App.tsx\ngrep -rn \"Long break\\|long break\" src e2e; grep -n \"31vw\\|p-4 text\" src/App.tsx"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 21,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "\"Long break\" is now \"Recharge\" everywhere it appears, and the countdown digits are larger on mobile. All tests pass, and I checked both changes in Chrome at 1280px and 375px.\n\n- **Rename:** It changed in the phase label, the Settings field, the dot caption (\"4 of 4 until Recharge\"), the dot indicator's accessible label, the tab title (\"15:00 - Recharge\") and the code comments. Internal identifiers still say `long`, and the unit test's name still mentions \"long break\" in parentheses.\n- **Digits:** At 375px the countdown is now about 116px tall, up from 90px. I also trimmed the card padding on phones from 24px to 16px so the larger digits fit. Desktop is unchanged: the size is capped at 120px, where it was already.\n\nWhat I checked:\n- **Existing tests:** all 14 logic tests and the original browser walkthrough and settings tests pass at both sizes, plus `tsc` and `oxlint`. I updated the old walkthrough to expect \"Recharge\".\n- **New browser test at both widths:**\n  - The tab title reads \"15:00 - Recharge\" after four focus sessions.\n  - The dot caption says \"until Recharge\".\n  - No page text says \"long break\" any more.\n  - At 375px the digit size is at least 110px.\n  - The widest value, 90:00, fits inside its card with no overflow.\n- **By eye:** I looked at the screenshots of mobile 90:00 and the desktop Recharge phase. Both look right, and the settings row shows \"Recharge\" with no clipping.",
+   "ttft_ms": 3149,
+   "type": "result",
+   "duration_ms": 88611,
+   "uuid": "7c23364c-cf24-4752-81c5-bcfe2d75bac2",
+   "ttft_stream_ms": 1298,
+   "time_to_request_ms": 318,
+   "time_to_request_phases_ms": {
+    "other": 8,
+    "system_prompt": 58,
+    "resume_other": 0,
+    "process_user_input": 5,
+    "input_attachments": 24,
+    "input_hooks": 4,
+    "conversation_append": 1,
+    "transcript_persist": 111,
+    "tool_pool_refresh": 3,
+    "init_message": 18,
+    "init_frame_send": 6,
+    "engine_pickup": 1,
+    "loop_entry": 7,
+    "message_prep": 1,
+    "model_config_wait": 2,
+    "autocompact": 2,
+    "request_announcements": 7,
+    "query_setup": 3,
+    "model_gates": 0,
+    "tool_schema_build": 19,
+    "message_normalization": 11,
+    "client_creation": 6,
+    "request_build": 21
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 58,
+   "time_to_request_cpu_ms": 422,
+   "time_to_request_major_faults": 9237,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 7,
+    "cpu_ms": 31,
+    "major_faults": 190,
+    "changed_files_reread": 0,
+    "setup_ms": 4,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 11,
+    "ambient_wait_ms": 7,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 14,
+    "after_ms": 0,
+    "other_ms": 1,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 9,
+    "images_ms": 0,
+    "post_process_ms": 2,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 78,
+    "wire_messages": 29
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 2,
+    "cache_break_record_ms": 2,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 9,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1298,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-sonnet-5-5": {
+     "inputTokens": 16,
+     "outputTokens": 5952,
+     "cacheReadInputTokens": 531007,
+     "cacheCreationInputTokens": 11671,
+     "webSearchRequests": 0,
+     "costUSD": 0.1593367,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 571,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 11671,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "medium",
+  "rc": 0,
+  "wall_s": 226,
+  "diff": {
+   "files": 7,
+   "added": 479,
+   "deleted": 11
+  },
+  "result": {
+   "duration_api_ms": 389328,
+   "stop_reason": "end_turn",
+   "session_id": "21085757-f929-4864-bf76-ba15c3049aca",
+   "total_cost_usd": 1.1119568000000002,
+   "usage": {
+    "input_tokens": 22,
+    "cache_creation_input_tokens": 28545,
+    "cache_read_input_tokens": 980338,
+    "output_tokens": 20103,
+    "output_tokens_details": {
+     "thinking_tokens": 3614
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 28545,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1116,
+      "cache_read_input_tokens": 111327,
+      "cache_creation_input_tokens": 497,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 497
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 64,
+     "outputTokens": 55041,
+     "thinkingTokens": 6471,
+     "cacheReadInputTokens": 2171253,
+     "cacheCreationInputTokens": 86030,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 86030,
+     "webSearchRequests": 0,
+     "costUSD": 1.1117833000000001,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 30,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The Stats view is in. Timer and Stats tabs sit at the top, and Stats shows the 7-day chart, the week total, the streak and an Export CSV button. All 28 logic tests and all 14 browser tests pass, and `tsc` and `oxlint` are clean.\n\nHow it behaves:\n- **History:** the app already kept every completed session in `localStorage`. Each session now also records its minutes, and sessions saved before this change count as 25 minutes each.\n- **This week** means the last 7 days including today, the same days the chart shows.\n- **Streak:** consecutive days with at least one completed session. If you haven't finished one yet today, yesterday's streak still counts until the day ends.\n- **Space bar:** it starts and pauses only on the Timer tab. On Stats it does nothing, so you can't change a hidden timer by accident.\n- **Export CSV:** a file named `pomodoro-sessions-YYYY-MM-DD.csv` with columns Date, Time, Task, Minutes, oldest first. It is disabled when there are no sessions. Task labels starting with `=`, `+`, `-` or `@` get a leading `'` so spreadsheets don't read them as formulas.\n\nI fixed one layout problem while testing. At 375px the week total (\"3 h 20 min\") wrapped onto two lines, so I made the stat text smaller on phones and added a check that it stays on one line.\n\n## What I tested and how\n- **Logic tests (`npx vitest run`, 14 new):**\n  - **Chart days:** seven consecutive days with zeros filled in. Entries 7 days old or in the future are left out, and it holds across a daylight-saving change and the year boundary.\n  - **Streak:** zero with no sessions, counting through today, still alive from yesterday, broken after a missed day, and runs longer than 7 days.\n  - **CSV:** exact output, quoting of commas, quotes and newlines, formula protection, and a header-only file when empty.\n  - **Other:** minute formatting and the default for old saved entries.\n- **Browser tests in real Chrome at 1280px and 375px**, with a fixed clock and 8 seeded sessions across days:\n  - **Tabs:** clicking and the arrow keys switch views, and the Timer view still works afterwards.\n  - **Chart:** seven bars in the right order with minutes `[0,25,25,0,75,25,50]`, proportional heights and nothing clipped.\n  - **Numbers:** week total 3 h 20 min, streak 3 days, 8 sessions saved, and no sideways scroll.\n  - **Space bar:** pressing it on Stats leaves a running timer alone.\n  - **New session:** finishing one raises the total to 225 and the last bar to 75 and adds a 9th history entry. It survives a reload and appears in the exported CSV.\n  - **Export:** I read the downloaded file and compared it line by line against the expected rows, including the quoted label and the `=SUM` label.\n  - **Empty state:** zeros everywhere, streak 0 and the export button disabled.\n- **By eye:** I looked at the Stats screenshots at both widths and the mobile Timer view, and the earlier Timer, Settings and Recharge tests still pass.\n- **Not tested:** I didn't try a real tab left open across midnight, and the Stats view doesn't refresh on its own while it stays open.",
+   "ttft_ms": 25591,
+   "type": "result",
+   "duration_ms": 224460,
+   "uuid": "c3684e3d-70a2-4824-bfe8-9cc70b41068e",
+   "ttft_stream_ms": 1170,
+   "time_to_request_ms": 292,
+   "time_to_request_phases_ms": {
+    "other": 6,
+    "system_prompt": 44,
+    "resume_other": 0,
+    "process_user_input": 5,
+    "input_attachments": 19,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 112,
+    "tool_pool_refresh": 4,
+    "init_message": 19,
+    "init_frame_send": 5,
+    "engine_pickup": 2,
+    "loop_entry": 5,
+    "message_prep": 1,
+    "model_config_wait": 2,
+    "autocompact": 2,
+    "request_announcements": 6,
+    "query_setup": 2,
+    "model_gates": 0,
+    "tool_schema_build": 16,
+    "message_normalization": 11,
+    "client_creation": 5,
+    "request_build": 22
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 67,
+   "time_to_request_cpu_ms": 390,
+   "time_to_request_major_faults": 8934,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 3,
+    "cpu_ms": 32,
+    "major_faults": 202,
+    "changed_files_reread": 0,
+    "setup_ms": 5,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 10,
+    "ambient_wait_ms": 2,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 4,
+    "render_ms": 10,
+    "after_ms": 1,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 7,
+    "images_ms": 1,
+    "post_process_ms": 2,
+    "after_ms": 1,
+    "other_ms": 0,
+    "messages": 127,
+    "wire_messages": 43
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 2,
+    "cache_break_record_ms": 3,
+    "plans_ms": 3,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 8,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1170,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-sonnet-5-5": {
+     "inputTokens": 22,
+     "outputTokens": 20103,
+     "cacheReadInputTokens": 980338,
+     "cacheCreationInputTokens": 28545,
+     "webSearchRequests": 0,
+     "costUSD": 0.41328780000000004,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 3614,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 28545,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

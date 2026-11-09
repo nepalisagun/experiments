@@ -1,0 +1,55 @@
+{
+  "size_definitions": {
+    "build": "A new app from an empty starter: a written spec of 10-12 requirements, about a day of work for a developer.",
+    "small": "A change a developer makes in under 15 minutes: copy, styling or one default value; 1-2 files, no new state, no new logic, roughly 30 changed lines or fewer.",
+    "medium": "A new capability: new state or data model, a new view or component and its tests; 3+ files, roughly 100-300 changed lines, about half a day for a developer.",
+    "repo_qa": "A question about an existing public codebase (phuryn/staygreen, 604 files, 3.3 MB TypeScript) that has to be answered from the code, with no file changes."
+  },
+  "common_build": "Front-end only: no backend, no database, no cloud services, no sign-in. Save data in the browser's localStorage.",
+  "verify_full": "Before you finish: write automated tests for the logic and run them until they pass, then open the app in a real browser and click through every requirement at desktop (1280px wide) and mobile (375px wide) sizes, fixing anything that's broken. End your reply with a short list of what you tested and how.",
+  "verify_small": "Before you finish: run the existing tests, then check the change in a real browser at desktop (1280px wide) and mobile (375px wide) sizes. End your reply with a short list of what you checked.",
+  "apps": [
+    {
+      "id": "timer",
+      "build": "Build a Pomodoro focus timer web app.\n\nRequirements:\n1. Focus sessions of 25 minutes, short breaks of 5 minutes, and a long break of 15 minutes after every 4 focus sessions.\n2. Start, Pause, Reset and Skip buttons. Space bar starts and pauses.\n3. A big countdown display, and the browser tab title shows the remaining time and the phase, e.g. \"12:04 - Focus\".\n4. An optional task label for the current focus session.\n5. A dot indicator of progress toward the long break (e.g. 2 of 4).\n6. Today's log: each completed focus session with its task label and the time it finished.\n7. A settings panel to change the three durations (1-90 minutes, validated).\n8. A short sound when a phase ends, with a mute toggle.\n9. The timer stays accurate if the tab is in the background (base it on timestamps, not on counting ticks).\n10. Settings and today's log survive a page reload.\n11. A clean, calm design that works well on a phone.",
+      "small": "Rename the \"Long break\" phase to \"Recharge\" everywhere it appears, and make the countdown digits larger on mobile.",
+      "medium": "Add a Stats view. Tabs at the top switch between Timer and Stats. Stats shows a bar chart of focus minutes per day for the last 7 days, the total focus minutes this week, and the current streak of consecutive days with at least one completed focus session. Keep a history of completed sessions across days (not just today) so the chart has data, and add an \"Export CSV\" button that downloads all completed sessions (date, time, task label, minutes)."
+    },
+    {
+      "id": "split",
+      "build": "Build a bill-splitting web app for a group dinner.\n\nRequirements:\n1. Add, rename and remove people.\n2. Add, edit and remove items: a name, a price, and which people shared it (one or more).\n3. Tax as a percentage, applied to each person in proportion to their items.\n4. Tip with preset buttons (10%, 15%, 20%) and a custom percentage, also split in proportion.\n5. A per-person breakdown: items subtotal, tax, tip and total.\n6. Rounding to cents in a way that the per-person totals add up exactly to the bill total.\n7. A currency selector (USD, EUR, PLN) that changes the formatting.\n8. A \"Copy summary\" button that copies a plain-text summary to the clipboard.\n9. Input validation (no negative prices, an item must have at least one person) with clear messages.\n10. A Reset button with a confirmation.\n11. The current bill survives a page reload.",
+      "small": "Change the default tip to 18% and add an 18% preset button between 15% and 20%.",
+      "medium": "Add \"who paid\" and settle-up. For the bill, record one or more payers and how much each paid (the amounts must add up to the bill total, with a clear message when they don't). Then show a Settle up section with the minimum list of transfers that evens everyone out, written as \"Anna pays Ben 12.40\". Include the settle-up transfers in the copied summary."
+    },
+    {
+      "id": "kanban",
+      "build": "Build a personal Kanban board web app.\n\nRequirements:\n1. Three columns: To do, Doing, Done.\n2. Add, edit and delete cards. A card has a title, an optional description, an optional due date and a priority (Low, Medium, High) shown as a coloured label.\n3. Drag and drop cards between columns and reorder them within a column, with mouse and touch.\n4. A keyboard alternative to drag and drop for moving a card to another column.\n5. A work-in-progress limit of 3 on Doing: show a warning when it is exceeded.\n6. A card count in each column header.\n7. Search by title and description, and a filter by priority.\n8. Overdue cards (due date before today and not in Done) are highlighted.\n9. Empty states for empty columns and for no search results.\n10. A confirmation before deleting a card.\n11. The board survives a page reload.",
+      "small": "Rename the \"Doing\" column to \"In progress\" and show the titles of cards in Done with a strikethrough.",
+      "medium": "Add multiple boards. A board switcher lets me create, rename and delete boards (with a confirmation, and never deleting the last board). Each board has its own three columns and cards. A card's menu gets \"Move to board…\". The existing single board, including data already saved in the browser, becomes the first board without losing any cards."
+    },
+    {
+      "id": "notes",
+      "build": "Build a Markdown notes web app.\n\nRequirements:\n1. A sidebar list of notes and an editor area.\n2. Create, rename and delete notes, with a confirmation before delete.\n3. A Markdown editor with a live preview side by side (stacked on mobile) supporting headings, bold, italic, lists, links, code blocks and checkbox lists.\n4. Clicking a checkbox in the preview toggles it in the Markdown source.\n5. Search across note titles and contents, highlighting matches in the list.\n6. Pin notes to the top of the list.\n7. The list is sorted by last edited, newest first, after pinned notes.\n8. Autosave while typing, with a small \"Saved\" indicator.\n9. A word count for the open note.\n10. A light and dark theme toggle that is remembered.\n11. Rendered Markdown is safe: raw HTML in a note must not run scripts.\n12. Notes survive a page reload.",
+      "small": "Change the empty-state text of the note list to \"Nothing here yet. Create your first note.\" and move the word count to the bottom right of the editor.",
+      "medium": "Add tags. Any #tag written in a note's text becomes a tag of that note. The sidebar shows all tags with the number of notes for each; clicking a tag filters the list, and clicking it again clears the filter. While typing # in the editor, suggest existing tags and insert the chosen one with Enter or a click. Renaming a tag from the sidebar renames it in every note's text."
+    },
+    {
+      "id": "budget",
+      "build": "Build a personal budget tracker web app.\n\nRequirements:\n1. Add, edit and delete transactions: income or expense, amount, category, date and an optional note.\n2. Default categories (Food, Housing, Transport, Fun, Health, Other), each with a colour, plus the ability to add your own.\n3. A month switcher; everything on screen is for the selected month.\n4. Totals for the month: income, expenses and balance.\n5. A donut chart of expenses by category for the month.\n6. A monthly budget per category with a progress bar, turning red when over budget.\n7. A filter by category and type, and a search on notes.\n8. A CSV export of the selected month's transactions.\n9. Amounts are handled without floating-point errors (e.g. 0.1 + 0.2 shows 0.30).\n10. Validation with clear messages (amount above zero, a date is required).\n11. Data survives a page reload.",
+      "small": "Add a \"Clear filters\" button next to the filters and change the income colour to teal.",
+      "medium": "Add recurring transactions. When adding or editing a transaction I can mark it as repeating monthly. Repeating transactions appear automatically in every later month I open, on the same day of the month (on the last day for short months, e.g. the 31st becomes the 30th or 28th/29th), without creating duplicates when I open the same month again. A Recurring screen lists all repeating transactions and lets me stop one from a chosen month on, keeping the months before it unchanged."
+    }
+  ],
+  "repo_qa": {
+    "repo": "https://github.com/phuryn/staygreen",
+    "first_prefix": "Clone https://github.com/phuryn/staygreen into a temporary folder and answer my questions about it from the code. Don't change any files in this project, and don't add the repository to this project. Cite file paths for the claims you make.\n\nFirst question: ",
+    "next_prefix": "Next question about the same staygreen repository (answer from the code, cite file paths, don't change any files): ",
+    "questions": [
+      "Give me an architecture overview: which separately deployed parts does Staygreen have, where does each run, and how does one failed website check travel from a probe to an alert email?",
+      "When exactly does a website monitor open an incident? How many failed checks, from how many locations, and what makes the incident resolve?",
+      "What are the limits of each plan (monitors, apps, status pages, check intervals and anything else), and where in the code are they enforced?",
+      "How does the REST/MCP API authenticate a request that uses an API token, how are tokens stored, and can a read-only token change anything?",
+      "I want to add Microsoft Teams as a new alert channel. List every file I would need to change or add and the steps, following the pattern the existing alert channels use."
+    ]
+  }
+}

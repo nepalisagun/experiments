@@ -1,0 +1,170 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index f304ea3..daf29f3 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -111,15 +111,16 @@ for (const size of sizes) {
+       await page.getByRole('button', { name: 'Remove Bread' }).click()
+       await expect(page.getByTestId('item-row')).toHaveCount(3)
+ 
+-      // subtotal = 30 + 20 + 12 = 62
+-      await expect(page.getByTestId('grand-total')).toHaveText('$62.00')
++      // subtotal = 30 + 20 + 12 = 62; default tip is 18% -> 11.16
++      await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++      await expect(page.getByTestId('grand-total')).toHaveText('$73.16')
+ 
+       // 3. tax, with validation
+       await page.getByLabel('Tax (%)').fill('-3')
+       await expect(page.getByText('Tax cannot be negative.')).toBeVisible()
+       await page.getByLabel('Tax (%)').fill('10')
+       await expect(page.getByText('Tax cannot be negative.')).toHaveCount(0)
+-      await expect(page.getByTestId('grand-total')).toHaveText('$68.20')
++      await expect(page.getByTestId('grand-total')).toHaveText('$79.36')
+ 
+       // 4. tip presets + custom
+       await page.getByRole('button', { name: '20%' }).click()
+@@ -129,6 +130,13 @@ for (const size of sizes) {
+       await expect(page.getByTestId('grand-total')).toHaveText('$77.50')
+       await page.getByRole('button', { name: '10%' }).click()
+       await expect(page.getByTestId('grand-total')).toHaveText('$74.40')
++      await page.getByRole('button', { name: '18%' }).click()
++      await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++      await expect(page.getByRole('button', { name: '10%' })).toHaveAttribute('aria-pressed', 'false')
++      await expect(page.getByTestId('grand-total')).toHaveText('$79.36')
++      // presets render in order 10, 15, 18, 20
++      await expect(page.getByRole('group', { name: 'Tip (%)' }).getByRole('button')).toHaveText(['10%', '15%', '18%', '20%'])
++      await page.getByRole('button', { name: '10%' }).click()
+       await page.getByLabel('Custom tip percentage').fill('18.5')
+       await expect(page.getByRole('button', { name: '10%' })).toHaveAttribute('aria-pressed', 'false')
+       // 62 * 18.5% = 11.47 -> total 62 + 6.20 + 11.47 = 79.67
+@@ -196,7 +204,11 @@ for (const size of sizes) {
+       await expect(page.getByTestId('item-row')).toHaveCount(0)
+       await expect(page.getByTestId('person-row')).toHaveCount(0)
+       await expect(page.getByLabel('Tax (%)')).toHaveValue('')
++      await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++      await expect(page.getByLabel('Custom tip percentage')).toHaveValue('')
++      await shot('after-reset')
+       await page.reload()
++      await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
+       await expect(page.getByTestId('person-row')).toHaveCount(0)
+ 
+       // no horizontal overflow at this width
+diff --git a/e2e/tip-visual.spec.ts b/e2e/tip-visual.spec.ts
+new file mode 100644
+index 0000000..55148f1
+--- /dev/null
++++ b/e2e/tip-visual.spec.ts
+@@ -0,0 +1,33 @@
++import { expect, test } from '@playwright/test'
++
++// Visual check of the tip row (default 18% preset) at desktop and mobile widths.
++for (const size of [
++  { name: 'desktop', width: 1280, height: 900 },
++  { name: 'mobile', width: 375, height: 812 },
++]) {
++  test(`tip row renders cleanly on ${size.name}`, async ({ page }) => {
++    await page.setViewportSize({ width: size.width, height: size.height })
++    await page.goto('/')
++    await page.evaluate(() => localStorage.clear())
++    await page.reload()
++    const group = page.getByRole('group', { name: 'Tip (%)' })
++    await expect(group.getByRole('button')).toHaveText(['10%', '15%', '18%', '20%'])
++    await expect(group.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++
++    // Every control in the row is fully inside the card and the custom placeholder isn't clipped.
++    const custom = page.getByLabel('Custom tip percentage')
++    const fits = await custom.evaluate((el: HTMLInputElement) => {
++      const ctx = document.createElement('canvas').getContext('2d')!
++      ctx.font = getComputedStyle(el).font
++      return ctx.measureText(el.placeholder).width <= el.clientWidth - 24
++    })
++    expect(fits).toBe(true)
++    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++    expect(overflow).toBeLessThanOrEqual(0)
++
++    await page.waitForTimeout(400) // let the button color transition settle
++    await page.locator('section', { has: page.getByRole('heading', { name: 'Tax & tip' }) }).screenshot({
++      path: `shots/${size.name}-tip-row.png`,
++    })
++  })
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index d98a359..d367220 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -574,7 +574,7 @@ function TaxTipSection({
+           <span className="mb-1 block text-sm font-medium" id="tip-label">
+             Tip (%)
+           </span>
+-          <div className="flex gap-2" role="group" aria-labelledby="tip-label">
++          <div className="flex flex-wrap gap-2 sm:flex-nowrap" role="group" aria-labelledby="tip-label">
+             {TIP_PRESETS.map((t) => (
+               <button
+                 key={t}
+@@ -593,7 +593,7 @@ function TaxTipSection({
+             </label>
+             <input
+               id="custom-tip"
+-              className={`${input} min-w-0 flex-[1.4] ${bill.tipPreset === null && bill.customTipText ? 'border-emerald-500' : ''}`}
++              className={`${input} min-w-0 basis-full sm:basis-0 sm:flex-[1.4] ${bill.tipPreset === null && bill.customTipText ? 'border-emerald-500' : ''}`}
+               inputMode="decimal"
+               placeholder="Custom %"
+               value={bill.customTipText}
+diff --git a/src/lib/bill.test.ts b/src/lib/bill.test.ts
+index 240147d..2c41e1a 100644
+--- a/src/lib/bill.test.ts
++++ b/src/lib/bill.test.ts
+@@ -12,6 +12,7 @@ import {
+   percentOf,
+   validateItem,
+   validatePersonName,
++  TIP_PRESETS,
+   type Bill,
+   type Item,
+   type Person,
+@@ -215,6 +216,14 @@ describe('deserializeBill', () => {
+     expect(deserializeBill('{not json')).toEqual(emptyBill())
+     expect(deserializeBill('{"currency":"GBP","tipPreset":99,"people":"x"}')).toEqual(emptyBill())
+   })
++  it('defaults the tip to the 18% preset, but keeps a deliberate custom/none choice', () => {
++    expect(emptyBill().tipPreset).toBe(18)
++    expect(TIP_PRESETS).toEqual([10, 15, 18, 20])
++    expect(deserializeBill('{}').tipPreset).toBe(18)
++    expect(deserializeBill('{"tipPreset":18}').tipPreset).toBe(18)
++    expect(deserializeBill('{"tipPreset":10}').tipPreset).toBe(10)
++    expect(deserializeBill('{"tipPreset":null,"customTipText":"12"}')).toMatchObject({ tipPreset: null, customTipText: '12' })
++  })
+   it('drops invalid items and dangling sharers', () => {
+     const raw = JSON.stringify({
+       people: [{ id: 'a', name: 'Ann' }],
+diff --git a/src/lib/bill.ts b/src/lib/bill.ts
+index 26f0e37..82f20f8 100644
+--- a/src/lib/bill.ts
++++ b/src/lib/bill.ts
+@@ -1,6 +1,7 @@
+ export type Currency = 'USD' | 'EUR' | 'PLN'
+ export const CURRENCIES: Currency[] = ['USD', 'EUR', 'PLN']
+-export const TIP_PRESETS = [10, 15, 20] as const
++export const TIP_PRESETS = [10, 15, 18, 20] as const
++export const DEFAULT_TIP = 18
+ 
+ export interface Person {
+   id: string
+@@ -31,7 +32,7 @@ export const emptyBill = (): Bill => ({
+   people: [],
+   items: [],
+   taxText: '',
+-  tipPreset: null,
++  tipPreset: DEFAULT_TIP,
+   customTipText: '',
+   currency: 'USD',
+ })
+@@ -256,7 +257,8 @@ export function deserializeBill(raw: string | null): Bill {
+       people,
+       items,
+       taxText: typeof d.taxText === 'string' ? d.taxText : '',
+-      tipPreset: TIP_PRESETS.includes(d.tipPreset) ? d.tipPreset : null,
++      // null is a deliberate choice (custom tip or no preset); anything missing/unknown gets the default.
++      tipPreset: d.tipPreset === null ? null : TIP_PRESETS.includes(d.tipPreset) ? d.tipPreset : DEFAULT_TIP,
+       customTipText: typeof d.customTipText === 'string' ? d.customTipText : '',
+       currency: CURRENCIES.includes(d.currency) ? d.currency : 'USD',
+     }

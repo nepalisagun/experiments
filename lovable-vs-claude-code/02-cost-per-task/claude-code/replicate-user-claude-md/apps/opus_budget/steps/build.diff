@@ -1,0 +1,1453 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+new file mode 100644
+index 0000000..11801e3
+--- /dev/null
++++ b/e2e/app.spec.ts
+@@ -0,0 +1,205 @@
++import { expect, test, type Page } from '@playwright/test'
++import { readFileSync } from 'node:fs'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 900 },
++  { name: 'mobile', width: 375, height: 812 },
++]
++
++const pad = (n: number) => String(n).padStart(2, '0')
++const now = new Date()
++const thisMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`
++const day = (d: number) => `${thisMonth}-${pad(d)}`
++
++async function addTx(page: Page, o: { type?: 'Income' | 'Expense'; amount: string; category: string; date: string; note?: string }) {
++  const form = page.getByRole('form', { name: 'Add transaction' })
++  await form.getByText(o.type ?? 'Expense', { exact: true }).click()
++  await form.getByLabel('Amount').fill(o.amount)
++  await form.getByLabel('Date').fill(o.date)
++  await form.getByLabel('Category').selectOption({ label: o.category })
++  await form.getByLabel(/Note/).fill(o.note ?? '')
++  await form.getByRole('button', { name: 'Add transaction' }).click()
++}
++
++for (const size of sizes) {
++  test(`every requirement works at ${size.name} (${size.width}px)`, async ({ page }) => {
++    await page.setViewportSize({ width: size.width, height: size.height })
++    page.on('dialog', (d) => d.accept())
++    const errors: string[] = []
++    page.on('pageerror', (e) => errors.push(e.message))
++    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
++
++    await page.goto('/')
++    await page.evaluate(() => localStorage.clear())
++    await page.reload()
++    await page.screenshot({ path: `shots/${size.name}-empty.png`, fullPage: true })
++
++    // 2. default categories
++    for (const c of ['Food', 'Housing', 'Transport', 'Fun', 'Health', 'Other']) await expect(page.getByTestId(`cat-row-${c}`)).toBeVisible()
++
++    // 10. validation
++    const form = page.getByRole('form', { name: 'Add transaction' })
++    await form.getByRole('button', { name: 'Add transaction' }).click()
++    await expect(form.getByText('Enter an amount.')).toBeVisible()
++    await form.getByLabel('Amount').fill('0')
++    await form.getByLabel('Date').fill('')
++    await form.getByRole('button', { name: 'Add transaction' }).click()
++    await expect(form.getByText('Amount must be above zero.')).toBeVisible()
++    await expect(form.getByText('A date is required.')).toBeVisible()
++    await form.getByLabel('Amount').fill('-4')
++    await form.getByRole('button', { name: 'Add transaction' }).click()
++    await expect(form.getByText('Amount must be above zero.')).toBeVisible()
++    await form.getByLabel('Amount').fill('abc')
++    await form.getByRole('button', { name: 'Add transaction' }).click()
++    await expect(form.getByText('Amount must be a number, e.g. 12.50.')).toBeVisible()
++    await page.screenshot({ path: `shots/${size.name}-validation.png`, fullPage: true })
++    await expect(page.getByTestId('tx-row')).toHaveCount(0)
++
++    // 1. add
++    await addTx(page, { type: 'Income', amount: '3000', category: 'Other', date: day(1), note: 'Salary' })
++    await addTx(page, { amount: '0.1', category: 'Food', date: day(2), note: 'Coffee' })
++    await addTx(page, { amount: '0.2', category: 'Food', date: day(3), note: 'Snack' })
++    await expect(page.getByTestId('tx-row')).toHaveCount(3)
++
++    // 9. 0.1 + 0.2
++    await expect(page.getByTestId('total-expenses')).toHaveText('0.30')
++    await addTx(page, { amount: '800', category: 'Housing', date: day(4), note: 'Rent' })
++
++    // 4. totals
++    await expect(page.getByTestId('total-income')).toHaveText('3,000.00')
++    await expect(page.getByTestId('total-expenses')).toHaveText('800.30')
++    await expect(page.getByTestId('total-balance')).toHaveText('2,199.70')
++
++    // 5. donut: expenses only, by category
++    await expect(page.getByTestId('donut-seg-Housing')).toHaveCount(1)
++    await expect(page.getByTestId('donut-seg-Food')).toHaveCount(1)
++    await expect(page.getByTestId('donut-seg-Other')).toHaveCount(0)
++    await page.getByRole('list', { name: 'Expenses by category' }).getByText('Food').hover()
++    await expect(page.locator('[aria-live=polite]')).toContainText('0.30')
++
++    // 6. budgets
++    await page.getByLabel('Monthly budget for Food').fill('0.25')
++    await page.getByLabel('Monthly budget for Food').press('Enter')
++    await page.getByLabel('Monthly budget for Housing').fill('1000')
++    await page.getByLabel('Monthly budget for Housing').press('Enter')
++    await expect(page.getByTestId('budget-Food')).toHaveAttribute('data-over', 'true')
++    await expect(page.getByTestId('budget-Food').getByTestId('bar-fill')).toHaveClass(/bg-red-600/)
++    await expect(page.getByTestId('budget-Food')).toContainText('over by 0.05')
++    await expect(page.getByTestId('budget-Housing')).toHaveAttribute('data-over', 'false')
++    await expect(page.getByTestId('budget-Housing').getByRole('progressbar')).toHaveAttribute('aria-valuenow', '80')
++    await page.screenshot({ path: `shots/${size.name}-over-budget.png`, fullPage: true })
++    await page.getByLabel('Monthly budget for Fun').fill('0')
++    await page.getByLabel('Monthly budget for Fun').press('Enter')
++    await expect(page.getByText('Amount must be above zero.')).toBeVisible()
++    await page.getByLabel('Monthly budget for Fun').fill('')
++    await page.getByLabel('Monthly budget for Fun').press('Enter')
++
++    // 1. edit
++    await page.getByRole('button', { name: 'Edit Coffee' }).click()
++    const edit = page.getByRole('form', { name: 'Edit transaction' })
++    await expect(edit.getByLabel('Amount')).toHaveValue('0.10')
++    await edit.getByLabel('Amount').fill('0.15')
++    await edit.getByLabel(/Note/).fill('Flat white')
++    await edit.getByRole('button', { name: 'Save changes' }).click()
++    await expect(page.getByText('Flat white')).toBeVisible()
++    await expect(page.getByTestId('total-expenses')).toHaveText('800.35')
++    // cancel edit leaves things unchanged
++    await page.getByRole('button', { name: 'Edit Rent' }).click()
++    await page.getByRole('form', { name: 'Edit transaction' }).getByLabel('Amount').fill('1')
++    await page.getByRole('button', { name: 'Cancel' }).click()
++    await expect(page.getByTestId('total-expenses')).toHaveText('800.35')
++
++    // 1. delete
++    await page.getByRole('button', { name: 'Delete Snack' }).click()
++    await expect(page.getByText('Snack')).toHaveCount(0)
++    await expect(page.getByTestId('total-expenses')).toHaveText('800.15')
++    await expect(page.getByTestId('budget-Food')).toHaveAttribute('data-over', 'false')
++
++    // 2. custom category
++    await page.getByLabel('New category name').fill('food')
++    await page.getByRole('button', { name: 'Add', exact: true }).click()
++    await expect(page.getByText('That category already exists.')).toBeVisible()
++    await page.getByLabel('New category name').fill('Pets')
++    await page.locator('#new-cat-color').fill('#6250d6')
++    await page.getByRole('button', { name: 'Add', exact: true }).click()
++    await expect(page.getByTestId('cat-row-Pets')).toBeVisible()
++    await addTx(page, { amount: '42.50', category: 'Pets', date: day(5), note: 'Vet visit' })
++    await expect(page.getByTestId('donut-seg-Pets')).toHaveAttribute('stroke', '#6250d6')
++
++    // 7. filters
++    await page.getByLabel('Filter by category').selectOption({ label: 'Food' })
++    await expect(page.getByTestId('tx-row')).toHaveCount(1)
++    await expect(page.getByTestId('tx-count')).toHaveText('Showing 1 of 4')
++    await page.getByLabel('Filter by category').selectOption({ label: 'All categories' })
++    await page.getByLabel('Filter by type').selectOption('income')
++    await expect(page.getByTestId('tx-row')).toHaveCount(1)
++    await expect(page.getByTestId('tx-row')).toContainText('Salary')
++    await page.getByLabel('Filter by type').selectOption('')
++    await page.getByLabel('Search notes').fill('VET')
++    await expect(page.getByTestId('tx-row')).toHaveCount(1)
++    await page.getByLabel('Search notes').fill('zzz')
++    await expect(page.getByText('No transactions match the filters.')).toBeVisible()
++    await page.getByRole('button', { name: 'Clear filters' }).click()
++    await expect(page.getByTestId('tx-row')).toHaveCount(4)
++    // totals stay month-wide while filtering
++    await expect(page.getByTestId('total-expenses')).toHaveText('842.65')
++
++    await page.screenshot({ path: `shots/${size.name}-filled.png`, fullPage: true })
++
++    // 8. CSV export
++    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()])
++    expect(download.suggestedFilename()).toBe(`budget-${thisMonth}.csv`)
++    const csv = readFileSync(await download.path(), 'utf8').replace(/^﻿/, '')
++    expect(csv.split('\r\n')).toEqual([
++      'Date,Type,Category,Amount,Note',
++      `${day(1)},income,Other,3000.00,Salary`,
++      `${day(2)},expense,Food,0.15,Flat white`,
++      `${day(4)},expense,Housing,800.00,Rent`,
++      `${day(5)},expense,Pets,42.50,Vet visit`,
++      '',
++    ])
++
++    // 3. month switcher
++    const label = await page.getByTestId('month-label').textContent()
++    await page.getByRole('button', { name: 'Next month' }).click()
++    await expect(page.getByTestId('month-label')).not.toHaveText(label!)
++    await expect(page.getByTestId('total-income')).toHaveText('0.00')
++    await expect(page.getByTestId('total-expenses')).toHaveText('0.00')
++    await expect(page.getByTestId('donut-empty')).toBeVisible()
++    await expect(page.getByTestId('budget-Food')).toContainText('0.00 / 0.25')
++    await expect(page.getByTestId('tx-row')).toHaveCount(0)
++    // adding in next month defaults to the 1st of that month
++    await expect(page.getByRole('form', { name: 'Add transaction' }).getByLabel('Date')).toHaveValue(/-01$/)
++    await page.getByRole('button', { name: 'Previous month' }).click()
++    await page.getByRole('button', { name: 'Previous month' }).click()
++    await expect(page.getByTestId('tx-row')).toHaveCount(0)
++    await page.getByRole('button', { name: 'Today' }).click()
++    await expect(page.getByTestId('month-label')).toHaveText(label!)
++    await expect(page.getByTestId('tx-row')).toHaveCount(4)
++
++    // a transaction dated in another month leaves this view and appears there
++    await page.getByRole('button', { name: 'Edit Rent' }).click()
++    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 15)
++    await page.getByRole('form', { name: 'Edit transaction' }).getByLabel('Date').fill(`${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-15`)
++    await page.getByRole('button', { name: 'Save changes' }).click()
++    await expect(page.getByRole('status')).toContainText('moved to')
++    await expect(page.getByTestId('tx-row')).toHaveCount(3)
++    await page.getByRole('button', { name: 'Previous month' }).click()
++    await expect(page.getByTestId('tx-row')).toHaveCount(1)
++    await expect(page.getByTestId('total-expenses')).toHaveText('800.00')
++    await page.getByRole('button', { name: 'Today' }).click()
++
++    // 11. persistence
++    await page.reload()
++    await expect(page.getByTestId('tx-row')).toHaveCount(3)
++    await expect(page.getByTestId('total-expenses')).toHaveText('42.65')
++    await expect(page.getByTestId('cat-row-Pets')).toBeVisible()
++    await expect(page.getByLabel('Monthly budget for Food')).toHaveValue('0.25')
++
++    // layout: no horizontal scroll
++    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++    expect(overflow).toBeLessThanOrEqual(0)
++    await page.screenshot({ path: `shots/${size.name}-final.png`, fullPage: true })
++    expect(errors).toEqual([])
++  })
++}
+diff --git a/index.html b/index.html
+index 3d7efb3..8236a98 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,7 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Budget tracker</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..3100efe 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,9 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
+-    "preview": "vite preview"
++    "preview": "vite preview",
++    "test": "vitest run",
++    "test:e2e": "playwright test"
+   },
+   "dependencies": {
+     "react": "^19.3.1",
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..a226145 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,241 @@
++import { useEffect, useMemo, useState } from 'react'
++import {
++  applyFilters, budgetStatuses, defaultDateFor, expensesByCategory, loadData, monthLabel, monthOf, newId, saveData,
++  shiftMonth, STORAGE_KEY, parseStored, todayISO, totals, toCSV, transactionsForMonth,
++  type AppData, type Filters, type Transaction,
++} from './lib/budget.ts'
++import { formatCents } from './lib/money.ts'
++import { DonutChart } from './components/DonutChart.tsx'
++import { TransactionForm } from './components/TransactionForm.tsx'
++import { BudgetBars, CategoriesPanel } from './components/Categories.tsx'
++
++const card = 'rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5'
++const control = 'rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-stone-200'
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [data, setData] = useState<AppData>(() => loadData())
++  const [month, setMonth] = useState(() => monthOf(todayISO()))
++  const [editingId, setEditingId] = useState<string | null>(null)
++  const [filters, setFilters] = useState<Filters>({ categoryId: '', type: '', search: '' })
++  const [notice, setNotice] = useState<string | null>(null)
++  const [saveFailed, setSaveFailed] = useState(false)
++
++  useEffect(() => setSaveFailed(!saveData(data)), [data])
++
++  // Keep several open tabs in sync.
++  useEffect(() => {
++    const onStorage = (e: StorageEvent) => e.key === STORAGE_KEY && setData(parseStored(e.newValue))
++    window.addEventListener('storage', onStorage)
++    return () => window.removeEventListener('storage', onStorage)
++  }, [])
++
++  useEffect(() => {
++    if (!notice) return
++    const t = setTimeout(() => setNotice(null), 4000)
++    return () => clearTimeout(t)
++  }, [notice])
++
++  const monthTx = useMemo(() => transactionsForMonth(data.transactions, month), [data.transactions, month])
++  const sums = useMemo(() => totals(monthTx), [monthTx])
++  const slices = useMemo(() => expensesByCategory(monthTx, data.categories), [monthTx, data.categories])
++  const budgets = useMemo(() => budgetStatuses(monthTx, data.categories), [monthTx, data.categories])
++  const visible = useMemo(() => applyFilters(monthTx, filters), [monthTx, filters])
++  const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])
++  const usage = useMemo(() => {
++    const m = new Map<string, number>()
++    for (const t of data.transactions) m.set(t.categoryId, (m.get(t.categoryId) ?? 0) + 1)
++    return m
++  }, [data.transactions])
++  const editing = data.transactions.find((t) => t.id === editingId) ?? null
++  const defaultDate = useMemo(() => defaultDateFor(month), [month])
++  const filtered = filters.categoryId !== '' || filters.type !== '' || filters.search.trim() !== ''
++
++  const submitTx = (value: Omit<Transaction, 'id'>) => {
++    if (editing) {
++      setData((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === editing.id ? { ...value, id: t.id } : t)) }))
++      setEditingId(null)
++      setNotice(monthOf(value.date) === month ? 'Transaction updated.' : `Transaction updated and moved to ${monthLabel(monthOf(value.date))}.`)
++    } else {
++      setData((d) => ({ ...d, transactions: [...d.transactions, { ...value, id: newId() }] }))
++      setNotice(monthOf(value.date) === month ? 'Transaction added.' : `Transaction added to ${monthLabel(monthOf(value.date))}.`)
++    }
++  }
++
++  const deleteTx = (t: Transaction) => {
++    const label = `${t.type} of ${formatCents(t.amountCents)}${t.note ? ` (“${t.note}”)` : ''}`
++    if (!window.confirm(`Delete this ${label}?`)) return
++    setData((d) => ({ ...d, transactions: d.transactions.filter((x) => x.id !== t.id) }))
++    if (editingId === t.id) setEditingId(null)
++    setNotice('Transaction deleted.')
++  }
++
++  const exportCSV = () => {
++    const blob = new Blob(['﻿' + toCSV(monthTx, data.categories)], { type: 'text/csv;charset=utf-8' })
++    const url = URL.createObjectURL(blob)
++    const a = document.createElement('a')
++    a.href = url
++    a.download = `budget-${month}.csv`
++    document.body.appendChild(a)
++    a.click()
++    a.remove()
++    setTimeout(() => URL.revokeObjectURL(url), 0)
++  }
++
++  const goMonth = (m: string) => {
++    setMonth(m)
++    setEditingId(null)
++  }
++
++  return (
++    <div className="min-h-screen bg-stone-50 text-stone-900">
++      <header className="border-b border-stone-200 bg-white">
++        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
++          <h1 className="text-lg font-semibold">Budget</h1>
++          <nav className="order-last flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto" aria-label="Month">
++            <button type="button" onClick={() => goMonth(shiftMonth(month, -1))} className="rounded-lg p-2 text-stone-600 hover:bg-stone-100" aria-label="Previous month">‹</button>
++            <label htmlFor="month" className="sr-only">Selected month</label>
++            <div className="relative">
++              <span className="pointer-events-none block min-w-36 text-center font-medium" data-testid="month-label">{monthLabel(month)}</span>
++              <input
++                id="month"
++                type="month"
++                value={month}
++                onChange={(e) => e.target.value && goMonth(e.target.value)}
++                className="absolute inset-0 cursor-pointer opacity-0"
++              />
++            </div>
++            <button type="button" onClick={() => goMonth(shiftMonth(month, 1))} className="rounded-lg p-2 text-stone-600 hover:bg-stone-100" aria-label="Next month">›</button>
++            {month !== monthOf(todayISO()) && (
++              <button type="button" onClick={() => goMonth(monthOf(todayISO()))} className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-100">Today</button>
++            )}
++          </nav>
++          <button type="button" onClick={exportCSV} className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:bg-stone-50">
++            Export CSV
++          </button>
++        </div>
++      </header>
++
++      <main className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:py-6">
++        {saveFailed && (
++          <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
++            Couldn’t save to this browser’s storage. Changes will be lost on reload.
++          </p>
++        )}
++
++        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Month totals">
++          <Stat label="Income" cents={sums.incomeCents} tone="text-green-800" testId="total-income" />
++          <Stat label="Expenses" cents={sums.expenseCents} tone="text-stone-900" testId="total-expenses" />
++          <Stat label="Balance" cents={sums.balanceCents} tone={sums.balanceCents < 0 ? 'text-red-700' : 'text-stone-900'} testId="total-balance" />
++        </section>
++
++        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start">
++            <div className={`${card} lg:col-start-1 lg:row-start-1`}>
++              <TransactionForm
++                categories={data.categories}
++                defaultDate={defaultDate}
++                editing={editing}
++                onSubmit={submitTx}
++                onCancel={() => setEditingId(null)}
++              />
++              <p className="mt-2 min-h-5 text-sm text-green-800" role="status">{notice}</p>
++            </div>
++            <div className={`${card} order-last lg:order-none lg:col-start-1 lg:row-start-2`}>
++              <CategoriesPanel
++                categories={data.categories}
++                usage={usage}
++                onAdd={(name, color) => setData((d) => ({ ...d, categories: [...d.categories, { id: newId(), name, color, budgetCents: null }] }))}
++                onBudget={(id, cents) => setData((d) => ({ ...d, categories: d.categories.map((c) => (c.id === id ? { ...c, budgetCents: cents } : c)) }))}
++                onDelete={(id) => {
++                  setData((d) => ({
++                    categories: d.categories.filter((c) => c.id !== id),
++                    transactions: d.transactions.map((t) => (t.categoryId === id ? { ...t, categoryId: 'other' } : t)),
++                    version: 1,
++                  }))
++                  if (filters.categoryId === id) setFilters((f) => ({ ...f, categoryId: '' }))
++                }}
++              />
++            </div>
++
++          <div className="min-w-0 space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
++            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
++              <section className={card} aria-labelledby="chart-h">
++                <h2 id="chart-h" className="mb-3 text-base font-semibold">Spending by category</h2>
++                <DonutChart slices={slices} />
++              </section>
++              <section className={card} aria-labelledby="budget-h">
++                <h2 id="budget-h" className="mb-3 text-base font-semibold">Budgets</h2>
++                <BudgetBars statuses={budgets} />
++              </section>
++            </div>
++
++            <section className={card} aria-labelledby="tx-h">
++              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
++                <h2 id="tx-h" className="text-base font-semibold">Transactions</h2>
++                <span className="text-xs text-stone-500" data-testid="tx-count">
++                  {filtered ? `Showing ${visible.length} of ${monthTx.length}` : `${monthTx.length} this month`}
++                </span>
++              </div>
++              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr]">
++                <label className="sr-only" htmlFor="f-cat">Filter by category</label>
++                <select id="f-cat" className={control} value={filters.categoryId} onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}>
++                  <option value="">All categories</option>
++                  {data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
++                </select>
++                <label className="sr-only" htmlFor="f-type">Filter by type</label>
++                <select id="f-type" className={control} value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value as Filters['type'] })}>
++                  <option value="">All types</option>
++                  <option value="income">Income</option>
++                  <option value="expense">Expense</option>
++                </select>
++                <label className="sr-only" htmlFor="f-search">Search notes</label>
++                <input id="f-search" type="search" placeholder="Search notes…" className={`${control} col-span-2 sm:col-span-1`} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
++              </div>
++
++              {visible.length === 0 ? (
++                <div className="py-8 text-center text-sm text-stone-500">
++                  {monthTx.length === 0 ? `No transactions in ${monthLabel(month)}.` : 'No transactions match the filters.'}
++                  {filtered && (
++                    <button type="button" className="ml-2 font-medium text-stone-800 underline" onClick={() => setFilters({ categoryId: '', type: '', search: '' })}>Clear filters</button>
++                  )}
++                </div>
++              ) : (
++                <ul className="divide-y divide-stone-100" aria-label="Transactions">
++                  {visible.map((t) => {
++                    const c = catById.get(t.categoryId)
++                    return (
++                      <li key={t.id} data-testid="tx-row" className={`flex items-center gap-3 py-2.5 ${editingId === t.id ? 'bg-amber-50' : ''}`}>
++                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c?.color ?? '#999' }} aria-hidden="true" />
++                        <div className="min-w-0 flex-1">
++                          <div className="truncate text-sm font-medium text-stone-900">{t.note || <span className="text-stone-500">{c?.name ?? 'Unknown'}</span>}</div>
++                          <div className="text-xs text-stone-500">
++                            {c?.name ?? 'Unknown'} · {new Date(t.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
++                          </div>
++                        </div>
++                        <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-green-800' : 'text-stone-900'}`} data-testid="tx-amount">
++                          {t.type === 'income' ? '+' : '−'}{formatCents(t.amountCents)}
++                        </span>
++                        <div className="flex shrink-0 gap-0.5">
++                          <button type="button" onClick={() => setEditingId(t.id)} className="rounded px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-100" aria-label={`Edit ${t.note || c?.name}`}>Edit</button>
++                          <button type="button" onClick={() => deleteTx(t)} className="rounded px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50" aria-label={`Delete ${t.note || c?.name}`}>Delete</button>
++                        </div>
++                      </li>
++                    )
++                  })}
++                </ul>
++              )}
++            </section>
++          </div>
++        </div>
++      </main>
++    </div>
++  )
++}
++
++function Stat({ label, cents, tone, testId }: { label: string; cents: number; tone: string; testId: string }) {
++  return (
++    <div className={`${card} flex items-baseline justify-between sm:block`}>
++      <div className="text-xs font-medium uppercase tracking-wide text-stone-500">{label}</div>
++      <div className={`text-xl font-semibold tabular-nums sm:mt-1 sm:text-2xl ${tone}`} data-testid={testId}>{formatCents(cents)}</div>
++    </div>
++  )
+ }
+diff --git a/src/components/Categories.tsx b/src/components/Categories.tsx
+new file mode 100644
+index 0000000..529b8c1
+--- /dev/null
++++ b/src/components/Categories.tsx
+@@ -0,0 +1,163 @@
++import { useState, type FormEvent } from 'react'
++import { CUSTOM_COLORS, validateCategoryName, type BudgetStatus, type Category } from '../lib/budget.ts'
++import { centsToPlain, formatCents, parseAmount } from '../lib/money.ts'
++
++function BudgetInput({ category, onChange }: { category: Category; onChange: (cents: number | null) => void }) {
++  const initial = category.budgetCents ? centsToPlain(category.budgetCents) : ''
++  const [value, setValue] = useState(initial)
++  const [error, setError] = useState<string | null>(null)
++  const [prev, setPrev] = useState(initial)
++  if (prev !== initial) {
++    setPrev(initial)
++    setValue(initial)
++  }
++
++  const commit = () => {
++    if (value.trim() === '') {
++      setError(null)
++      if (category.budgetCents !== null) onChange(null)
++      return
++    }
++    const r = parseAmount(value)
++    if (!r.ok) return setError(r.error)
++    setError(null)
++    setValue(centsToPlain(r.cents))
++    if (r.cents !== category.budgetCents) onChange(r.cents)
++  }
++
++  const id = `budget-${category.id}`
++  return (
++    <div className="w-28 shrink-0">
++      <label htmlFor={id} className="sr-only">Monthly budget for {category.name}</label>
++      <input
++        id={id}
++        inputMode="decimal"
++        placeholder="No budget"
++        value={value}
++        onChange={(e) => setValue(e.target.value)}
++        onBlur={commit}
++        onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget.blur())}
++        aria-invalid={!!error}
++        aria-describedby={error ? `${id}-error` : undefined}
++        className={`w-full rounded-md border px-2 py-1 text-right text-sm tabular-nums outline-none focus:ring-2 ${
++          error ? 'border-red-600 focus:ring-red-200' : 'border-stone-300 focus:ring-stone-200'
++        }`}
++      />
++      {error && <p id={`${id}-error`} role="alert" className="mt-1 text-right text-xs text-red-700">{error}</p>}
++    </div>
++  )
++}
++
++interface Props {
++  categories: Category[]
++  usage: Map<string, number>
++  onAdd: (name: string, color: string) => void
++  onBudget: (id: string, cents: number | null) => void
++  onDelete: (id: string) => void
++}
++
++export function CategoriesPanel({ categories, usage, onAdd, onBudget, onDelete }: Props) {
++  const nextColor = CUSTOM_COLORS[categories.filter((c) => !c.builtIn).length % CUSTOM_COLORS.length]
++  const [name, setName] = useState('')
++  const [color, setColor] = useState(nextColor)
++  const [error, setError] = useState<string | null>(null)
++
++  const add = (e: FormEvent) => {
++    e.preventDefault()
++    const msg = validateCategoryName(name, categories)
++    if (msg) return setError(msg)
++    onAdd(name.trim(), color)
++    setName('')
++    setError(null)
++    setColor(CUSTOM_COLORS[(categories.filter((c) => !c.builtIn).length + 1) % CUSTOM_COLORS.length])
++  }
++
++  return (
++    <section className="space-y-3" aria-labelledby="cats-h">
++      <div>
++        <h2 id="cats-h" className="text-base font-semibold text-stone-900">Categories &amp; budgets</h2>
++        <p className="text-xs text-stone-500">Set a monthly budget per category. Leave empty for none.</p>
++      </div>
++      <ul className="divide-y divide-stone-100">
++        {categories.map((c) => (
++          <li key={c.id} className="flex items-start gap-2 py-1.5" data-testid={`cat-row-${c.name}`}>
++            <span className="mt-2 h-3 w-3 shrink-0 rounded-full" style={{ background: c.color }} aria-hidden="true" />
++            <span className="mt-1 min-w-0 flex-1 truncate text-sm text-stone-800">{c.name}</span>
++            <BudgetInput category={c} onChange={(cents) => onBudget(c.id, cents)} />
++            {!c.builtIn ? (
++              <button
++                type="button"
++                onClick={() => {
++                  const n = usage.get(c.id) ?? 0
++                  if (window.confirm(n ? `Delete "${c.name}"? Its ${n} transaction(s) will move to Other.` : `Delete "${c.name}"?`)) onDelete(c.id)
++                }}
++                className="mt-0.5 rounded px-1.5 py-1 text-xs text-stone-500 hover:bg-red-50 hover:text-red-700"
++                aria-label={`Delete category ${c.name}`}
++              >
++                ✕
++              </button>
++            ) : (
++              <span className="w-[26px] shrink-0" aria-hidden="true" />
++            )}
++          </li>
++        ))}
++      </ul>
++      <form onSubmit={add} noValidate className="space-y-1" aria-label="Add category">
++        <div className="flex gap-2">
++          <label htmlFor="new-cat-color" className="sr-only">Colour</label>
++          <input id="new-cat-color" type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-10 shrink-0 cursor-pointer rounded-md border border-stone-300 bg-white p-1" />
++          <label htmlFor="new-cat-name" className="sr-only">New category name</label>
++          <input
++            id="new-cat-name"
++            value={name}
++            onChange={(e) => { setName(e.target.value); setError(null) }}
++            placeholder="New category"
++            aria-invalid={!!error}
++            aria-describedby={error ? 'new-cat-error' : undefined}
++            className={`min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${error ? 'border-red-600 focus:ring-red-200' : 'border-stone-300 focus:ring-stone-200'}`}
++          />
++          <button type="submit" className="shrink-0 rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">Add</button>
++        </div>
++        {error && <p id="new-cat-error" role="alert" className="text-xs font-medium text-red-700">{error}</p>}
++      </form>
++    </section>
++  )
++}
++
++export function BudgetBars({ statuses }: { statuses: BudgetStatus[] }) {
++  if (statuses.length === 0) {
++    return <p className="text-sm text-stone-500">No budgets set. Add one under “Categories &amp; budgets”.</p>
++  }
++  return (
++    <ul className="space-y-3">
++      {statuses.map((s) => (
++        <li key={s.category.id} data-testid={`budget-${s.category.name}`} data-over={s.over}>
++          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
++            <span className="flex items-center gap-2 font-medium text-stone-800">
++              <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.category.color }} aria-hidden="true" />
++              {s.category.name}
++            </span>
++            <span className={`tabular-nums ${s.over ? 'font-semibold text-red-700' : 'text-stone-600'}`}>
++              {formatCents(s.spentCents)} / {formatCents(s.budgetCents)}
++              {s.over && <> · over by {formatCents(s.spentCents - s.budgetCents)}</>}
++            </span>
++          </div>
++          <div
++            className="h-2.5 overflow-hidden rounded-full bg-stone-200"
++            role="progressbar"
++            aria-label={`${s.category.name} budget used`}
++            aria-valuemin={0}
++            aria-valuemax={100}
++            aria-valuenow={Math.round(s.ratio * 100)}
++          >
++            <div
++              data-testid="bar-fill"
++              className={`h-full rounded-full transition-[width] ${s.over ? 'bg-red-600' : 'bg-stone-700'}`}
++              style={{ width: `${s.ratio * 100}%` }}
++            />
++          </div>
++        </li>
++      ))}
++    </ul>
++  )
++}
+diff --git a/src/components/DonutChart.tsx b/src/components/DonutChart.tsx
+new file mode 100644
+index 0000000..b9e6bfd
+--- /dev/null
++++ b/src/components/DonutChart.tsx
+@@ -0,0 +1,94 @@
++import { useState } from 'react'
++import type { CategorySlice } from '../lib/budget.ts'
++import { formatCents } from '../lib/money.ts'
++
++const R = 80
++const STROKE = 26
++const C = 2 * Math.PI * R
++const GAP = 2 // px of surface between segments
++
++export function DonutChart({ slices }: { slices: CategorySlice[] }) {
++  const [active, setActive] = useState<string | null>(null)
++  const total = slices.reduce((s, x) => s + x.cents, 0)
++
++  if (total === 0) {
++    return (
++      <div className="flex flex-col items-center gap-3 py-6 text-center text-sm text-stone-500" data-testid="donut-empty">
++        <svg viewBox="0 0 200 200" className="h-32 w-32" aria-hidden="true">
++          <circle cx="100" cy="100" r={R} fill="none" stroke="#e7e5e4" strokeWidth={STROKE} />
++        </svg>
++        No expenses this month yet.
++      </div>
++    )
++  }
++
++  let offset = 0
++  const segs = slices.map((s) => {
++    const len = (s.cents / total) * C
++    const seg = { ...s, len, offset }
++    offset += len
++    return seg
++  })
++  const activeSlice = slices.find((s) => s.category.id === active)
++  const pct = (cents: number) => {
++    const p = (cents / total) * 100
++    return cents === total ? '100%' : p < 0.1 ? '<0.1%' : p > 99.9 ? '>99.9%' : `${p.toFixed(1)}%`
++  }
++
++  return (
++    <div className="@container">
++    <div className="flex flex-col items-center gap-5 @md:flex-row">
++      <div className="relative h-44 w-44 shrink-0">
++        <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90" role="img" aria-label={`Expenses by category, total ${formatCents(total)}`}>
++          {segs.map((s) => {
++            const visible = slices.length > 1 ? Math.max(s.len - GAP, 1.5) : C
++            return (
++              <circle
++                key={s.category.id}
++                data-testid={`donut-seg-${s.category.name}`}
++                cx="100"
++                cy="100"
++                r={R}
++                fill="none"
++                stroke={s.category.color}
++                strokeWidth={active === s.category.id ? STROKE + 6 : STROKE}
++                strokeDasharray={`${visible} ${C - visible}`}
++                strokeDashoffset={-s.offset}
++                className="cursor-pointer transition-[stroke-width] duration-150"
++                opacity={active && active !== s.category.id ? 0.35 : 1}
++                onMouseEnter={() => setActive(s.category.id)}
++                onMouseLeave={() => setActive(null)}
++              >
++                <title>{`${s.category.name}: ${formatCents(s.cents)} (${pct(s.cents)})`}</title>
++              </circle>
++            )
++          })}
++        </svg>
++        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center" aria-live="polite">
++          <span className="text-xs text-stone-500">{activeSlice ? activeSlice.category.name : 'Total spent'}</span>
++          <span className="text-lg font-semibold tabular-nums text-stone-900">{formatCents(activeSlice ? activeSlice.cents : total)}</span>
++          {activeSlice && <span className="text-xs text-stone-500">{pct(activeSlice.cents)}</span>}
++        </div>
++      </div>
++      <ul className="w-full min-w-0 space-y-1 text-sm" aria-label="Expenses by category">
++        {slices.map((s) => (
++          <li
++            key={s.category.id}
++            tabIndex={0}
++            onMouseEnter={() => setActive(s.category.id)}
++            onMouseLeave={() => setActive(null)}
++            onFocus={() => setActive(s.category.id)}
++            onBlur={() => setActive(null)}
++            className={`flex items-center gap-2 rounded px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-stone-400 ${active === s.category.id ? 'bg-stone-100' : ''}`}
++          >
++            <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: s.category.color }} aria-hidden="true" />
++            <span className="min-w-0 flex-1 truncate text-stone-700">{s.category.name}</span>
++            <span className="tabular-nums text-stone-900">{formatCents(s.cents)}</span>
++            <span className="w-14 shrink-0 text-right tabular-nums text-stone-500">{pct(s.cents)}</span>
++          </li>
++        ))}
++      </ul>
++    </div>
++    </div>
++  )
++}
+diff --git a/src/components/TransactionForm.tsx b/src/components/TransactionForm.tsx
+new file mode 100644
+index 0000000..3020397
+--- /dev/null
++++ b/src/components/TransactionForm.tsx
+@@ -0,0 +1,156 @@
++import { useEffect, useState, type FormEvent } from 'react'
++import { MAX_NOTE, validateDraft, type Category, type DraftErrors, type Transaction, type TxDraft } from '../lib/budget.ts'
++import { centsToPlain } from '../lib/money.ts'
++
++interface Props {
++  categories: Category[]
++  defaultDate: string
++  editing: Transaction | null
++  onSubmit: (value: Omit<Transaction, 'id'>) => void
++  onCancel: () => void
++}
++
++const emptyDraft = (date: string, categoryId: string): TxDraft => ({ type: 'expense', amount: '', categoryId, date, note: '' })
++
++const inputCls = (bad: boolean) =>
++  `w-full rounded-lg border bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 ${
++    bad ? 'border-red-600 focus:ring-red-200' : 'border-stone-300 focus:border-stone-500 focus:ring-stone-200'
++  }`
++
++export function TransactionForm({ categories, defaultDate, editing, onSubmit, onCancel }: Props) {
++  const firstCat = categories[0]?.id ?? 'other'
++  const [draft, setDraft] = useState<TxDraft>(() => emptyDraft(defaultDate, firstCat))
++  const [errors, setErrors] = useState<DraftErrors>({})
++
++  // Load the transaction being edited, or reset when editing ends / month changes.
++  useEffect(() => {
++    setErrors({})
++    if (editing) {
++      setDraft({ type: editing.type, amount: centsToPlain(editing.amountCents), categoryId: editing.categoryId, date: editing.date, note: editing.note })
++    } else {
++      setDraft((d) => ({ ...emptyDraft(defaultDate, d.categoryId), type: d.type }))
++    }
++  }, [editing, defaultDate])
++
++  const set = <K extends keyof TxDraft>(k: K, v: TxDraft[K]) => {
++    setDraft((d) => ({ ...d, [k]: v }))
++    if (errors[k as keyof DraftErrors]) setErrors((e) => ({ ...e, [k]: undefined }))
++  }
++
++  const submit = (e: FormEvent) => {
++    e.preventDefault()
++    const r = validateDraft(draft, categories)
++    if (!r.ok) {
++      setErrors(r.errors)
++      const first = (['amount', 'date', 'categoryId', 'note'] as const).find((k) => r.errors[k])
++      if (first) document.getElementById(`tx-${first}`)?.focus()
++      return
++    }
++    onSubmit(r.value)
++    if (!editing) setDraft((d) => ({ ...emptyDraft(d.date, d.categoryId), type: d.type }))
++  }
++
++  const err = (k: keyof DraftErrors) =>
++    errors[k] ? (
++      <p id={`tx-${k}-error`} role="alert" className="mt-1 text-xs font-medium text-red-700">
++        {errors[k]}
++      </p>
++    ) : null
++
++  return (
++    <form onSubmit={submit} noValidate className="space-y-3" aria-label={editing ? 'Edit transaction' : 'Add transaction'}>
++      <h2 className="text-base font-semibold text-stone-900">{editing ? 'Edit transaction' : 'Add transaction'}</h2>
++
++      <fieldset>
++        <legend className="sr-only">Type</legend>
++        <div className="grid grid-cols-2 rounded-lg bg-stone-100 p-1 text-sm">
++          {(['expense', 'income'] as const).map((t) => (
++            <label
++              key={t}
++              className={`cursor-pointer rounded-md py-1.5 text-center font-medium capitalize has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-stone-400 ${
++                draft.type === t ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'
++              }`}
++            >
++              <input type="radio" name="type" value={t} checked={draft.type === t} onChange={() => set('type', t)} className="sr-only" />
++              {t === 'expense' ? 'Expense' : 'Income'}
++            </label>
++          ))}
++        </div>
++      </fieldset>
++
++      <div className="grid grid-cols-2 gap-3">
++        <div>
++          <label htmlFor="tx-amount" className="mb-1 block text-xs font-medium text-stone-600">Amount</label>
++          <input
++            id="tx-amount"
++            inputMode="decimal"
++            autoComplete="off"
++            placeholder="0.00"
++            value={draft.amount}
++            onChange={(e) => set('amount', e.target.value)}
++            aria-invalid={!!errors.amount}
++            aria-describedby={errors.amount ? 'tx-amount-error' : undefined}
++            className={`${inputCls(!!errors.amount)} tabular-nums`}
++          />
++          {err('amount')}
++        </div>
++        <div>
++          <label htmlFor="tx-date" className="mb-1 block text-xs font-medium text-stone-600">Date</label>
++          <input
++            id="tx-date"
++            type="date"
++            value={draft.date}
++            onChange={(e) => set('date', e.target.value)}
++            aria-invalid={!!errors.date}
++            aria-describedby={errors.date ? 'tx-date-error' : undefined}
++            className={inputCls(!!errors.date)}
++          />
++          {err('date')}
++        </div>
++      </div>
++
++      <div>
++        <label htmlFor="tx-categoryId" className="mb-1 block text-xs font-medium text-stone-600">Category</label>
++        <select
++          id="tx-categoryId"
++          value={draft.categoryId}
++          onChange={(e) => set('categoryId', e.target.value)}
++          aria-invalid={!!errors.categoryId}
++          className={inputCls(!!errors.categoryId)}
++        >
++          {categories.map((c) => (
++            <option key={c.id} value={c.id}>{c.name}</option>
++          ))}
++        </select>
++        {err('categoryId')}
++      </div>
++
++      <div>
++        <label htmlFor="tx-note" className="mb-1 block text-xs font-medium text-stone-600">
++          Note <span className="font-normal text-stone-400">(optional)</span>
++        </label>
++        <input
++          id="tx-note"
++          value={draft.note}
++          maxLength={MAX_NOTE + 50}
++          onChange={(e) => set('note', e.target.value)}
++          placeholder="e.g. Groceries at the market"
++          aria-invalid={!!errors.note}
++          className={inputCls(!!errors.note)}
++        />
++        {err('note')}
++      </div>
++
++      <div className="flex gap-2">
++        <button type="submit" className="flex-1 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700">
++          {editing ? 'Save changes' : 'Add transaction'}
++        </button>
++        {editing && (
++          <button type="button" onClick={onCancel} className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
++            Cancel
++          </button>
++        )}
++      </div>
++    </form>
++  )
++}
+diff --git a/src/lib/budget.test.ts b/src/lib/budget.test.ts
+new file mode 100644
+index 0000000..c85d6ec
+--- /dev/null
++++ b/src/lib/budget.test.ts
+@@ -0,0 +1,172 @@
++import { describe, expect, it } from 'vitest'
++import { centsToPlain, formatCents, parseAmount } from './money.ts'
++import {
++  applyFilters, budgetStatuses, DEFAULT_CATEGORIES, defaultDateFor, expensesByCategory, isValidDate,
++  parseStored, shiftMonth, toCSV, totals, transactionsForMonth, validateCategoryName, validateDraft,
++  type Category, type Transaction,
++} from './budget.ts'
++
++const cats: Category[] = DEFAULT_CATEGORIES.map((c) => ({ ...c }))
++const tx = (p: Partial<Transaction>): Transaction => ({
++  id: Math.random().toString(36), type: 'expense', amountCents: 100, categoryId: 'food', date: '2026-11-05', note: '', ...p,
++})
++
++describe('money', () => {
++  it('parses amounts into exact cents', () => {
++    expect(parseAmount('12')).toEqual({ ok: true, cents: 1200 })
++    expect(parseAmount('12.5')).toEqual({ ok: true, cents: 1250 })
++    expect(parseAmount('0.01')).toEqual({ ok: true, cents: 1 })
++    expect(parseAmount(' 12,50 ')).toEqual({ ok: true, cents: 1250 })
++    expect(parseAmount('1,234.56')).toEqual({ ok: true, cents: 123456 })
++    expect(parseAmount('.5')).toEqual({ ok: true, cents: 50 })
++    expect(parseAmount('19.99')).toEqual({ ok: true, cents: 1999 })
++  })
++  it('rejects bad amounts with clear messages', () => {
++    expect(parseAmount('')).toEqual({ ok: false, error: 'Enter an amount.' })
++    expect(parseAmount('0')).toEqual({ ok: false, error: 'Amount must be above zero.' })
++    expect(parseAmount('0.00')).toEqual({ ok: false, error: 'Amount must be above zero.' })
++    expect(parseAmount('-5')).toEqual({ ok: false, error: 'Amount must be above zero.' })
++    expect(parseAmount('abc').ok).toBe(false)
++    expect(parseAmount('1e3').ok).toBe(false)
++    expect(parseAmount('1.2.3').ok).toBe(false)
++    expect(parseAmount('.')).toMatchObject({ ok: false })
++    expect(parseAmount('1.234')).toEqual({ ok: false, error: 'Use at most 2 decimal places.' })
++    expect(parseAmount('99999999999').ok).toBe(false)
++  })
++  it('adds 0.1 + 0.2 exactly', () => {
++    const a = parseAmount('0.1'), b = parseAmount('0.2')
++    if (!a.ok || !b.ok) throw new Error('parse failed')
++    expect(formatCents(a.cents + b.cents)).toBe('0.30')
++    const t = totals([tx({ amountCents: 10 }), tx({ amountCents: 20 })])
++    expect(formatCents(t.expenseCents)).toBe('0.30')
++  })
++  it('formats cents', () => {
++    expect(formatCents(0)).toBe('0.00')
++    expect(formatCents(5)).toBe('0.05')
++    expect(formatCents(123456789)).toBe('1,234,567.89')
++    expect(formatCents(-1050)).toBe('-10.50')
++    expect(centsToPlain(123456)).toBe('1234.56')
++  })
++})
++
++describe('dates and months', () => {
++  it('validates dates', () => {
++    expect(isValidDate('2026-02-28')).toBe(true)
++    expect(isValidDate('2026-02-30')).toBe(false)
++    expect(isValidDate('2024-02-29')).toBe(true)
++    expect(isValidDate('')).toBe(false)
++    expect(isValidDate('2026-1-5')).toBe(false)
++  })
++  it('shifts months across years', () => {
++    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
++    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
++    expect(shiftMonth('2026-05', 0)).toBe('2026-05')
++    expect(shiftMonth('2026-05', -17)).toBe('2024-12')
++  })
++  it('defaults a new transaction date into the selected month', () => {
++    const now = new Date(2026, 10, 9)
++    expect(defaultDateFor('2026-11', now)).toBe('2026-11-09')
++    expect(defaultDateFor('2026-09', now)).toBe('2026-09-01')
++  })
++})
++
++describe('month queries', () => {
++  const data = [
++    tx({ id: 'a', date: '2026-10-31', amountCents: 500 }),
++    tx({ id: 'b', date: '2026-11-01', type: 'income', amountCents: 300000, categoryId: 'other', note: 'Salary' }),
++    tx({ id: 'c', date: '2026-11-03', amountCents: 1250, note: 'Lunch with Ann' }),
++    tx({ id: 'd', date: '2026-11-03', amountCents: 80000, categoryId: 'housing', note: 'Rent' }),
++    tx({ id: 'e', date: '2026-12-01', amountCents: 999 }),
++  ]
++  const nov = transactionsForMonth(data, '2026-11')
++
++  it('selects only the month, newest first', () => {
++    expect(nov.map((t) => t.id)).toEqual(['d', 'c', 'b'])
++  })
++  it('computes totals', () => {
++    expect(totals(nov)).toEqual({ incomeCents: 300000, expenseCents: 81250, balanceCents: 218750 })
++    expect(totals([])).toEqual({ incomeCents: 0, expenseCents: 0, balanceCents: 0 })
++  })
++  it('groups expenses by category, ignoring income', () => {
++    const slices = expensesByCategory(nov, cats)
++    expect(slices.map((s) => [s.category.id, s.cents])).toEqual([['housing', 80000], ['food', 1250]])
++  })
++  it('computes budget status and over-budget', () => {
++    const c = cats.map((x) => (x.id === 'food' ? { ...x, budgetCents: 1000 } : x.id === 'housing' ? { ...x, budgetCents: 100000 } : x))
++    const s = budgetStatuses(nov, c)
++    expect(s).toHaveLength(2)
++    const food = s.find((x) => x.category.id === 'food')!
++    expect(food).toMatchObject({ spentCents: 1250, budgetCents: 1000, ratio: 1, over: true })
++    const housing = s.find((x) => x.category.id === 'housing')!
++    expect(housing).toMatchObject({ spentCents: 80000, ratio: 0.8, over: false })
++    // exactly on budget is not over
++    expect(budgetStatuses([tx({ amountCents: 1000 })], c).find((x) => x.category.id === 'food')!.over).toBe(false)
++  })
++  it('filters by category, type and note search', () => {
++    expect(applyFilters(nov, { categoryId: 'food', type: '', search: '' }).map((t) => t.id)).toEqual(['c'])
++    expect(applyFilters(nov, { categoryId: '', type: 'income', search: '' }).map((t) => t.id)).toEqual(['b'])
++    expect(applyFilters(nov, { categoryId: '', type: '', search: '  ann ' }).map((t) => t.id)).toEqual(['c'])
++    expect(applyFilters(nov, { categoryId: 'food', type: 'income', search: '' })).toEqual([])
++    expect(applyFilters(nov, { categoryId: '', type: '', search: '' })).toHaveLength(3)
++  })
++})
++
++describe('validation', () => {
++  const base = { type: 'expense' as const, amount: '10', categoryId: 'food', date: '2026-11-05', note: '  hi  ' }
++  it('accepts a valid draft and trims the note', () => {
++    expect(validateDraft(base, cats)).toEqual({
++      ok: true, value: { type: 'expense', amountCents: 1000, categoryId: 'food', date: '2026-11-05', note: 'hi' },
++    })
++  })
++  it('reports amount and date errors together', () => {
++    const r = validateDraft({ ...base, amount: '0', date: '' }, cats)
++    expect(r).toEqual({ ok: false, errors: { amount: 'Amount must be above zero.', date: 'A date is required.' } })
++  })
++  it('rejects unknown categories and invalid dates', () => {
++    const r = validateDraft({ ...base, categoryId: 'nope', date: '2026-02-31' }, cats)
++    expect(r.ok).toBe(false)
++    if (!r.ok) expect(Object.keys(r.errors).sort()).toEqual(['categoryId', 'date'])
++  })
++  it('validates category names', () => {
++    expect(validateCategoryName('  ', cats)).toBe('Enter a category name.')
++    expect(validateCategoryName('food', cats)).toBe('That category already exists.')
++    expect(validateCategoryName('Pets', cats)).toBeNull()
++  })
++})
++
++describe('CSV', () => {
++  it('exports with header, escaping and formula neutralising', () => {
++    const csv = toCSV([
++      tx({ date: '2026-11-03', amountCents: 1250, note: 'Lunch, "big" one' }),
++      tx({ date: '2026-11-01', type: 'income', amountCents: 10, categoryId: 'other', note: '=SUM(A1)' }),
++    ], cats)
++    expect(csv).toBe(
++      'Date,Type,Category,Amount,Note\r\n' +
++      '2026-11-01,income,Other,0.10,\'=SUM(A1)\r\n' +
++      '2026-11-03,expense,Food,12.50,"Lunch, ""big"" one"\r\n',
++    )
++  })
++  it('exports a header only for an empty month', () => {
++    expect(toCSV([], cats)).toBe('Date,Type,Category,Amount,Note\r\n')
++  })
++})
++
++describe('storage parsing', () => {
++  it('falls back to defaults on missing or corrupt data', () => {
++    expect(parseStored(null).categories).toHaveLength(6)
++    expect(parseStored('{not json').transactions).toEqual([])
++    expect(parseStored('{"version":2}').categories).toHaveLength(6)
++  })
++  it('round-trips data and drops invalid rows', () => {
++    const good = tx({ id: 'ok' })
++    const raw = JSON.stringify({
++      version: 1,
++      categories: [...cats, { id: 'pets', name: 'Pets', color: '#123456', budgetCents: 5000 }],
++      transactions: [good, { ...good, id: 'bad', amountCents: 0.5 }, { ...good, id: 'orphan', categoryId: 'gone' }],
++    })
++    const d = parseStored(raw)
++    expect(d.categories.map((c) => c.id)).toContain('pets')
++    expect(d.transactions.map((t) => t.id)).toEqual(['ok', 'orphan'])
++    expect(d.transactions[1].categoryId).toBe('other')
++  })
++})
+diff --git a/src/lib/budget.ts b/src/lib/budget.ts
+new file mode 100644
+index 0000000..49952ba
+--- /dev/null
++++ b/src/lib/budget.ts
+@@ -0,0 +1,283 @@
++import { centsToPlain, parseAmount } from './money.ts'
++
++export type TxType = 'income' | 'expense'
++
++export interface Category {
++  id: string
++  name: string
++  color: string
++  /** Monthly budget in cents, or null when none is set. */
++  budgetCents: number | null
++  builtIn?: boolean
++}
++
++export interface Transaction {
++  id: string
++  type: TxType
++  amountCents: number
++  categoryId: string
++  /** Local calendar date, "YYYY-MM-DD". */
++  date: string
++  note: string
++}
++
++export interface AppData {
++  version: 1
++  categories: Category[]
++  transactions: Transaction[]
++}
++
++export const DEFAULT_CATEGORIES: Category[] = [
++  { id: 'food', name: 'Food', color: '#2a78d6', budgetCents: null, builtIn: true },
++  { id: 'housing', name: 'Housing', color: '#eb6834', budgetCents: null, builtIn: true },
++  { id: 'transport', name: 'Transport', color: '#1baf7a', budgetCents: null, builtIn: true },
++  { id: 'fun', name: 'Fun', color: '#eda100', budgetCents: null, builtIn: true },
++  { id: 'health', name: 'Health', color: '#e87ba4', budgetCents: null, builtIn: true },
++  { id: 'other', name: 'Other', color: '#8a8a85', budgetCents: null, builtIn: true },
++]
++
++/** Suggested colours for user categories (remaining validated palette slots first). */
++export const CUSTOM_COLORS = ['#6250d6', '#e34948', '#008300', '#0e7490', '#a16207', '#be185d']
++
++export function defaultData(): AppData {
++  return { version: 1, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), transactions: [] }
++}
++
++// ---------- dates & months ----------
++
++const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/
++
++export function isValidDate(s: string): boolean {
++  const m = DATE_RE.exec(s)
++  if (!m) return false
++  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
++  const dt = new Date(y, mo - 1, d)
++  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d
++}
++
++const pad = (n: number) => String(n).padStart(2, '0')
++
++export function todayISO(now = new Date()): string {
++  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
++}
++
++/** "YYYY-MM" */
++export function monthOf(date: string): string {
++  return date.slice(0, 7)
++}
++
++export function shiftMonth(month: string, delta: number): string {
++  const [y, m] = month.split('-').map(Number)
++  const total = y * 12 + (m - 1) + delta
++  return `${Math.floor(total / 12)}-${pad((total % 12) + 1)}`
++}
++
++export function monthLabel(month: string): string {
++  const [y, m] = month.split('-').map(Number)
++  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
++}
++
++/** A sensible default date for a new transaction in the given month. */
++export function defaultDateFor(month: string, now = new Date()): string {
++  const today = todayISO(now)
++  return monthOf(today) === month ? today : `${month}-01`
++}
++
++// ---------- queries ----------
++
++export function transactionsForMonth(txs: Transaction[], month: string): Transaction[] {
++  // Newest date first; within a day, the most recently added first.
++  return txs
++    .map((t, i) => [t, i] as const)
++    .filter(([t]) => monthOf(t.date) === month)
++    .sort(([a, ai], [b, bi]) => (a.date === b.date ? bi - ai : b.date.localeCompare(a.date)))
++    .map(([t]) => t)
++}
++
++export interface Totals {
++  incomeCents: number
++  expenseCents: number
++  balanceCents: number
++}
++
++export function totals(txs: Transaction[]): Totals {
++  let incomeCents = 0
++  let expenseCents = 0
++  for (const t of txs) {
++    if (t.type === 'income') incomeCents += t.amountCents
++    else expenseCents += t.amountCents
++  }
++  return { incomeCents, expenseCents, balanceCents: incomeCents - expenseCents }
++}
++
++export interface CategorySlice {
++  category: Category
++  cents: number
++}
++
++/** Expense totals per category (only categories with spending), largest first. */
++export function expensesByCategory(txs: Transaction[], categories: Category[]): CategorySlice[] {
++  const sums = new Map<string, number>()
++  for (const t of txs) if (t.type === 'expense') sums.set(t.categoryId, (sums.get(t.categoryId) ?? 0) + t.amountCents)
++  const out: CategorySlice[] = []
++  for (const c of categories) {
++    const cents = sums.get(c.id)
++    if (cents) out.push({ category: c, cents })
++  }
++  return out.sort((a, b) => b.cents - a.cents)
++}
++
++export interface BudgetStatus {
++  category: Category
++  spentCents: number
++  budgetCents: number
++  /** 0..1 for the bar width. */
++  ratio: number
++  over: boolean
++}
++
++export function budgetStatuses(txs: Transaction[], categories: Category[]): BudgetStatus[] {
++  const spent = new Map<string, number>()
++  for (const t of txs) if (t.type === 'expense') spent.set(t.categoryId, (spent.get(t.categoryId) ?? 0) + t.amountCents)
++  return categories
++    .filter((c) => c.budgetCents !== null && c.budgetCents > 0)
++    .map((c) => {
++      const budgetCents = c.budgetCents as number
++      const spentCents = spent.get(c.id) ?? 0
++      return { category: c, spentCents, budgetCents, ratio: Math.min(1, spentCents / budgetCents), over: spentCents > budgetCents }
++    })
++}
++
++export interface Filters {
++  categoryId: string // '' = all
++  type: '' | TxType
++  search: string
++}
++
++export function applyFilters(txs: Transaction[], f: Filters): Transaction[] {
++  const q = f.search.trim().toLowerCase()
++  return txs.filter(
++    (t) =>
++      (f.categoryId === '' || t.categoryId === f.categoryId) &&
++      (f.type === '' || t.type === f.type) &&
++      (q === '' || t.note.toLowerCase().includes(q)),
++  )
++}
++
++// ---------- validation ----------
++
++export interface TxDraft {
++  type: TxType
++  amount: string
++  categoryId: string
++  date: string
++  note: string
++}
++
++export type DraftErrors = Partial<Record<'amount' | 'date' | 'categoryId' | 'note', string>>
++
++export const MAX_NOTE = 200
++
++export function validateDraft(
++  d: TxDraft,
++  categories: Category[],
++): { ok: true; value: Omit<Transaction, 'id'> } | { ok: false; errors: DraftErrors } {
++  const errors: DraftErrors = {}
++  const amount = parseAmount(d.amount)
++  if (!amount.ok) errors.amount = amount.error
++  if (d.date.trim() === '') errors.date = 'A date is required.'
++  else if (!isValidDate(d.date)) errors.date = 'Enter a valid date.'
++  if (!categories.some((c) => c.id === d.categoryId)) errors.categoryId = 'Choose a category.'
++  const note = d.note.trim()
++  if (note.length > MAX_NOTE) errors.note = `Keep the note under ${MAX_NOTE} characters.`
++  if (Object.keys(errors).length > 0 || !amount.ok) return { ok: false, errors }
++  return { ok: true, value: { type: d.type, amountCents: amount.cents, categoryId: d.categoryId, date: d.date, note } }
++}
++
++export function validateCategoryName(name: string, categories: Category[]): string | null {
++  const n = name.trim()
++  if (n === '') return 'Enter a category name.'
++  if (n.length > 30) return 'Keep the name under 30 characters.'
++  if (categories.some((c) => c.name.toLowerCase() === n.toLowerCase())) return 'That category already exists.'
++  return null
++}
++
++// ---------- CSV ----------
++
++function csvCell(value: string): string {
++  // Neutralise spreadsheet formula injection, then quote if needed.
++  let v = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
++  if (/[",\r\n]/.test(v)) v = `"${v.replace(/"/g, '""')}"`
++  return v
++}
++
++export function toCSV(txs: Transaction[], categories: Category[]): string {
++  const name = new Map(categories.map((c) => [c.id, c.name]))
++  const rows = [['Date', 'Type', 'Category', 'Amount', 'Note']]
++  for (const t of [...txs].sort((a, b) => a.date.localeCompare(b.date))) {
++    rows.push([t.date, t.type, name.get(t.categoryId) ?? 'Unknown', centsToPlain(t.amountCents), t.note])
++  }
++  return rows.map((r) => r.map((c, i) => (i === 3 ? c : csvCell(c))).join(',')).join('\r\n') + '\r\n'
++}
++
++// ---------- storage ----------
++
++export const STORAGE_KEY = 'budget-tracker:v1'
++
++function isCategory(x: unknown): x is Category {
++  const c = x as Category
++  return (
++    !!c && typeof c.id === 'string' && typeof c.name === 'string' && typeof c.color === 'string' &&
++    (c.budgetCents === null || (Number.isSafeInteger(c.budgetCents) && c.budgetCents >= 0))
++  )
++}
++
++function isTransaction(x: unknown): x is Transaction {
++  const t = x as Transaction
++  return (
++    !!t && typeof t.id === 'string' && (t.type === 'income' || t.type === 'expense') &&
++    Number.isSafeInteger(t.amountCents) && t.amountCents > 0 && typeof t.categoryId === 'string' &&
++    typeof t.date === 'string' && isValidDate(t.date) && typeof t.note === 'string'
++  )
++}
++
++/** Parse stored JSON; anything malformed falls back to defaults rather than crashing. */
++export function parseStored(raw: string | null): AppData {
++  if (!raw) return defaultData()
++  try {
++    const data = JSON.parse(raw) as Partial<AppData>
++    if (!data || data.version !== 1 || !Array.isArray(data.categories) || !Array.isArray(data.transactions)) return defaultData()
++    const categories = data.categories.filter(isCategory)
++    for (const d of DEFAULT_CATEGORIES) if (!categories.some((c) => c.id === d.id)) categories.push({ ...d })
++    const ids = new Set(categories.map((c) => c.id))
++    const transactions = data.transactions.filter(isTransaction).map((t) => (ids.has(t.categoryId) ? t : { ...t, categoryId: 'other' }))
++    return { version: 1, categories, transactions }
++  } catch {
++    return defaultData()
++  }
++}
++
++export function loadData(storage: Storage = localStorage): AppData {
++  try {
++    return parseStored(storage.getItem(STORAGE_KEY))
++  } catch {
++    return defaultData()
++  }
++}
++
++export function saveData(data: AppData, storage: Storage = localStorage): boolean {
++  try {
++    storage.setItem(STORAGE_KEY, JSON.stringify(data))
++    return true
++  } catch {
++    return false
++  }
++}
++
++export function newId(): string {
++  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
++    ? crypto.randomUUID()
++    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
++}
++
++export { parseAmount }
+diff --git a/src/lib/money.ts b/src/lib/money.ts
+new file mode 100644
+index 0000000..74e93d3
+--- /dev/null
++++ b/src/lib/money.ts
+@@ -0,0 +1,39 @@
++// All amounts are stored as integer cents, so arithmetic is exact (0.10 + 0.20 === 0.30).
++
++export const MAX_CENTS = 100_000_000_000 // 1 billion in major units
++
++export type ParseResult = { ok: true; cents: number } | { ok: false; error: string }
++
++/** Parse a user-typed amount like "12", "12.5", "12,50" or "1 234.56" into integer cents. */
++export function parseAmount(input: string): ParseResult {
++  const s = input.trim().replace(/[\s_]/g, '')
++  if (s === '') return { ok: false, error: 'Enter an amount.' }
++  // "1,234.56" -> thousands separators; "12,50" -> decimal comma.
++  const normalised = s.includes('.') ? s.replace(/,(?=\d{3}(\D|$))/g, '') : s.replace(',', '.')
++  if (normalised.startsWith('-')) return { ok: false, error: 'Amount must be above zero.' }
++  const m = /^(\d*)(?:\.(\d*))?$/.exec(normalised)
++  if (!m || (m[1] === '' && (m[2] ?? '') === '')) return { ok: false, error: 'Amount must be a number, e.g. 12.50.' }
++  const frac = m[2] ?? ''
++  if (frac.length > 2) return { ok: false, error: 'Use at most 2 decimal places.' }
++  const whole = m[1] === '' ? 0 : Number(m[1])
++  const cents = whole * 100 + Number(frac.padEnd(2, '0'))
++  if (cents <= 0) return { ok: false, error: 'Amount must be above zero.' }
++  if (!Number.isSafeInteger(cents) || cents > MAX_CENTS) return { ok: false, error: 'Amount is too large.' }
++  return { ok: true, cents }
++}
++
++/** Format integer cents as "1,234.56" (no currency symbol). */
++export function formatCents(cents: number): string {
++  const sign = cents < 0 ? '-' : ''
++  const abs = Math.abs(cents)
++  const whole = Math.floor(abs / 100)
++  const frac = String(abs % 100).padStart(2, '0')
++  return `${sign}${whole.toLocaleString('en-US')}.${frac}`
++}
++
++/** Plain machine format for CSV and form inputs: "1234.56". */
++export function centsToPlain(cents: number): string {
++  const sign = cents < 0 ? '-' : ''
++  const abs = Math.abs(cents)
++  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`
++}
+diff --git a/vite.config.ts b/vite.config.ts
+index 1ad07b5..a55250d 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -1,3 +1,4 @@
++/// <reference types="vitest/config" />
+ import react from '@vitejs/plugin-react'
+ import tailwindcss from '@tailwindcss/vite'
+ import { defineConfig } from 'vite'
+@@ -5,4 +6,5 @@ import { defineConfig } from 'vite'
+ export default defineConfig({
+   plugins: [react(), tailwindcss()],
+   server: { port: 5214, strictPort: true },
++  test: { include: ['src/**/*.test.ts'] },
+ })

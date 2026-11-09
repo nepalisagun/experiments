@@ -1,0 +1,95 @@
+diff --git a/e2e/kanban.spec.ts b/e2e/kanban.spec.ts
+index 08c9621..14aaccd 100644
+--- a/e2e/kanban.spec.ts
++++ b/e2e/kanban.spec.ts
+@@ -42,8 +42,9 @@ test.beforeEach(async ({ page }) => {
+ })
+ 
+ test('three columns with counts and empty states', async ({ page }) => {
+-  for (const [id, name] of [['todo', 'To do'], ['doing', 'Doing'], ['done', 'Done']]) {
++  for (const [id, name] of [['todo', 'To do'], ['doing', 'In progress'], ['done', 'Done']]) {
+     await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible()
++    await expect(page.getByRole('heading', { level: 2, name: 'Doing' })).toHaveCount(0)
+     await expect(page.getByTestId(`count-${id}`)).toContainText('0')
+   }
+   await expect(page.getByText('Nothing to do yet — add a card')).toBeVisible()
+@@ -152,7 +153,7 @@ test('WIP limit warning on Doing above 3 cards', async ({ page }) => {
+   await expect(page.getByTestId('count-doing')).toHaveText('3 / 3')
+   await expect(page.getByRole('alert')).toHaveCount(0)
+   await card(page, 'Four').getByLabel(/Move .* to column/).selectOption('doing')
+-  await expect(page.getByRole('alert')).toContainText('Work-in-progress limit exceeded')
++  await expect(page.getByRole('alert')).toContainText('Work-in-progress limit exceeded: 4 cards in In progress (limit 3)')
+   await expect(page.getByTestId('count-doing')).toHaveText('4 / 3')
+   await shot(page, 'wip')
+   await card(page, 'One').getByLabel(/Move .* to column/).selectOption('done')
+@@ -204,6 +205,25 @@ test('overdue cards are highlighted unless done', async ({ page }) => {
+   await expect(card(page, 'Late')).not.toHaveAttribute('data-overdue')
+ })
+ 
++test('card titles in Done are struck through', async ({ page }) => {
++  await seed(page, [
++    { id: '1', title: 'Open task', column: 'todo' },
++    { id: '2', title: 'Busy task', column: 'doing' },
++    { id: '3', title: 'Finished task', column: 'done' },
++  ])
++  const deco = (title: string) =>
++    page.getByRole('heading', { name: title, exact: true }).evaluate((el) => getComputedStyle(el).textDecorationLine)
++  expect(await deco('Finished task')).toBe('line-through')
++  expect(await deco('Open task')).toBe('none')
++  expect(await deco('Busy task')).toBe('none')
++  await shot(page, 'done-strikethrough')
++  // Moving into Done adds the strikethrough; moving out removes it.
++  await card(page, 'Open task').getByLabel(/Move .* to column/).selectOption('done')
++  await expect.poll(() => deco('Open task')).toBe('line-through')
++  await card(page, 'Finished task').getByLabel(/Move .* to column/).selectOption('doing')
++  await expect.poll(() => deco('Finished task')).toBe('none')
++})
++
+ test('board survives reload', async ({ page }) => {
+   await page.getByRole('button', { name: '+ Add card' }).click()
+   await fillCard(page, { title: 'Persist me', priority: 'High', due: isoOffset(1), description: 'desc' })
+diff --git a/src/App.tsx b/src/App.tsx
+index b3444cb..0ebed63 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -216,7 +216,7 @@ export default function App() {
+ 
+                 {warn && (
+                   <p role="alert" className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">
+-                    ⚠ Work-in-progress limit exceeded: {all.length} cards in Doing (limit {WIP_LIMIT}).
++                    ⚠ Work-in-progress limit exceeded: {all.length} cards in {col.title} (limit {WIP_LIMIT}).
+                   </p>
+                 )}
+ 
+@@ -289,7 +289,7 @@ function CardBody({ card, overdue }: { card: Card; overdue: boolean }) {
+         </span>
+         {overdue && <span className="rounded bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white">Overdue</span>}
+       </div>
+-      <h3 className="mt-1.5 font-medium break-words">{card.title}</h3>
++      <h3 className={`mt-1.5 font-medium break-words ${card.column === 'done' ? 'text-slate-500 line-through' : ''}`}>{card.title}</h3>
+       {card.description && <p className="mt-1 text-sm whitespace-pre-line break-words text-slate-600 line-clamp-4">{card.description}</p>}
+       {card.due && (
+         <p className={`mt-1.5 text-xs ${overdue ? 'font-semibold text-red-700' : 'text-slate-500'}`}>
+@@ -343,7 +343,7 @@ function CardItem({ card, overdue, dragging, onPointerDown, onKeyDown, onEdit, o
+           onChange={(e) => onMoveTo(e.target.value as ColumnId)}
+           className="mr-auto min-h-9 rounded border border-slate-200 bg-white px-1.5 text-sm text-slate-700 md:min-h-7 md:text-xs"
+         >
+-          {COLUMNS.map((c) => <option key={c.id} value={c.id}>{c.id === card.column ? `In: ${c.title}` : `Move to ${c.title}`}</option>)}
++          {COLUMNS.map((c) => <option key={c.id} value={c.id}>{c.id === card.column ? c.title : `Move to ${c.title}`}</option>)}
+         </select>
+         <button type="button" onClick={onEdit} aria-label={`Edit “${card.title}”`} className="min-h-9 rounded px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 md:min-h-7 md:px-2 md:text-xs">
+           Edit
+diff --git a/src/board.ts b/src/board.ts
+index 58bcde5..d8401ed 100644
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -15,7 +15,8 @@ export type CardInput = Pick<Card, 'title' | 'description' | 'due' | 'priority'>
+ 
+ export const COLUMNS: { id: ColumnId; title: string }[] = [
+   { id: 'todo', title: 'To do' },
+-  { id: 'doing', title: 'Doing' },
++  // Internal id stays 'doing' so boards already saved in localStorage keep loading.
++  { id: 'doing', title: 'In progress' },
+   { id: 'done', title: 'Done' },
+ ]
+ 

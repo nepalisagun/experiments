@@ -1,0 +1,96 @@
+diff --git a/e2e/kanban.spec.ts b/e2e/kanban.spec.ts
+index 941f8b0..4cd5e5e 100644
+--- a/e2e/kanban.spec.ts
++++ b/e2e/kanban.spec.ts
+@@ -5,11 +5,13 @@ const sizes = [
+   { name: 'mobile', width: 375, height: 700 },
+ ]
+ 
+-const col = (page: Page, name: string) => page.locator(`section[aria-label="${name}"]`)
++// Tests refer to the middle column by its internal id "Doing"; its visible name is "In progress".
++const label = (name: string) => (name === 'Doing' ? 'In progress' : name)
++const col = (page: Page, name: string) => page.locator(`section[aria-label="${label(name)}"]`)
+ const cardIn = (page: Page, c: string, title: string) => col(page, c).locator('article', { hasText: title })
+ 
+ async function add(page: Page, column: string, title: string, o: { desc?: string; due?: string; prio?: string } = {}) {
+-  await page.getByRole('button', { name: `Add card to ${column}` }).click()
++  await page.getByRole('button', { name: `Add card to ${label(column)}` }).click()
+   const d = page.getByRole('dialog')
+   await d.getByLabel('Title').fill(title)
+   if (o.desc) await d.getByLabel(/Description/).fill(o.desc)
+@@ -110,7 +112,7 @@ for (const size of sizes) {
+       await page.keyboard.press('Alt+ArrowLeft')
+       await expect(cardIn(page, 'Doing', 'One')).toBeVisible()
+       // button alternative
+-      await cardIn(page, 'To do', 'Two').getByRole('button', { name: /Move .* to Doing/ }).click()
++      await cardIn(page, 'To do', 'Two').getByRole('button', { name: /Move .* to In progress/ }).click()
+       await expect(col(page, 'Doing').locator('article')).toHaveCount(2)
+       // reorder within column
+       await cardIn(page, 'Doing', 'Two').focus()
+@@ -154,12 +156,30 @@ for (const size of sizes) {
+       await expect(page.locator('article')).toHaveCount(2)
+     })
+ 
++    test('column is named "In progress" and Done titles are struck through', async ({ page }) => {
++      await expect(page.getByRole('heading', { name: /^In progress/ })).toBeVisible()
++      await expect(page.getByRole('heading', { name: /^Doing/ })).toHaveCount(0)
++      await add(page, 'To do', 'Strike me')
++      const deco = (c: string) => cardIn(page, c, 'Strike me').getByTestId('card-title')
++        .evaluate((el) => getComputedStyle(el).textDecorationLine)
++      expect(await deco('To do')).toBe('none')
++      await page.getByRole('button', { name: 'Move “Strike me” to In progress' }).click()
++      expect(await deco('Doing')).toBe('none')
++      await page.getByRole('button', { name: 'Move “Strike me” to Done' }).click()
++      expect(await deco('Done')).toBe('line-through')
++      await page.screenshot({ path: `shots/${size.name}-done-strike.png`, fullPage: true })
++      await page.reload() // persisted data written under the old name still maps to the column
++      expect(await deco('Done')).toBe('line-through')
++      await page.getByRole('button', { name: 'Move “Strike me” to In progress' }).click()
++      expect(await deco('Doing')).toBe('none')
++    })
++
+     test('overdue highlight (not in Done)', async ({ page }) => {
+       await add(page, 'To do', 'Late', { due: '2000-01-01' })
+       await add(page, 'To do', 'Fine', { due: '2999-01-01' })
+       await expect(cardIn(page, 'To do', 'Late').getByTestId('overdue-badge')).toBeVisible()
+       await expect(cardIn(page, 'To do', 'Fine').getByTestId('overdue-badge')).toBeHidden()
+-      await cardIn(page, 'To do', 'Late').getByRole('button', { name: /Move .* to Doing/ }).click()
++      await cardIn(page, 'To do', 'Late').getByRole('button', { name: /Move .* to In progress/ }).click()
+       await expect(cardIn(page, 'Doing', 'Late').getByTestId('overdue-badge')).toBeVisible()
+       await cardIn(page, 'Doing', 'Late').getByRole('button', { name: /Move .* to Done/ }).click()
+       await expect(cardIn(page, 'Done', 'Late').getByTestId('overdue-badge')).toBeHidden()
+diff --git a/src/App.tsx b/src/App.tsx
+index 57d6a9a..1556588 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -247,7 +247,7 @@ export default function App() {
+ 
+                 {col === 'doing' && wipExceeded(board) && (
+                   <div role="alert" data-testid="wip-warning" className="mb-2 rounded-md border border-amber-400 bg-amber-100 px-3 py-2 text-sm text-amber-900">
+-                    ⚠ WIP limit exceeded: {total} cards in Doing (limit {WIP_LIMIT}). Finish something before starting more.
++                    ⚠ WIP limit exceeded: {total} cards in {COLUMN_TITLES.doing} (limit {WIP_LIMIT}). Finish something before starting more.
+                   </div>
+                 )}
+ 
+@@ -355,7 +355,7 @@ function CardView({ card, column, overdue, dragging, onPointerDown, onEdit, onDe
+       <div className="flex items-start gap-2">
+         <span data-handle aria-hidden className="-ml-1 mt-0.5 cursor-grab touch-none px-1 text-lg leading-none text-slate-400" title="Drag to move">⠿</span>
+         <div className="min-w-0 flex-1">
+-          <p className="break-words font-medium">{card.title}</p>
++          <p data-testid="card-title" className={`break-words font-medium ${column === 'done' ? 'text-slate-500 line-through' : ''}`}>{card.title}</p>
+           {card.description && <p className="mt-1 line-clamp-3 break-words text-sm text-slate-600">{card.description}</p>}
+           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+             <span data-testid="priority" className={`rounded-full px-2 py-0.5 font-medium ring-1 ${PRIORITY_STYLES[card.priority]}`}>
+diff --git a/src/board.ts b/src/board.ts
+index 28499dd..781681c 100644
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -15,7 +15,7 @@ export interface Board {
+ }
+ 
+ export const COLUMN_IDS: ColumnId[] = ['todo', 'doing', 'done']
+-export const COLUMN_TITLES: Record<ColumnId, string> = { todo: 'To do', doing: 'Doing', done: 'Done' }
++export const COLUMN_TITLES: Record<ColumnId, string> = { todo: 'To do', doing: 'In progress', done: 'Done' }
+ export const PRIORITIES: Priority[] = ['low', 'medium', 'high']
+ export const PRIORITY_LABELS: Record<Priority, string> = { low: 'Low', medium: 'Medium', high: 'High' }
+ export const WIP_LIMIT = 3

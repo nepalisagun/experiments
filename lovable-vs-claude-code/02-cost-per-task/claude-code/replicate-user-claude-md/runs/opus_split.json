@@ -1,0 +1,706 @@
+[
+ {
+  "kind": "build",
+  "rc": 0,
+  "wall_s": 556,
+  "diff": {
+   "files": 13,
+   "added": 1745,
+   "deleted": 5
+  },
+  "result": {
+   "duration_api_ms": 350568,
+   "stop_reason": "end_turn",
+   "session_id": "ac75ccd9-611a-4db8-8a76-968815811df9",
+   "total_cost_usd": 1.9294683000000001,
+   "usage": {
+    "input_tokens": 48,
+    "cache_creation_input_tokens": 96197,
+    "cache_read_input_tokens": 1500158,
+    "output_tokens": 42975,
+    "output_tokens_details": {
+     "thinking_tokens": 3363
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 96197,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1366,
+      "cache_read_input_tokens": 95519,
+      "cache_creation_input_tokens": 678,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 678
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 48,
+     "outputTokens": 42975,
+     "cacheReadInputTokens": 1500158,
+     "cacheCreationInputTokens": 96197,
+     "webSearchRequests": 0,
+     "costUSD": 1.9292996000000004,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 3363,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 96197,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01G9nUFZgKX6oGhkMkyKFkGA",
+     "tool_input": {
+      "command": "node --version; npm --version",
+      "description": "Check Node and npm versions"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01NtANkdXvSA1Y4wavXod45j",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/opus_split\" && cat index.html tsconfig.app.json && npm pkg set scripts.test=\"vitest run --dir src\" scripts.e2e=\"playwright test\"",
+      "description": "Show index/tsconfig and add test scripts"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01Ue9NYBP4ghanEgt9YhFvUT",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/opus_split\" && sed -i \"s/getByLabel('Tax')/getByLabel('Tax', { exact: true })/g\" e2e/app.spec.ts && npx playwright test --reporter=line --project=desktop 2>&1 | grep -E \"Error:|\u203a|passed|failed\" | head -40",
+      "timeout": 300000,
+      "description": "Fix Tax selector ambiguity and rerun desktop"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 46,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "I've built the bill-splitting app and all 11 requirements work. The 24 logic tests pass, and the 9 browser tests pass at both 1280px and 375px wide (18 runs). Lint and the production build are clean. Run it with `npm run dev` (http://localhost:5211). I haven't committed anything.\n\n**How it splits the bill**\n- **Items:** each one is split equally among the people who shared it.\n- **Tax and tip:** both are worked out on the items subtotal, rounded to the cent, then split in proportion to what each person had. The tip is on the pre-tax amount, and a note in the app says so.\n- **Rounding:** money is stored in whole cents, and each column (items, tax, tip) is divided with a method that hands leftover pennies to whoever was closest to the next cent. So the per-person totals always add up exactly to the bill total. When two people are tied for a leftover penny, it goes to whoever is listed first.\n\n**Decisions I made that you may want to change**\n- **Removing a person:** if they're the only person on an item, a confirmation dialog asks first, and removing them also removes that item. Otherwise they just come off their shared items.\n- **Names:** duplicate names (ignoring case) are rejected so the copied summary can't be ambiguous.\n- **Tax and tip limits:** they must be between 0 and 100%. If one is invalid, a message says it counts as 0% until fixed.\n- **Prices:** \"12,50\" is accepted as well as \"12.50\", with at most 2 decimal places.\n- **Reset:** clears everything except the currency you picked.\n- **Saved data:** if what's saved in the browser is corrupt, the app starts with an empty bill instead of crashing.\n\n**Bugs found and fixed while testing**\n- The two confirmation dialogs used the same internal ID, so the \"Remove Ann?\" dialog was labelled \"Reset the bill?\" for screen readers.\n- On Windows the copied summary comes back from the clipboard with Windows line endings. Only the test needed adjusting; pasting works normally.\n\nI added `vitest` as a dev dependency, plus `npm test` (logic tests) and `npm run e2e` (browser tests). The logic is in `src/lib/bill.ts`, and the screens are in `src/components/`.\n\n**What I tested and how**\n- **Logic tests** (`src/lib/bill.test.ts`, run with `npm test`, 24 passing):\n  - Reading prices and percentages, rejecting negative or malformed ones.\n  - Name and item checks, including \"at least one person\".\n  - The rounding: fixed cases plus 800 random bills, checking that every column adds up exactly to the bill total.\n  - Splitting, all tip presets and custom tip, removing people, currency formatting, the summary text, and loading saved or corrupt data.\n- **Browser tests** (`e2e/app.spec.ts`, run with `npx playwright test` in real Chrome at 1280\u00d7800 and 375\u00d7812, 18 of 18 passing):\n  - People: add, rename and remove, with the empty and duplicate-name messages.\n  - Items: add, edit and remove, the \"Everyone\" shortcut, and the messages for no name, no price, negative price, too many decimals and no people.\n  - Tax plus the 10/15/20% buttons and custom tip, including invalid values, with exact per-person amounts checked.\n  - Per-person amounts adding up exactly to the total on an awkward bill (8.875% tax, 17.3% tip, thirds).\n  - USD, EUR and PLN formatting.\n  - Copy summary, checked by reading the clipboard back.\n  - The Reset dialog (Cancel, Escape and confirm), and the remove-person dialog.\n  - Data surviving a reload, and corrupt saved data.\n  - No sideways scrolling at either width.\n- **Looking at it myself:** I opened screenshots of the full page, the validation errors, the dialogs and PLN formatting at both widths. The layouts were clean, with nothing overflowing or overlapping.",
+   "ttft_ms": 1556,
+   "type": "result",
+   "duration_ms": 554535,
+   "uuid": "9c838ded-f384-4b23-8ffe-6c21007c85d3",
+   "ttft_stream_ms": 1151,
+   "time_to_request_ms": 399,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 81,
+    "resume_other": 1,
+    "process_user_input": 6,
+    "input_attachments": 22,
+    "input_hooks": 3,
+    "conversation_append": 2,
+    "transcript_persist": 193,
+    "tool_pool_refresh": 3,
+    "init_message": 34,
+    "init_frame_send": 7,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 10,
+    "query_setup": 0,
+    "model_gates": 1,
+    "tool_schema_build": 9,
+    "message_normalization": 2,
+    "client_creation": 1,
+    "request_build": 10
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 81,
+   "time_to_request_cpu_ms": 687,
+   "time_to_request_major_faults": 8353,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 6,
+    "cpu_ms": 31,
+    "major_faults": 798,
+    "setup_ms": 0,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 11,
+    "ambient_wait_ms": 5,
+    "render_ms": 3,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 6,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 1,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 1,
+    "plans_ms": 1,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 2,
+    "record_attempt_ms": 5,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1151,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 48,
+     "outputTokens": 42975,
+     "cacheReadInputTokens": 1500158,
+     "cacheCreationInputTokens": 96197,
+     "webSearchRequests": 0,
+     "costUSD": 1.9292996000000004,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 3363,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 96197,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "small",
+  "rc": 0,
+  "wall_s": 74,
+  "diff": {
+   "files": 3,
+   "added": 27,
+   "deleted": 5
+  },
+  "result": {
+   "duration_api_ms": 391613,
+   "stop_reason": "end_turn",
+   "session_id": "ac75ccd9-611a-4db8-8a76-968815811df9",
+   "total_cost_usd": 2.1560529,
+   "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 8182,
+    "cache_read_input_tokens": 396443,
+    "output_tokens": 4090,
+    "output_tokens_details": {
+     "thinking_tokens": 507
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8182,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 795,
+      "cache_read_input_tokens": 101512,
+      "cache_creation_input_tokens": 2867,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2867
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 58,
+     "outputTokens": 47065,
+     "thinkingTokens": 3870,
+     "cacheReadInputTokens": 1896601,
+     "cacheCreationInputTokens": 104379,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 104379,
+     "webSearchRequests": 0,
+     "costUSD": 2.1558842000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 10,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The default tip is now 18%, and there's an 18% button between 15% and 20%. All the existing tests pass after the updates below, and the change looks right in the browser at both sizes.\n\nThe change is two lines in `src/lib/bill.ts`: the list of preset buttons and the default for a new bill.\n\n**Things to know**\n- **Saved bills:** a bill already saved in someone's browser with 15% stays at 15%. Only new bills, and bills after Reset, start at 18%. A unit test now checks both.\n- **Mobile layout:** at 375px, the five tip buttons don't fit on one line, so \"Custom\" wraps onto a second row. It still reads fine. If you'd rather have one row, the buttons would need to be smaller or \"Custom\" given a shorter label.\n- **Test changes:** one browser test assumed the old 15% default (a $7.50 tip on $50), so I changed it to expect $9.00. I also added checks for the new button, described below.\n\n**What I checked**\n- **Logic tests** (`npm test`): 24 of 24 pass. I extended the existing tip test to cover the 18% and 20% buttons, the 18% default, and that old 15% bills keep 15%.\n- **Browser tests** (`npx playwright test` in real Chrome at 1280\u00d7800 and 375\u00d7812): 18 of 18 pass. They now check that:\n  - 18% is selected by default and gives a $9.00 tip on $50.\n  - The buttons run 10%, 15%, 18%, 20%, Custom, including when they wrap on mobile.\n  - Clicking 18% selects it, deselects 15%, and gives Ann her share of the tip ($5.40).\n- **Build and lint:** both clean.\n- **Looking at it myself:** I opened screenshots at both widths. On desktop all five buttons sit on one row; on mobile \"Custom\" drops to a second row. The 18% button shows as selected in both, and the per-person tip amounts add up to the $9.00 tip.",
+   "ttft_ms": 3979,
+   "type": "result",
+   "duration_ms": 71909,
+   "uuid": "71265d8f-2b48-4b50-8c44-b3e465c2fa10",
+   "ttft_stream_ms": 1252,
+   "time_to_request_ms": 469,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 48,
+    "resume_other": 0,
+    "process_user_input": 4,
+    "input_attachments": 21,
+    "input_hooks": 4,
+    "conversation_append": 2,
+    "transcript_persist": 101,
+    "tool_pool_refresh": 4,
+    "init_message": 215,
+    "init_frame_send": 4,
+    "engine_pickup": 1,
+    "loop_entry": 5,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 5,
+    "query_setup": 0,
+    "model_gates": 1,
+    "tool_schema_build": 10,
+    "message_normalization": 10,
+    "client_creation": 6,
+    "request_build": 19
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 149,
+   "time_to_request_cpu_ms": 797,
+   "time_to_request_major_faults": 30230,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 12,
+    "cpu_ms": 47,
+    "major_faults": 345,
+    "changed_files_reread": 0,
+    "setup_ms": 2,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 11,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 7,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 9,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 138,
+    "wire_messages": 51
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 1,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 8,
+    "other_ms": 1,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1252,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 10,
+     "outputTokens": 4090,
+     "cacheReadInputTokens": 396443,
+     "cacheCreationInputTokens": 8182,
+     "webSearchRequests": 0,
+     "costUSD": 0.22658459999999997,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 507,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 8182,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "medium",
+  "rc": 0,
+  "wall_s": 347,
+  "diff": {
+   "files": 9,
+   "added": 870,
+   "deleted": 35
+  },
+  "result": {
+   "duration_api_ms": 695279,
+   "stop_reason": "end_turn",
+   "session_id": "ac75ccd9-611a-4db8-8a76-968815811df9",
+   "total_cost_usd": 3.6302321,
+   "usage": {
+    "input_tokens": 34,
+    "cache_creation_input_tokens": 48092,
+    "cache_read_input_tokens": 2047036,
+    "output_tokens": 33995,
+    "output_tokens_details": {
+     "thinking_tokens": 6069
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 48092,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1423,
+      "cache_read_input_tokens": 151975,
+      "cache_creation_input_tokens": 496,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 496
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 92,
+     "outputTokens": 81060,
+     "thinkingTokens": 9939,
+     "cacheReadInputTokens": 3943637,
+     "cacheCreationInputTokens": 152471,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 152471,
+     "webSearchRequests": 0,
+     "costUSD": 3.6300634000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 35,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The app now records who paid and has a Settle up section that lists the fewest transfers needed to even everyone out. All 46 logic tests pass, and all 28 browser test runs pass (14 tests, each at 1280px and 375px). Lint and the production build are clean. Nothing is committed.\n\n**How it works**\n- **Who paid:** you add one or more payers, each with an amount, and a person can only be listed once. A new payer's amount is filled in with whatever is still unpaid, so with a single payer it starts at the bill total.\n- **Checking the amounts:** each amount gets its own message if it's empty, negative, not a number or has more than 2 decimals. Once those are fixed, a message says whether the payments match the total, for example \"Payments add up to $40.00, but the bill total is $60.00. $20.00 is still unpaid.\" or \"...That's $5.00 too much.\" It also offers a one-click fix: \"Set Anna's payment to $60.00\".\n- **When the total changes later:** editing items, tax or tip after recording payments shows the mismatch message again, and Settle up waits until the payments match.\n- **Settle up:** each transfer reads like \"Anna pays Ben $12.40\". The section says \"Everyone is even\" when nobody owes anything. Balances use each person's full total, including tax and tip.\n- **Copy summary:** the copied text now ends with \"Paid by:\" and \"Settle up:\" sections. If the payments don't add up, it includes the reason instead of transfers.\n- **Removing a person who paid:** their payment is removed with them, and the confirmation dialog says so first.\n- **Reset and reload:** Reset clears the payments too, and they're saved like the rest of the bill. Bills saved before this change still load.\n\n**Decisions you may want to change**\n- **Currency symbol:** your example was \"Anna pays Ben 12.40\", but transfers include the currency symbol, like the rest of the app (\"$12.40\", \"12,40 \u20ac\").\n- **Fewest transfers:** the result is the true minimum, and a test compares it against an exhaustive search. Above 16 people with something owed or due, it switches to a faster method that is valid but not guaranteed minimal. That limit is my choice; a dinner rarely gets near it.\n- **Layout:** on desktop, Who paid and Settle up sit in the right column under Per person. That keeps the order sensible on mobile, but on desktop the left column ends well before the right one.\n\nThe logic is in `src/lib/settle.ts`, the summary moved to `src/lib/summary.ts`, and the new screens are `src/components/Payments.tsx` and `src/components/SettleUp.tsx`.\n\n**What I tested and how**\n- **Logic tests** (`npm test`, 46 passing, 22 of them new in `src/lib/settle.test.ts`):\n  - Payment checks: totals that match, are short or are over, messages in the chosen currency, and per-row errors including duplicate and missing payers.\n  - Fewest transfers: 400 random cases compared against an exhaustive search for the true minimum, plus a case where a simple matching gives more transfers than needed. Also the fallback for large groups.\n  - Settling with tax, tip and rounding included, several payers, and nobody owing anything.\n  - Saving and loading payments, removing a person who paid, and all the summary variants.\n- **Browser tests** (`e2e/settle.spec.ts`, real Chrome at 1280\u00d7800 and 375\u00d7812, run alongside the existing suite):\n  - Adding payers with prefilled amounts, and the payer list leaving out people already listed.\n  - The short and over messages, the one-click fix, and each row error.\n  - Switching who a payer is, the Add payer button turning off once everyone is listed, and the \"Everyone is even\" message.\n  - A tip change after payments were recorded.\n  - Rounded shares with 8.875% tax and the 18% tip.\n  - The copied text, including payments and transfers in EUR.\n  - Payments surviving a reload, the dialog when removing a person who paid, and Reset.\n  - No sideways scrolling at either width.\n- **Looking at it myself:** I opened screenshots of the payment and settle-up states and the remove-payer dialog at both widths. The layouts were clean, and the transfer amounts on screen matched the per-person totals.",
+   "ttft_ms": 27249,
+   "type": "result",
+   "duration_ms": 345826,
+   "uuid": "59dcbc62-6971-4b34-a3cb-04ee0d7b2667",
+   "ttft_stream_ms": 1189,
+   "time_to_request_ms": 449,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 77,
+    "resume_other": 0,
+    "process_user_input": 3,
+    "input_attachments": 23,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 265,
+    "tool_pool_refresh": 3,
+    "init_message": 13,
+    "init_frame_send": 4,
+    "engine_pickup": 1,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 4,
+    "query_setup": 1,
+    "model_gates": 0,
+    "tool_schema_build": 10,
+    "message_normalization": 10,
+    "client_creation": 3,
+    "request_build": 16
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 153,
+   "time_to_request_cpu_ms": 891,
+   "time_to_request_major_faults": 29696,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 10,
+    "cpu_ms": 63,
+    "major_faults": 265,
+    "changed_files_reread": 0,
+    "setup_ms": 4,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 10,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 7,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 8,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 1,
+    "messages": 162,
+    "wire_messages": 59
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 2,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 3,
+    "record_attempt_ms": 7,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 1189,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 34,
+     "outputTokens": 33995,
+     "cacheReadInputTokens": 2047036,
+     "cacheCreationInputTokens": 48092,
+     "webSearchRequests": 0,
+     "costUSD": 1.4741792000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 6069,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 48092,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

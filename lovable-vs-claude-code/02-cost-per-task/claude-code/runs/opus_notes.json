@@ -1,0 +1,706 @@
+[
+ {
+  "kind": "build",
+  "rc": 0,
+  "wall_s": 729,
+  "diff": {
+   "files": 11,
+   "added": 1728,
+   "deleted": 4
+  },
+  "result": {
+   "duration_api_ms": 414783,
+   "stop_reason": "end_turn",
+   "session_id": "87c3fb64-4fe0-44fe-a973-59ae13af56b5",
+   "total_cost_usd": 1.8518950000000003,
+   "usage": {
+    "input_tokens": 40,
+    "cache_creation_input_tokens": 74650,
+    "cache_read_input_tokens": 1388034,
+    "output_tokens": 48838,
+    "output_tokens_details": {
+     "thinking_tokens": 9217
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 74650,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1354,
+      "cache_read_input_tokens": 98877,
+      "cache_creation_input_tokens": 1567,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1567
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 17,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001682,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 40,
+     "outputTokens": 48838,
+     "cacheReadInputTokens": 1388034,
+     "cacheCreationInputTokens": 74650,
+     "webSearchRequests": 0,
+     "costUSD": 1.8517268000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 9217,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 74650,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01HhEQpxF3r6dUFTguFdNY7T",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc2/opus_notes\" && npm pkg set scripts.test=\"vitest run --dir src\" && npx vitest run --dir src 2>&1 | grep -vE \"^\\s*\u2713\" | tail -60",
+      "description": "Run unit tests"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01SeFhkiWDg6fBeWvdHhjtuX",
+     "tool_input": {
+      "command": "npm pkg set scripts.test=\"vitest run --dir src\"",
+      "description": "Add a test script to package.json"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01G28UphxWxNXmtgaNwHyfXP",
+     "tool_input": {
+      "command": "cd e2e && sed -i \"s/await expect(titles(page)).toHaveText(\\['Welcome', 'B', 'A', 'C'\\])/await expect(titles(page)).toHaveText(['B', 'Welcome', 'A', 'C'])/; s/await expect(titles(page)).toHaveText(\\['Welcome', 'B', 'C', 'A'\\])/await expect(titles(page)).toHaveText(['B', 'Welcome', 'C', 'A'])/; s/await editor(page).press('End')/await editor(page).press('ControlOrMeta+End')/\" app.spec.ts && grep -n \"ControlOrMeta\\|'B', 'Welcome'\" app.spec.ts",
+      "description": "Fix test expectations in e2e spec"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 49,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The Markdown notes app is built, and all 12 requirements pass in a real Chrome browser at both 1280px and 375px wide. The final run passed all 42 logic tests and all 22 browser tests (11 per screen size). The type-checker and linter report no problems. Start it with `npm run dev` (http://localhost:5213). I haven't committed anything.\n\n**How it works**\n- **Markdown rendering:** I wrote a small renderer (`src/lib/markdown.ts`) instead of adding a library.\n  - **Safety:** it escapes all of the note's text and only outputs tags it creates itself, so raw HTML in a note shows up as plain text. Links are only kept if they're web, email or phone links (or relative), so `javascript:` links are dropped.\n  - **Checkboxes:** each one records which line of the note it came from, so clicking it in the preview flips the `[ ]`/`[x]` on that line.\n- **Layout:** on desktop the note list, editor and preview sit side by side. On mobile you see the note list first; tapping a note opens the editor with the preview below it, and a back button returns to the list.\n- **Rename and delete:** you rename a note by editing its title at the top of the editor. Delete asks for confirmation in a dialog (Cancel, Escape or clicking outside it all cancel).\n- **Saving:** notes save automatically 0.4 seconds after you stop typing, and the indicator shows \"Saving\u2026\" then \"Saved\". Anything not yet saved is also written when the page closes, so reloading right after typing loses nothing. If browser storage is full, the indicator says the note wasn't saved.\n- **Sorting:** pinning a note doesn't count as editing it, so it doesn't change the \"last edited\" order.\n- **First visit:** a \"Welcome\" note demonstrating the features is created.\n\n**Fixed after looking at the screenshots**\n- \"Saving\u2026\" appeared right after the page loaded even though nothing had changed.\n- List previews showed raw Markdown (`# \u2026`, `**\u2026**`); they now show plain text.\n- The welcome note said \"on the left / on the right\", which is wrong on mobile.\n\n**What I tested and how**\n- **Logic tests** (`npm test`, in `src/lib/*.test.ts`):\n  - every supported Markdown element, including nested lists and code blocks;\n  - 6 raw-HTML attacks, blocked link types, and attempts to break out of a link's address;\n  - checkbox toggling, including checkboxes inside code blocks being ignored;\n  - sorting with pinned notes, search, highlighting, previews, word count;\n  - saving and loading, including damaged saved data and full storage.\n- **Browser tests** (`npm run test:e2e`, in `e2e/app.spec.ts`), each run at 1280px and at 375px:\n  1. Layout: side by side on desktop, editor stacked above preview on mobile, no sideways scrolling.\n  2. Create, rename, and delete (Cancel, Escape and confirm all checked, plus deleting the last note).\n  3. Every Markdown element shows in the preview, and it updates as you type.\n  4. Clicking a checkbox or its label changes the Markdown text.\n  5. Search matches titles and contents, highlights the matches, and shows a message when nothing matches.\n  6\u20137. Pinning from the list and from the editor; ordering after edits; pins kept after reload.\n  8. \"Saving\u2026\" then \"Saved\" appears, and the text is in localStorage.\n  9. The word count updates, using \"1 word\" vs \"2 words\".\n  10. Dark mode stays after a reload, and switching back to light does too.\n  11. Injected scripts, images, SVGs, iframes, `javascript:` links and `onclick` never run; I clicked the links and also checked again after a reload.\n  12. Notes, checkbox state, a reload straight after typing, and deletions all survive a reload.\n- **Visual check:** I looked at the screenshots from these runs, in light and dark, at both widths. They're in `shots/`, which git ignores.",
+   "ttft_ms": 1961,
+   "type": "result",
+   "duration_ms": 727747,
+   "uuid": "fb3046b3-3e7f-43b9-afda-50374b1affbf",
+   "ttft_stream_ms": 1435,
+   "time_to_request_ms": 381,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 82,
+    "resume_other": 0,
+    "process_user_input": 2,
+    "input_attachments": 15,
+    "input_hooks": 2,
+    "conversation_append": 1,
+    "transcript_persist": 186,
+    "tool_pool_refresh": 3,
+    "system_prompt_rebuild": 0,
+    "init_message": 19,
+    "init_frame_send": 4,
+    "engine_pickup": 2,
+    "loop_entry": 5,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 4,
+    "request_announcements": 13,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 8,
+    "message_normalization": 3,
+    "client_creation": 14,
+    "request_build": 9
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 61,
+   "time_to_request_cpu_ms": 625,
+   "time_to_request_major_faults": 9788,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 4,
+    "cpu_ms": 32,
+    "major_faults": 832,
+    "setup_ms": 0,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 7,
+    "ambient_wait_ms": 4,
+    "render_ms": 1,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 6,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 2,
+    "images_ms": 1,
+    "post_process_ms": 0,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 1,
+    "plans_ms": 1,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 2,
+    "record_attempt_ms": 3,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1436,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 17,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001682,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 40,
+     "outputTokens": 48838,
+     "cacheReadInputTokens": 1388034,
+     "cacheCreationInputTokens": 74650,
+     "webSearchRequests": 0,
+     "costUSD": 1.8517268000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 9217,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 74650,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "small",
+  "rc": 0,
+  "wall_s": 84,
+  "diff": {
+   "files": 2,
+   "added": 18,
+   "deleted": 6
+  },
+  "result": {
+   "duration_api_ms": 449156,
+   "stop_reason": "end_turn",
+   "session_id": "87c3fb64-4fe0-44fe-a973-59ae13af56b5",
+   "total_cost_usd": 2.0718184000000006,
+   "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 9229,
+    "cache_read_input_tokens": 411757,
+    "output_tokens": 3185,
+    "output_tokens_details": {
+     "thinking_tokens": 282
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 9229,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 455,
+      "cache_read_input_tokens": 105544,
+      "cache_creation_input_tokens": 4129,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 4129
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 17,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001682,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 50,
+     "outputTokens": 52023,
+     "thinkingTokens": 9499,
+     "cacheReadInputTokens": 1799791,
+     "cacheCreationInputTokens": 83879,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 83879,
+     "webSearchRequests": 0,
+     "costUSD": 2.0716502000000006,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 11,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "Both changes are in. The tests pass, and I checked the result in Chrome at 1280px and 375px wide.\n\n- **Empty list text:** when there are no notes, the note list now says \"Nothing here yet. Create your first note.\"\n- **Word count:** it's no longer in the top bar. It now sits in a small row under the Markdown editor, aligned to the right. On mobile that puts it between the editor and the preview. \"Saving\u2026/Saved\" stays in the top bar.\n\nI only changed the list's empty text. On desktop, the editor area still shows its own separate message, \"You have no notes yet.\" with a \"Create a note\" button. I can make that match if you'd like.\n\n**What I checked**\n- **Logic tests:** all 42 pass, and the code type-checks.\n- **Browser tests:** all 22 pass, 11 at each width. I updated two of them:\n  - the delete test now expects the new empty-list text after the last note is deleted;\n  - the word-count test now also checks that the count sits just below the editor at its right edge and is no longer in the top bar.\n- **Screenshots at both widths:**\n  - the empty list shows the new text;\n  - the word count shows in the bottom-right of the editor (\"4 words\");\n  - nothing overlaps.",
+   "ttft_ms": 2664,
+   "type": "result",
+   "duration_ms": 81477,
+   "uuid": "9b412a65-d5a5-447f-b8cb-14201fe71906",
+   "ttft_stream_ms": 995,
+   "time_to_request_ms": 338,
+   "time_to_request_phases_ms": {
+    "other": 8,
+    "system_prompt": 64,
+    "resume_other": 1,
+    "process_user_input": 3,
+    "input_attachments": 18,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 103,
+    "tool_pool_refresh": 4,
+    "init_message": 36,
+    "init_frame_send": 6,
+    "engine_pickup": 2,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 5,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 14,
+    "message_normalization": 8,
+    "client_creation": 8,
+    "request_build": 45
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 75,
+   "time_to_request_cpu_ms": 609,
+   "time_to_request_major_faults": 12893,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 3,
+    "cpu_ms": 31,
+    "major_faults": 511,
+    "changed_files_reread": 0,
+    "setup_ms": 5,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 8,
+    "ambient_wait_ms": 3,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 10,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 6,
+    "images_ms": 0,
+    "post_process_ms": 2,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 146,
+    "wire_messages": 43
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 2,
+    "cache_break_record_ms": 1,
+    "plans_ms": 3,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 5,
+    "record_attempt_ms": 33,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 995,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 10,
+     "outputTokens": 3185,
+     "cacheReadInputTokens": 411757,
+     "cacheCreationInputTokens": 9229,
+     "webSearchRequests": 0,
+     "costUSD": 0.2199234,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 282,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 9229,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "medium",
+  "rc": 0,
+  "wall_s": 511,
+  "diff": {
+   "files": 12,
+   "added": 1029,
+   "deleted": 11
+  },
+  "result": {
+   "duration_api_ms": 810544,
+   "stop_reason": "end_turn",
+   "session_id": "87c3fb64-4fe0-44fe-a973-59ae13af56b5",
+   "total_cost_usd": 3.7399086000000006,
+   "usage": {
+    "input_tokens": 36,
+    "cache_creation_input_tokens": 53664,
+    "cache_read_input_tokens": 2334771,
+    "output_tokens": 38584,
+    "output_tokens_details": {
+     "thinking_tokens": 11578
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 53664,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1272,
+      "cache_read_input_tokens": 162795,
+      "cache_creation_input_tokens": 542,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 542
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 17,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001682,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 86,
+     "outputTokens": 90607,
+     "thinkingTokens": 21077,
+     "cacheReadInputTokens": 4134562,
+     "cacheCreationInputTokens": 137543,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 137543,
+     "webSearchRequests": 0,
+     "costUSD": 3.7397404000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 45,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "Tags are working. Any `#tag` in a note's text becomes a tag. The sidebar lists every tag with its note count, and you can filter by a tag, rename it everywhere, and get suggestions while typing. All 64 logic tests and all 30 browser tests pass, and lint and the type-check are clean. I haven't committed anything.\n\n**How tags behave**\n- **What counts as a tag:** `#` followed by letters, digits, `_` or `-`, like `#work`, `#to-do` or `#za\u017c\u00f3\u0142\u0107`. Tags ignore case and are shown in lowercase.\n- **What doesn't count:**\n  - `# Heading` (a hash followed by a space)\n  - numbers like `#42`\n  - `C#`, `page#anchor` and URLs\n  - anything inside code\n- **Sidebar:** a \"Tags\" section shows each tag with how many notes use it. Clicking a tag filters the list, and clicking it again clears the filter. A bar (\"Tagged #work \u00b7 Rename \u00b7 \u00d7\") also has a clear button. The tag filter combines with search.\n- **Preview:** tags appear as small chips, and clicking one filters the list too (on mobile it switches back to the list).\n- **Suggestions while typing:** typing `#` lists existing tags. Tags that start with what you've typed come first, then tags that contain it. Arrow keys move through the list, Enter, Tab or a click inserts the tag plus a space, and Escape closes it, so Enter then makes a normal new line. The list doesn't appear in code or after `# ` for a heading.\n- **Rename:** choose Rename in the filter bar, then type a new name. Every note's text is updated, but only whole tags: renaming `#work` doesn't touch `#workshop`, `#work-items` or anything inside code. Invalid names show an error. Renaming to a tag that already exists warns you first, then merges the two. Renamed notes count as edited, so they move to the top of the list.\n\n**Fixed during browser testing**\n- After a failed rename, Escape didn't cancel the rename form because focus was on the Save button. It now cancels from anywhere in the form, and focus goes back to the name box.\n\nWhile you're typing, a half-finished tag (like `#wor`) briefly shows as its own tag in the sidebar until you finish it. That's technically correct, since it is in the text, but I can hide the tag being typed if it bothers you.\n\n**What I tested and how**\n- **Logic tests** (`npm test`; new file `src/lib/tags.test.ts`, plus preview tests in `markdown.test.ts`):\n  - which text counts as a tag, including headings, numbers, `C#`, URLs, links, code and non-English letters;\n  - counts per note; rename and merge;\n  - detecting a tag being typed, suggestion order, and inserting a suggestion;\n  - tags shown as chips in the preview.\n- **Browser tests** (`npm run test:e2e`; new file `e2e/tags.spec.ts`), each at 1280px and 375px:\n  1. Tags and counts in the sidebar update as you edit, and code and `#42` are ignored.\n  2. Filtering: click to filter, click again or \u00d7 to clear, combined with search, and from a preview tag.\n  3. Suggestions: `#` lists all tags, typing narrows them, arrow keys plus Enter and clicking both insert, Escape closes, and no list appears for headings or unknown tags.\n  4. Rename everywhere: invalid name, Escape, whole-tag-only changes across notes, merging, and the result surviving a reload.\n- **Existing browser tests:** all 22 still pass at both widths.\n- **Screenshots:** I looked at the suggestions list, the filtered list, the filter bar and the rename error at both widths. They're in `shots/`.",
+   "ttft_ms": 80265,
+   "type": "result",
+   "duration_ms": 509767,
+   "uuid": "42ac13bb-fd43-4adc-adc4-1080bd118f60",
+   "ttft_stream_ms": 1070,
+   "time_to_request_ms": 435,
+   "time_to_request_phases_ms": {
+    "other": 4,
+    "system_prompt": 53,
+    "resume_other": 0,
+    "process_user_input": 3,
+    "input_attachments": 12,
+    "input_hooks": 2,
+    "conversation_append": 1,
+    "transcript_persist": 119,
+    "tool_pool_refresh": 3,
+    "init_message": 190,
+    "init_frame_send": 3,
+    "engine_pickup": 1,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 1,
+    "request_announcements": 4,
+    "query_setup": 0,
+    "model_gates": 1,
+    "tool_schema_build": 9,
+    "message_normalization": 6,
+    "client_creation": 4,
+    "request_build": 14
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 114,
+   "time_to_request_cpu_ms": 907,
+   "time_to_request_major_faults": 28567,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 2,
+    "cpu_ms": 0,
+    "major_faults": 661,
+    "changed_files_reread": 0,
+    "setup_ms": 3,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 2,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 6,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 5,
+    "images_ms": 1,
+    "post_process_ms": 0,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 175,
+    "wire_messages": 51
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 1,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 3,
+    "record_attempt_ms": 6,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 1071,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 36,
+     "outputTokens": 38584,
+     "cacheReadInputTokens": 2334771,
+     "cacheCreationInputTokens": 53664,
+     "webSearchRequests": 0,
+     "costUSD": 1.6680902000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 11578,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 53664,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

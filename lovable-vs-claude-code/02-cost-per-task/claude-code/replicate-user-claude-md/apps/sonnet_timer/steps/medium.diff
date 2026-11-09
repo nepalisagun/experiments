@@ -1,0 +1,623 @@
+diff --git a/e2e/logic.spec.ts b/e2e/logic.spec.ts
+index 988dafb..a6d338b 100644
+--- a/e2e/logic.spec.ts
++++ b/e2e/logic.spec.ts
+@@ -127,8 +127,8 @@ test('log: only today is kept; junk is dropped', () => {
+   const now = new Date(2026, 10, 9, 15, 0).getTime()
+   const yesterday = new Date(2026, 10, 8, 23, 59).getTime()
+   const log = [
+-    { id: 'a', task: 'x', finishedAt: now - 3600_000 },
+-    { id: 'b', task: 'y', finishedAt: yesterday },
++    { id: 'a', task: 'x', finishedAt: now - 3600_000, minutes: 25 },
++    { id: 'b', task: 'y', finishedAt: yesterday, minutes: 25 },
+   ]
+   expect(todaysEntries(log, now).map((e) => e.id)).toEqual(['a'])
+   expect(dayKey(now)).not.toBe(dayKey(yesterday))
+diff --git a/e2e/stats-ui.spec.ts b/e2e/stats-ui.spec.ts
+new file mode 100644
+index 0000000..dd28478
+--- /dev/null
++++ b/e2e/stats-ui.spec.ts
+@@ -0,0 +1,150 @@
++import { test, expect, type Page } from '@playwright/test'
++import { readFileSync } from 'node:fs'
++
++const SIZES = [
++  { name: 'desktop', width: 1280, height: 800 },
++  { name: 'mobile', width: 375, height: 667 },
++]
++
++const at = (day: number, h: number, m = 0) => new Date(2026, 10, day, h, m).getTime()
++// "now" in the page is Mon 9 Nov 2026 10:00. Window = 3..9 Nov.
++const SEED = [
++  { id: 'a', task: 'Old, outside window', finishedAt: at(1, 9), minutes: 25 },
++  { id: 'b', task: 'Plan "sprint"', finishedAt: at(4, 9, 15), minutes: 25 },
++  { id: 'c', task: '', finishedAt: at(6, 9), minutes: 30 },
++  { id: 'd', task: 'Write docs', finishedAt: at(7, 9), minutes: 25 },
++  { id: 'e', task: '=HYPERLINK("x")', finishedAt: at(7, 11), minutes: 25 },
++  { id: 'f', task: 'Review', finishedAt: at(8, 16, 45), minutes: 25 },
++]
++
++async function open(page: Page, seed = true) {
++  if (seed) {
++    await page.addInitScript((s) => {
++      if (!localStorage.getItem('pomodoro.log.v1')) localStorage.setItem('pomodoro.log.v1', JSON.stringify(s))
++    }, SEED)
++  }
++  await page.clock.install({ time: new Date(2026, 10, 9, 10, 0, 0) })
++  await page.goto('/')
++  await page.clock.runFor(100)
++}
++
++for (const size of SIZES) {
++  test.describe('stats ' + size.name, () => {
++    test.use({ viewport: { width: size.width, height: size.height } })
++
++    test('tabs switch between Timer and Stats', async ({ page }) => {
++      await open(page)
++      await expect(page.getByRole('tab', { name: 'Timer' })).toHaveAttribute('aria-selected', 'true')
++      await expect(page.getByTestId('countdown')).toBeVisible()
++      await expect(page.getByTestId('stats')).toHaveCount(0)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await expect(page.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true')
++      await expect(page.getByTestId('stats')).toBeVisible()
++      await expect(page.getByTestId('countdown')).toHaveCount(0)
++      await page.getByRole('tab', { name: 'Timer' }).click()
++      await expect(page.getByTestId('countdown')).toBeVisible()
++    })
++
++    test('chart, weekly total and streak from saved history', async ({ page }) => {
++      await open(page)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      const bars = page.getByTestId('bar')
++      await expect(bars).toHaveCount(7)
++      expect(await bars.evaluateAll((els) => els.map((e) => e.getAttribute('data-day')))).toEqual([
++        '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09',
++      ])
++      expect(await bars.evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-minutes'))))).toEqual([0, 25, 0, 30, 50, 25, 0])
++      await expect(page.getByTestId('week-total')).toContainText('130')
++      // today (9th) empty, 8th/7th/6th present, 5th missing → streak 3 (still alive)
++      await expect(page.getByTestId('streak')).toContainText('3')
++      // bar heights are proportional: 50 min bar is taller than the 25 min bar
++      const h = await page.locator('[data-testid=bar] > div > div').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))
++      expect(h[4]).toBeGreaterThan(h[1])
++      expect(h[0]).toBeLessThan(5)
++      // no horizontal overflow, and the day labels don't clip
++      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
++      await page.screenshot({ path: 'shots/' + size.name + '-stats.png', fullPage: true })
++    })
++
++    test('finishing a focus session updates chart, total and streak; history survives reload', async ({ page }) => {
++      await open(page)
++      await page.getByLabel('Task label').fill('Fresh')
++      await page.getByRole('button', { name: 'Start' }).click()
++      await page.clock.fastForward(25 * 60_000 + 1000)
++      await page.clock.runFor(300)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await expect(page.getByTestId('week-total')).toContainText('155')
++      await expect(page.getByTestId('streak')).toContainText('4')
++      await expect(page.getByTestId('bar').last()).toHaveAttribute('data-minutes', '25')
++      await page.reload()
++      await page.clock.runFor(100)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await expect(page.getByTestId('week-total')).toContainText('155')
++      await expect(page.getByTestId('streak')).toContainText('4')
++      // the Timer tab's Today list shows only today's session, not the seeded history
++      await page.getByRole('tab', { name: 'Timer' }).click()
++      await expect(page.getByTestId('log').locator('li')).toHaveCount(1)
++      await expect(page.getByTestId('log')).toContainText('Fresh')
++    })
++
++    test('minutes use the focus length in force when the session finished', async ({ page }) => {
++      await open(page, false)
++      await page.getByRole('button', { name: /Settings/ }).click()
++      await page.getByLabel('Focus minutes').fill('10')
++      await page.getByRole('button', { name: 'Save' }).click()
++      await page.getByRole('button', { name: 'Start' }).click()
++      await page.clock.fastForward(10 * 60_000 + 1000)
++      await page.clock.runFor(300)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await expect(page.getByTestId('week-total')).toContainText('10')
++      await expect(page.getByTestId('streak')).toContainText('1')
++    })
++
++    test('Space does not start the timer while on the Stats tab', async ({ page }) => {
++      await open(page, false)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await page.locator('body').click({ position: { x: 3, y: 3 } })
++      await page.keyboard.press('Space')
++      await page.clock.runFor(3000)
++      await page.getByRole('tab', { name: 'Timer' }).click()
++      await expect(page.getByTestId('countdown')).toHaveText('25:00')
++    })
++
++    test('empty state, with Export disabled', async ({ page }) => {
++      await open(page, false)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await expect(page.getByTestId('week-total')).toContainText('0')
++      await expect(page.getByTestId('streak')).toContainText('0')
++      await expect(page.getByText('No focus sessions in the last 7 days yet.')).toBeVisible()
++      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeDisabled()
++    })
++
++    test('Export CSV downloads every completed session, including older days', async ({ page }) => {
++      await open(page)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()])
++      expect(download.suggestedFilename()).toBe('pomodoro-sessions-2026-11-09.csv')
++      const text = readFileSync(await download.path(), 'utf8').replace(/^﻿/, '')
++      expect(text.split('\r\n')).toEqual([
++        'date,time,task,minutes',
++        '2026-11-01,09:00,"Old, outside window",25',
++        '2026-11-04,09:15,"Plan ""sprint""",25',
++        '2026-11-06,09:00,,30',
++        '2026-11-07,09:00,Write docs,25',
++        '2026-11-07,11:00,"\'=HYPERLINK(""x"")",25',
++        '2026-11-08,16:45,Review,25',
++        '',
++      ])
++    })
++
++    test('old saved entries without minutes still load (default 25 min)', async ({ page }) => {
++      await page.addInitScript(() => {
++        localStorage.setItem('pomodoro.log.v1', JSON.stringify([{ id: 'x', task: 'legacy', finishedAt: new Date(2026, 10, 8, 12).getTime() }]))
++      })
++      await open(page, false)
++      await page.getByRole('tab', { name: 'Stats' }).click()
++      await expect(page.getByTestId('week-total')).toContainText('25')
++      await expect(page.getByTestId('streak')).toContainText('1')
++    })
++  })
++}
+diff --git a/e2e/stats.spec.ts b/e2e/stats.spec.ts
+new file mode 100644
+index 0000000..db2725f
+--- /dev/null
++++ b/e2e/stats.spec.ts
+@@ -0,0 +1,94 @@
++import { test, expect } from '@playwright/test'
++import { csvField, currentStreak, lastDays, toCsv, totalMinutes } from '../src/stats'
++import { sanitizeLog, type LogEntry } from '../src/timer'
++
++// Mon 9 Nov 2026, 15:00 local
++const NOW = new Date(2026, 10, 9, 15, 0).getTime()
++const at = (dayOfNov: number, h = 10, m = 0) => new Date(2026, 10, dayOfNov, h, m).getTime()
++let n = 0
++const entry = (finishedAt: number, minutes = 25, task = ''): LogEntry => ({ id: 'e' + n++, task, finishedAt, minutes })
++
++test('lastDays returns 7 days oldest first, ending today, summing minutes per day', () => {
++  const h = [entry(at(9, 9), 25), entry(at(9, 11), 30), entry(at(8), 25), entry(at(3), 50), entry(at(2), 99)]
++  const d = lastDays(h, NOW, 7)
++  expect(d).toHaveLength(7)
++  expect(d.map((x) => x.date.getDate())).toEqual([3, 4, 5, 6, 7, 8, 9])
++  expect(d.map((x) => x.minutes)).toEqual([50, 0, 0, 0, 0, 25, 55])
++  expect(d[6].sessions).toBe(2)
++  expect(totalMinutes(d)).toBe(130) // Nov 2 is outside the window
++})
++
++test('lastDays handles a month boundary and midnight edges', () => {
++  const now = new Date(2026, 11, 2, 0, 5).getTime() // 2 Dec, just after midnight
++  const h = [entry(new Date(2026, 10, 30, 23, 59).getTime(), 25), entry(new Date(2026, 11, 2, 0, 1).getTime(), 10)]
++  const d = lastDays(h, now, 7)
++  expect(d.map((x) => x.date.getDate())).toEqual([26, 27, 28, 29, 30, 1, 2])
++  expect(d[4].minutes).toBe(25)
++  expect(d[6].minutes).toBe(10)
++})
++
++test('lastDays does not skip or repeat a day across a DST change', () => {
++  // 2026-10-25 is the EU fall-back date and 2026-03-08 the US spring-forward date; whichever the machine
++  // uses, 7 consecutive calendar days must come out distinct.
++  for (const now of [new Date(2026, 9, 27, 12).getTime(), new Date(2026, 2, 10, 12).getTime()]) {
++    const keys = lastDays([], now, 7).map((x) => x.key)
++    expect(new Set(keys).size).toBe(7)
++  }
++})
++
++test('streak counts consecutive days ending today', () => {
++  const h = [entry(at(9)), entry(at(8)), entry(at(7)), entry(at(5))]
++  expect(currentStreak(h, NOW)).toBe(3) // gap on the 6th ends it
++})
++
++test('streak stays alive when today has no session yet (counts from yesterday)', () => {
++  expect(currentStreak([entry(at(8)), entry(at(7))], NOW)).toBe(2)
++})
++
++test('streak is 0 when neither today nor yesterday has a session, or history is empty', () => {
++  expect(currentStreak([entry(at(7)), entry(at(6))], NOW)).toBe(0)
++  expect(currentStreak([], NOW)).toBe(0)
++})
++
++test('several sessions on one day count once; a long run crosses a month boundary', () => {
++  const h = [entry(at(9, 8)), entry(at(9, 9)), entry(at(9, 10))]
++  expect(currentStreak(h, NOW)).toBe(1)
++  const run: LogEntry[] = []
++  for (let i = 0; i < 12; i++) run.push(entry(new Date(2026, 10, 9 - i, 12).getTime()))
++  expect(currentStreak(run, NOW)).toBe(12) // Nov 9 back through Oct 29, across the month boundary
++  const gap = run.filter((_, i) => i !== 9) // drop Oct 31
++  expect(currentStreak(gap, NOW)).toBe(9) // Nov 9..1
++})
++
++test('csvField quotes commas, quotes, newlines and defuses formulas', () => {
++  expect(csvField('plain')).toBe('plain')
++  expect(csvField('a, b')).toBe('"a, b"')
++  expect(csvField('say "hi"')).toBe('"say ""hi"""')
++  expect(csvField('line1\nline2')).toBe('"line1\nline2"')
++  expect(csvField('=SUM(A1:A2)')).toBe("'=SUM(A1:A2)")
++  expect(csvField('-1+1')).toBe("'-1+1")
++  expect(csvField('')).toBe('')
++})
++
++test('toCsv: header, chronological order, local date/time, minutes', () => {
++  const h = [entry(at(9, 14, 5), 25, 'Later, "quoted"'), entry(at(8, 9, 30), 50, 'Earlier'), entry(at(8, 18, 0), 15, '')]
++  expect(toCsv(h)).toBe(
++    ['date,time,task,minutes', '2026-11-08,09:30,Earlier,50', '2026-11-08,18:00,,15', '2026-11-09,14:05,"Later, ""quoted""",25', ''].join('\r\n'),
++  )
++  expect(toCsv([])).toBe('date,time,task,minutes\r\n')
++})
++
++test('sanitizeLog keeps old entries without minutes (default 25) and drops bad ones', () => {
++  const out = sanitizeLog([
++    { id: 'a', task: 't', finishedAt: 5 },
++    { id: 'b', task: 't', finishedAt: 6, minutes: 40 },
++    { id: 'c', task: 't', finishedAt: 7, minutes: -3 },
++    { id: 'd', task: 't', finishedAt: NaN },
++    { id: 'e', task: 5, finishedAt: 1 },
++  ])
++  expect(out.map((e) => [e.id, e.minutes])).toEqual([
++    ['a', 25],
++    ['b', 40],
++    ['c', 25],
++  ])
++})
+diff --git a/src/App.tsx b/src/App.tsx
+index 8cfadd7..b972302 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -14,11 +14,13 @@ import {
+   tabTitle,
+   tick,
+   toggle,
++  todaysEntries,
+   type LogEntry,
+   type Settings,
+   type TimerState,
+ } from './timer'
+-import { loadLog, loadSettings, saveLog, saveSettings } from './storage'
++import { loadHistory, loadSettings, saveHistory, saveSettings } from './storage'
++import Stats from './StatsView'
+ import { chime, primeAudio } from './sound'
+ 
+ const ACCENT = {
+@@ -34,7 +36,11 @@ export default function App() {
+   const [timer, setTimerState] = useState<TimerState>(() => initialState(loadSettings()))
+   const [now, setNow] = useState(() => Date.now())
+   const [task, setTask] = useState('')
+-  const [log, setLog] = useState<LogEntry[]>(() => loadLog())
++  const [history, setHistory] = useState<LogEntry[]>(loadHistory)
++  const [view, setView] = useState<'timer' | 'stats'>('timer')
++  const viewRef = useRef(view)
++  viewRef.current = view
++  const today = todaysEntries(history, now)
+   const [showSettings, setShowSettings] = useState(false)
+ 
+   // Refs hold the latest values so callbacks never act on stale state and
+@@ -51,7 +57,7 @@ export default function App() {
+   }, [])
+ 
+   useEffect(() => saveSettings(settings), [settings])
+-  useEffect(() => saveLog(log), [log])
++  useEffect(() => saveHistory(history), [history])
+ 
+   const advance = useCallback(() => {
+     const t = Date.now()
+@@ -65,8 +71,9 @@ export default function App() {
+         id: String(t) + '-' + Math.random().toString(36).slice(2, 7),
+         task: taskRef.current.trim(),
+         finishedAt: t,
++        minutes: settingsRef.current.focus,
+       }
+-      setLog((l) => [...l, entry])
++      setHistory((l) => [...l, entry])
+     }
+   }, [setTimer])
+ 
+@@ -104,7 +111,7 @@ export default function App() {
+ 
+   useEffect(() => {
+     const onKey = (e: KeyboardEvent) => {
+-      if (e.code !== 'Space' || e.repeat) return
++      if (e.code !== 'Space' || e.repeat || viewRef.current !== 'timer') return
+       const tag = (e.target as HTMLElement | null)?.tagName
+       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return
+       e.preventDefault()
+@@ -152,7 +159,31 @@ export default function App() {
+           </div>
+         </header>
+ 
+-        {showSettings && <SettingsPanel settings={settings} onSave={updateSettings} />}
++        <nav role="tablist" aria-label="View" className="grid grid-cols-2 gap-1 rounded-2xl bg-stone-200/60 p-1">
++          {(['timer', 'stats'] as const).map((v) => (
++            <button
++              key={v}
++              role="tab"
++              aria-selected={view === v}
++              onClick={() => {
++                setNow(Date.now())
++                setView(v)
++              }}
++              className={
++                'rounded-xl px-4 py-2 text-sm font-medium capitalize ' +
++                (view === v ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700')
++              }
++            >
++              {v}
++            </button>
++          ))}
++        </nav>
++
++        {view === 'stats' && <Stats history={history} now={now} />}
++
++        {view === 'timer' && showSettings && <SettingsPanel settings={settings} onSave={updateSettings} />}
++        {view === 'timer' && (
++          <>
+ 
+         <section className="flex flex-col items-center gap-5 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
+           <div className={'text-sm font-medium uppercase tracking-widest ' + accent.text} data-testid="phase">
+@@ -227,13 +258,13 @@ export default function App() {
+ 
+         <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
+           <h2 className="mb-3 text-sm font-medium uppercase tracking-widest text-stone-500">Today</h2>
+-          {log.length === 0 ? (
++          {today.length === 0 ? (
+             <p className="text-sm text-stone-400" data-testid="log-empty">
+               No focus sessions finished yet.
+             </p>
+           ) : (
+             <ul className="divide-y divide-stone-100" data-testid="log">
+-              {[...log].reverse().map((e) => (
++              {[...today].reverse().map((e) => (
+                 <li key={e.id} className="flex items-baseline justify-between gap-3 py-2 text-sm">
+                   <span className={e.task ? 'truncate' : 'text-stone-400'}>{e.task || 'Untitled session'}</span>
+                   <time className="shrink-0 tabular-nums text-stone-500" dateTime={new Date(e.finishedAt).toISOString()}>
+@@ -244,9 +275,11 @@ export default function App() {
+             </ul>
+           )}
+           <p className="mt-3 text-xs text-stone-400">
+-            {log.length} focus session{log.length === 1 ? '' : 's'} today
++            {today.length} focus session{today.length === 1 ? '' : 's'} today
+           </p>
+         </section>
++          </>
++        )}
+       </main>
+     </div>
+   )
+diff --git a/src/StatsView.tsx b/src/StatsView.tsx
+new file mode 100644
+index 0000000..ad58b59
+--- /dev/null
++++ b/src/StatsView.tsx
+@@ -0,0 +1,88 @@
++import { currentStreak, isoDate, lastDays, toCsv, totalMinutes } from './stats'
++import type { LogEntry } from './timer'
++
++function download(filename: string, text: string) {
++  const url = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' }))
++  const a = document.createElement('a')
++  a.href = url
++  a.download = filename
++  document.body.appendChild(a)
++  a.click()
++  a.remove()
++  setTimeout(() => URL.revokeObjectURL(url), 1000)
++}
++
++const CHART_H = 160
++
++export default function Stats({ history, now }: { history: LogEntry[]; now: number }) {
++  const days = lastDays(history, now, 7)
++  const total = totalMinutes(days)
++  const streak = currentStreak(history, now)
++  const max = Math.max(25, ...days.map((d) => d.minutes))
++
++  return (
++    <div className="flex flex-col gap-5" data-testid="stats">
++      <section className="grid grid-cols-2 gap-3">
++        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
++          <div className="text-xs font-medium uppercase tracking-widest text-stone-500">Last 7 days</div>
++          <div className="mt-2 text-3xl font-light tabular-nums" data-testid="week-total">
++            {total}
++            <span className="ml-1 text-base text-stone-500">min</span>
++          </div>
++        </div>
++        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
++          <div className="text-xs font-medium uppercase tracking-widest text-stone-500">Streak</div>
++          <div className="mt-2 text-3xl font-light tabular-nums" data-testid="streak">
++            {streak}
++            <span className="ml-1 text-base text-stone-500">{streak === 1 ? 'day' : 'days'}</span>
++          </div>
++        </div>
++      </section>
++
++      <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-6">
++        <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-stone-500">Focus minutes per day</h2>
++        <div
++          className="grid grid-cols-7 gap-2"
++          role="img"
++          aria-label={
++            'Focus minutes per day, last 7 days: ' +
++            days.map((d) => d.date.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.minutes).join(', ')
++          }
++          data-testid="chart"
++        >
++          {days.map((d, i) => {
++            const isToday = i === days.length - 1
++            return (
++              <div key={d.key} className="flex flex-col items-center gap-1" data-testid="bar" data-minutes={d.minutes} data-day={isoDate(d.date.getTime())}>
++                <span className="text-xs tabular-nums text-stone-500">{d.minutes}</span>
++                <div className="flex w-full items-end justify-center" style={{ height: CHART_H }}>
++                  <div
++                    className={'w-full max-w-9 rounded-t-lg ' + (d.minutes > 0 ? 'bg-rose-400' : 'bg-stone-200')}
++                    style={{ height: d.minutes > 0 ? Math.max(4, (d.minutes / max) * CHART_H) : 3 }}
++                  />
++                </div>
++                <span className={'text-xs ' + (isToday ? 'font-semibold text-stone-800' : 'text-stone-500')}>
++                  {d.date.toLocaleDateString([], { weekday: 'short' })}
++                </span>
++              </div>
++            )
++          })}
++        </div>
++        {total === 0 && <p className="mt-4 text-center text-sm text-stone-400">No focus sessions in the last 7 days yet.</p>}
++      </section>
++
++      <section className="flex items-center justify-between gap-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
++        <p className="text-sm text-stone-500">
++          {history.length} completed session{history.length === 1 ? '' : 's'} saved in this browser
++        </p>
++        <button
++          onClick={() => download('pomodoro-sessions-' + isoDate(now) + '.csv', toCsv(history))}
++          disabled={history.length === 0}
++          className="shrink-0 rounded-xl bg-stone-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
++        >
++          Export CSV
++        </button>
++      </section>
++    </div>
++  )
++}
+diff --git a/src/stats.ts b/src/stats.ts
+new file mode 100644
+index 0000000..430b899
+--- /dev/null
++++ b/src/stats.ts
+@@ -0,0 +1,78 @@
++import { dayKey, type LogEntry } from './timer'
++
++export interface DayStat {
++  key: string
++  /** local midnight of that day */
++  date: Date
++  minutes: number
++  sessions: number
++}
++
++/** Local calendar day `back` days before `now` (0 = today). Uses date arithmetic so DST can't skip or repeat a day. */
++export function daysAgo(now: number, back: number): Date {
++  const d = new Date(now)
++  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - back)
++}
++
++/** The last `n` local days, oldest first, ending with today. */
++export function lastDays(history: LogEntry[], now: number, n = 7): DayStat[] {
++  const byDay = new Map<string, { minutes: number; sessions: number }>()
++  for (const e of history) {
++    const k = dayKey(e.finishedAt)
++    const cur = byDay.get(k) ?? { minutes: 0, sessions: 0 }
++    cur.minutes += e.minutes
++    cur.sessions += 1
++    byDay.set(k, cur)
++  }
++  const out: DayStat[] = []
++  for (let i = n - 1; i >= 0; i--) {
++    const date = daysAgo(now, i)
++    const key = dayKey(date.getTime())
++    const v = byDay.get(key)
++    out.push({ key, date, minutes: v?.minutes ?? 0, sessions: v?.sessions ?? 0 })
++  }
++  return out
++}
++
++export function totalMinutes(days: DayStat[]): number {
++  return days.reduce((sum, d) => sum + d.minutes, 0)
++}
++
++/**
++ * Consecutive days with at least one completed focus session, ending today.
++ * If today has none yet, the streak is still alive and counts back from yesterday.
++ */
++export function currentStreak(history: LogEntry[], now: number): number {
++  const active = new Set(history.map((e) => dayKey(e.finishedAt)))
++  let back = active.has(dayKey(now)) ? 0 : 1
++  let streak = 0
++  while (active.has(dayKey(daysAgo(now, back).getTime()))) {
++    streak++
++    back++
++  }
++  return streak
++}
++
++const pad = (n: number) => String(n).padStart(2, '0')
++export const isoDate = (ts: number) => {
++  const d = new Date(ts)
++  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
++}
++const isoTime = (ts: number) => {
++  const d = new Date(ts)
++  return pad(d.getHours()) + ':' + pad(d.getMinutes())
++}
++
++/** RFC 4180 quoting, plus a leading apostrophe on values a spreadsheet would run as a formula. */
++export function csvField(value: string): string {
++  let v = value
++  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v
++  return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v
++}
++
++export function toCsv(history: LogEntry[]): string {
++  const rows = [...history]
++    .sort((a, b) => a.finishedAt - b.finishedAt)
++    .map((e) => [isoDate(e.finishedAt), isoTime(e.finishedAt), csvField(e.task), String(e.minutes)].join(','))
++  return ['date,time,task,minutes', ...rows].join('\r\n') + '\r\n'
++}
+diff --git a/src/storage.ts b/src/storage.ts
+index 873f4ec..d66bdae 100644
+--- a/src/storage.ts
++++ b/src/storage.ts
+@@ -1,4 +1,4 @@
+-import { sanitizeLog, sanitizeSettings, todaysEntries, type LogEntry, type Settings } from './timer'
++import { sanitizeLog, sanitizeSettings, type LogEntry, type Settings } from './timer'
+ 
+ const SETTINGS_KEY = 'pomodoro.settings.v1'
+ const LOG_KEY = 'pomodoro.log.v1'
+@@ -22,5 +22,6 @@ function write(key: string, value: unknown) {
+ 
+ export const loadSettings = (): Settings => sanitizeSettings(read(SETTINGS_KEY))
+ export const saveSettings = (s: Settings) => write(SETTINGS_KEY, s)
+-export const loadLog = (now = Date.now()): LogEntry[] => todaysEntries(sanitizeLog(read(LOG_KEY)), now)
+-export const saveLog = (l: LogEntry[]) => write(LOG_KEY, l)
++/** All completed sessions ever recorded (the Today list and Stats are filtered views of this). */
++export const loadHistory = (): LogEntry[] => sanitizeLog(read(LOG_KEY))
++export const saveHistory = (l: LogEntry[]) => write(LOG_KEY, l)
+diff --git a/src/timer.ts b/src/timer.ts
+index f59514b..a8a8efc 100644
+--- a/src/timer.ts
++++ b/src/timer.ts
+@@ -23,6 +23,8 @@ export interface LogEntry {
+   id: string
+   task: string
+   finishedAt: number
++  /** length of the focus session in minutes */
++  minutes: number
+ }
+ 
+ export const CYCLE_LENGTH = 4
+@@ -152,8 +154,14 @@ export function sanitizeSettings(raw: unknown): Settings {
+ 
+ export function sanitizeLog(raw: unknown): LogEntry[] {
+   if (!Array.isArray(raw)) return []
+-  return raw.filter(
+-    (e): e is LogEntry =>
+-      !!e && typeof e.id === 'string' && typeof e.task === 'string' && typeof e.finishedAt === 'number',
+-  )
++  const out: LogEntry[] = []
++  for (const e of raw) {
++    if (!e || typeof e.id !== 'string' || typeof e.task !== 'string') continue
++    if (typeof e.finishedAt !== 'number' || !Number.isFinite(e.finishedAt)) continue
++    // entries saved before minutes were recorded get the default focus length
++    const minutes =
++      typeof e.minutes === 'number' && Number.isFinite(e.minutes) && e.minutes > 0 ? e.minutes : DEFAULT_SETTINGS.focus
++    out.push({ id: e.id, task: e.task, finishedAt: e.finishedAt, minutes })
++  }
++  return out
+ }

@@ -1,0 +1,165 @@
+{
+  "A": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "teamsUrl should 'refuse query strings and other tricks, the same way discordUrl limits itself to discord.com' (for Teams Workflows webhooks)",
+        "truth": "discordUrl rejects any query (u.search), but Teams Workflows (Power Automate) webhook URLs carry api-version/sp/sv/sig in the query string, so copying that rule would reject every Workflows URL the answer itself names as the target",
+        "evidence": "src/lib/alerts/channel-input.ts:17",
+        "severity": "medium"
+      },
+      {
+        "claim": "tests/unit/alerts.test.ts is where to test how the sender routes a Teams receipt",
+        "truth": "tests/unit/alerts.test.ts covers compose, Postmark, Telegram and Clerk; the sender's Slack/Discord routing tests are in tests/unit/channels.test.ts ('sender receipt behavior', it.each(['slack','discord']) at :111, receipt() helper at :18-26)",
+        "evidence": "tests/unit/channels.test.ts:110-116",
+        "severity": "low"
+      },
+      {
+        "claim": "Without the alert_expand change, no receipts are ever created for a Teams channel",
+        "truth": "The test-event branch of alert_expand has no kind filter, so dashboard test alerts still get receipts; only incident (opened/resolved) alerts silently get none, which is why a passing 'Send test' doesn't prove the migration is right",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:155-166",
+        "severity": "low"
+      },
+      {
+        "claim": "Map the reply to a SendResult: rejected, retry, sent, or neverLeft",
+        "truth": "neverLeft is a helper that decides retry vs unknown; the list omits the 'unknown' result (uncertain()), the outcome that must never be retried blind",
+        "evidence": "src/lib/alerts/providers.ts:36",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "A sent result needs a messageId and the DB requires provider_id on sent rows (alerts_email.sql:152, alert_mark :447-448); Teams webhooks answer 202 without an id, so Discord's id check (providers.ts:72) can't be copied",
+      "Deploy order: migration, then sender Worker, then app (docs/deploying.md:61,70)",
+      "sendTeams conventions: re-validate URL at send time, redirect: 'manual', 10 s timeout, single POST",
+      "teamsUrl should build on webhookUrl() (HTTPS, port 443, no credentials, public host)"
+    ]
+  },
+  "B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 10,
+    "errors": [
+      {
+        "claim": "discordUrl is at lines 16-22 and channelInput.kind at line 25",
+        "truth": "discordUrl is lines 15-21 and kind: z.enum is line 24 (off by one)",
+        "evidence": "src/lib/alerts/channel-input.ts:15-24",
+        "severity": "low"
+      },
+      {
+        "claim": "Every migration header says 'never edited after it is applied'",
+        "truth": "About 20 of the 36 migrations carry that line; the alert_channels migration itself (028) and every later one do not. The rule itself is correct (docs/deploying.md:61)",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:1-2",
+        "severity": "low"
+      },
+      {
+        "claim": "ChannelIcon's maps are Record<ChannelKind, …>",
+        "truth": "Only kindName is typed Record<ChannelKind, string>; icons is an inferred object literal (typecheck still fails through icons[kind] under strict)",
+        "evidence": "src/components/alerts/ChannelIcon.tsx:4-6",
+        "severity": "low"
+      },
+      {
+        "claim": "Integration tests need a disposable database (docs/deploying.md:80)",
+        "truth": "Line 80 says integration suites need Postgres/Supabase; the 'disposable development resources' wording is at line 70",
+        "evidence": "docs/deploying.md:70",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Sender-level unit test it.each(['slack','discord']) at tests/unit/channels.test.ts:111 and the receipt() helper's per-kind URL (:21) need Teams",
+      "Channel-list comments in src/lib/budgets.ts:38, src/lib/launch.ts:83 and AlertsScreen.tsx:33 (trivial)"
+    ]
+  },
+  "C": {
+    "correctness": 8,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      {
+        "claim": "If the app ships before the sender, the current sender reaches the generic-webhook path and fails Teams deliveries with 'The webhook needs to be added again'",
+        "truth": "The current sender only opens credentials for ['slack','discord','webhook'] (sender.ts:363), so a Teams receipt falls through to 'This kind of channel can't send yet.' (sender.ts:387). The generic-webhook failure (:378) happens only if 'teams' is added at :363 without the dispatch line. The recommended order is still right",
+        "evidence": "src/lib/alerts/sender.ts:363,378,387",
+        "severity": "low"
+      },
+      {
+        "claim": "Without the alert_expand change, no deliveries are ever created for Teams channels",
+        "truth": "The test-event branch has no kind filter, so test alerts still get receipts; only incident alerts get none",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:155-166",
+        "severity": "low"
+      },
+      {
+        "claim": "server.ts:81 is the zod enum used when reading channels and deliveries",
+        "truth": "The kind enum is only on overview channels; deliveries carry no kind and take it from their channel",
+        "evidence": "src/lib/alerts/server.ts:81,94-110",
+        "severity": "low"
+      },
+      {
+        "claim": "ChannelIcon's maps are typed Record<ChannelKind, …>",
+        "truth": "Only kindName is a Record; icons is an inferred literal",
+        "evidence": "src/components/alerts/ChannelIcon.tsx:4-6",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "A sent result needs a messageId and the DB requires provider_id on sent rows (alerts_email.sql:152); Teams webhooks answer 202 without an id, so Discord's id check (providers.ts:72) can't be copied",
+      "scripts/clerk/billing.json:115 (the Clerk Billing feature name listing channels)",
+      "Explicit sendTeams conventions: redirect: 'manual' and the 10 s timeout"
+    ]
+  },
+  "D": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      {
+        "claim": "Without re-creating alert_expand, no Teams receipt is ever created",
+        "truth": "The test-event branch has no kind filter, so test alerts still get receipts; only incident alerts get none",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:155-166",
+        "severity": "low"
+      },
+      {
+        "claim": "If Teams hosts can't be pinned, 'use the signed-webhook path instead'",
+        "truth": "That path requires a 32-256 char signing secret and posts Staygreen's own signed JSON (webhookPayload), not a Teams payload; only its DNS check (actions.ts:284-287) and pinned transport are reusable, not the path as a whole",
+        "evidence": "src/lib/alerts/channel-input.ts:32; src/lib/alerts/sender.ts:378-385",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Privacy page line 270 (the encrypted-credentials sentence names Discord webhook URLs)",
+      "Import changes at sender.ts:12 and actions.ts:7 are only implied",
+      "Sender-level unit test it.each(['slack','discord']) at tests/unit/channels.test.ts:111"
+    ]
+  },
+  "E": {
+    "correctness": 9,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      {
+        "claim": "tests/integration/alerts.test.ts:223 covers the kind constraint",
+        "truth": "Line 223 checks alert_channels_built (a Slack row without a sealed credential is refused), not alert_channels_kind_check",
+        "evidence": "tests/integration/alerts.test.ts:222-226",
+        "severity": "low"
+      },
+      {
+        "claim": "Without the expansion change, Teams channels will get no deliveries",
+        "truth": "The test-event branch has no kind filter, so test alerts still get receipts; only incident alerts get none",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:155-166",
+        "severity": "low"
+      },
+      {
+        "claim": "For a 202 with no id, one option is 'treating 202 as accepted'",
+        "truth": "Any sent result must still carry an id: alert_mark raises provider_id_required and the alert_deliveries_sent check requires provider_id",
+        "evidence": "supabase/migrations/20261022195510_alerts_email.sql:152,447-448",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "scripts/clerk/billing.json:115 (the Clerk Billing feature name)",
+      "Privacy page line 270 (the encrypted-credentials sentence)",
+      "tests/e2e/channels.auth.spec.ts (the dialog flow)",
+      "examples/sender/wrangler.toml lines 2 and 38 left unread (they are comments only)"
+    ]
+  }
+}

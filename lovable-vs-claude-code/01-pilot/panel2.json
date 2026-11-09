@@ -1,0 +1,674 @@
+[
+ {
+  "model": "google/gemini-2.5-flash",
+  "prompt": "models",
+  "answer": "Okay, answering from memory only, no searching! Here are the newest AI models I can recall from Anthropic, OpenAI, and Google, with approximate release dates. My memory on the *exact* month might be a bit fuzzy for some.\n\n**Anthropic:**\n\n1.  **Claude 3 Opus** (March 2024)\n2.  **Claude 3 Sonnet** (March 2024)\n3.  **Claude 3 Haiku** (March 2024)\n\n*My memory note: They released the whole Claude 3 family at once, with Opus being the most capable, Sonnet the balanced one, and Haiku the fast/cost-effective one.*\n\n**OpenAI:**\n\n1.  **GPT-4o (Omni)** (May 2024)\n2.  **GPT-4 Turbo with Vision** (November 2023 - although the \"with Vision\" part was highlighted more around then, the core Turbo model was a bit earlier in 2023 I think, but this is when it became more widely available and its capabilities were detailed)\n3.  **GPT-4** (March 2023)\n\n*My memory note: GPT-4o is very recent. The GPT-4 Turbo model had iterations, but the big announcement for the \"Turbo\" version with the expanded context window and better performance was definitely late last year.*\n\n**Google:**\n\n1.  **Gemini 1.5 Pro** (February 2024 - though it was announced in dev preview earlier, this is when it got more traction)\n2.  **Gemini Ultra 1.0** (December 2023 - part of the initial Gemini launch, but the most powerful one)\n3.  **Gemini Pro 1.0** (December 2023)\n\n*My memory note: Google launched Gemini in December 2023 with Pro being generally available and Ultra coming soon. Then 1.5 Pro came out with that massive context window earlier this year. I'm less clear on if there was a specific \"Gemini 1.0\" model name other than just the Pro and Ultra tiers at launch.*",
+  "usage": {
+   "prompt_tokens": 54,
+   "completion_tokens": 476,
+   "total_tokens": 530,
+   "cost": 0.001194138,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0012062,
+    "upstream_inference_prompt_cost": 1.62e-05,
+    "upstream_inference_completions_cost": 0.00119
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash",
+  "prompt": "libs",
+  "answer": "Okay, strictly from memory, let's see. This is always a fun challenge!\n\nHere are my best guesses for the latest stable versions and approximate release dates for each:\n\n*   **React:**\n    *   **Version:** `18.2.0`\n    *   **Release Date:** Sometime in Summer 2022 (maybe July or August 2022 for 18.2.0 specifically, but 18.0 was earlier in Spring 2022).\n\n*   **Next.js:**\n    *   **Version:** `13.5.x` (I'm thinking 13.5.4 or 13.5.6)\n    *   **Release Date:** Fall 2023 (like September/October 2023).\n\n*   **Tailwind CSS:**\n    *   **Version:** `3.3.x` (I'm leaning towards 3.3.5 or 3.3.6)\n    *   **Release Date:** Spring/Summer 2023 for 3.3.x, with minor updates continuing through Fall 2023.\n\n*   **Vite:**\n    *   **Version:** `4.5.x` (Perhaps 4.5.0 or 4.5.1)\n    *   **Release Date:** Late Fall 2023 (November 2023). Vite 4.0 was early 2023.\n\n*   **TypeScript:**\n    *   **Version:** `5.2.x` (Likely 5.2.2 or 5.2.3)\n    *   **Release Date:** Late Summer/Early Fall 2023 for 5.2.x.\n\n---\n**Self-Correction/Reasoning during recall:**\n\n*   **React:** I know React 18 landed with concurrent rendering in spring 2022. 18.2.0 was a subsequent patch. I haven't heard of 19 being stable yet, so 18.x is definitely current.\n*   **Next.js:** Next 13 was a big release with app router, etc. I remember 13.4 adding server actions, and then 13.5 being a recent stable point. I'm pretty sure we're not at 14 yet for stable.\n*   **Tailwind:** Tailwind 3.0 was a while ago. 3.3.x has been the current release for most of 2023, with minor features like extended color palettes and logical properties.\n*   **Vite:** Vite 4.0 came out earlier this year, and I recall seeing 4.5.x pop up in late Q3/early Q4.\n*   **TypeScript:** TypeScript 5.0 was a big release earlier this year. 5.1 and 5.2 have been subsequent releases, with 5.2 being the most recent stable point before 5.3 which might be in beta or just released.\n\nThat's my best shot from memory!",
+  "usage": {
+   "prompt_tokens": 45,
+   "completion_tokens": 679,
+   "total_tokens": 724,
+   "cost": 0.00169389,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.001711,
+    "upstream_inference_prompt_cost": 1.35e-05,
+    "upstream_inference_completions_cost": 0.0016975
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash",
+  "prompt": "cutoff",
+  "answer": "The most recent month and year I have reliable knowledge of is **June 2024**.\n\nHere are three specific news events from that month:\n\n1.  **Ongoing conflict in Ukraine:** Continued fighting, particularly in the eastern and southern regions, with reports of missile strikes and drone attacks from both sides. Discussions among Western allies about further aid packages and strategies.\n2.  **Preparations for the Paris Olympics:** Increasing focus on security, logistical challenges, and the final stages of venue preparations as the games approached their July opening. Concerns about the readiness of the Seine for swimming events were still being discussed.\n3.  **European Parliament elections aftermath:** The results of the early June elections were being analyzed across the continent, with discussions about the shifts in power, the rise of the far-right in several countries, and implications for future EU policy and leadership.",
+  "usage": {
+   "prompt_tokens": 32,
+   "completion_tokens": 178,
+   "total_tokens": 210,
+   "cost": 0.000450054,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0004546,
+    "upstream_inference_prompt_cost": 9.6e-06,
+    "upstream_inference_completions_cost": 0.000445
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash",
+  "prompt": "identity",
+  "answer": "I am a large language model, trained by Google.",
+  "usage": {
+   "prompt_tokens": 34,
+   "completion_tokens": 11,
+   "total_tokens": 45,
+   "cost": 3.7323e-05,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 3.77e-05,
+    "upstream_inference_prompt_cost": 1.02e-05,
+    "upstream_inference_completions_cost": 2.75e-05
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash-lite",
+  "prompt": "models",
+  "answer": "Here's my recollection of recent AI models from Anthropic, OpenAI, and Google, along with approximate release timings:\n\n**Anthropic**\n\n1.  **Claude 3 Opus** (Early 2024)\n2.  **Claude 3 Sonnet** (Early 2024)\n3.  **Claude 3 Haiku** (Early 2024)\n\n**OpenAI**\n\n1.  **GPT-4 Turbo** (Late 2023)\n2.  **GPT-4** (Early 2023)\n3.  **ChatGPT (based on GPT-3.5 Turbo)** (Late 2022/Early 2023 for wider access)\n\n**Google**\n\n1.  **Gemini Ultra** (Late 2023/Early 2024)\n2.  **Gemini Pro** (Late 2023/Early 2024)\n3.  **Gemini Nano** (Late 2023/Early 2024)",
+  "usage": {
+   "prompt_tokens": 54,
+   "completion_tokens": 236,
+   "total_tokens": 290,
+   "cost": 9.8802e-05,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 9.98e-05,
+    "upstream_inference_prompt_cost": 5.4e-06,
+    "upstream_inference_completions_cost": 9.44e-05
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash-lite",
+  "prompt": "libs",
+  "answer": "Here are the latest stable versions I recall for those technologies, along with approximate release dates. Please remember that \"latest stable\" can change rapidly, so these are based on my training data up to a certain point.\n\n*   **React:**\n    *   **Version:** 18.2.0\n    *   **Approximate Release Date:** Mid-2022\n\n*   **Next.js:**\n    *   **Version:** 13.4.x (This is a bit fuzzy for me, as minor releases are frequent, but 13.4 was a significant one.)\n    *   **Approximate Release Date:** Mid-2023\n\n*   **Tailwind CSS:**\n    *   **Version:** 3.3.x (Again, similar to Next.js, minor releases are frequent. 3.3 was a notable update.)\n    *   **Approximate Release Date:** Mid-2023\n\n*   **Vite:**\n    *   **Version:** 4.3.x (Minor releases are common, but 4.3 was a significant advancement.)\n    *   **Approximate Release Date:** Early to Mid-2023\n\n*   **TypeScript:**\n    *   **Version:** 5.0.x (5.0 was a major release with significant features.)\n    *   **Approximate Release Date:** Early 2023",
+  "usage": {
+   "prompt_tokens": 45,
+   "completion_tokens": 304,
+   "total_tokens": 349,
+   "cost": 0.000124839,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0001261,
+    "upstream_inference_prompt_cost": 4.5e-06,
+    "upstream_inference_completions_cost": 0.0001216
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash-lite",
+  "prompt": "cutoff",
+  "answer": "My knowledge cutoff is **June 2024**.\n\nHere are three specific news events from June 2024:\n\n1.  **European Parliament Elections:** Elections were held across the European Union for the European Parliament. The results showed a shift in the political landscape, with gains for far-right parties in some key countries like France and Germany.\n\n2.  **Rwandan Genocide Anniversary:** While the anniversary is in April, discussions and commemorations surrounding the 30th anniversary of the Rwandan Genocide continued into June, with ongoing reflections on justice, reconciliation, and preventing future atrocities.\n\n3.  **South African Election Aftermath:** Following the general elections in May, June saw the continuation of coalition talks and the formation of a new government in South Africa, a significant political development for the country.",
+  "usage": {
+   "prompt_tokens": 32,
+   "completion_tokens": 168,
+   "total_tokens": 200,
+   "cost": 6.9696e-05,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 7.04e-05,
+    "upstream_inference_prompt_cost": 3.2e-06,
+    "upstream_inference_completions_cost": 6.72e-05
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-2.5-flash-lite",
+  "prompt": "identity",
+  "answer": "I am a large language model, trained by Google.",
+  "usage": {
+   "prompt_tokens": 34,
+   "completion_tokens": 11,
+   "total_tokens": 45,
+   "cost": 7.722e-06,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 7.8e-06,
+    "upstream_inference_prompt_cost": 3.4e-06,
+    "upstream_inference_completions_cost": 4.4e-06
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.1-flash-lite",
+  "prompt": "models",
+  "answer": "Based on my internal knowledge, here are the three most recent major models from each of these companies, along with their approximate release windows:\n\n### **OpenAI**\n1. **o1 (o1-preview/o1-mini):** Released September 2024. (This is their \"reasoning\" model series).\n2. **GPT-4o:** Released May 2024. (The \"omni\" model capable of real-time multimodal interaction).\n3. **GPT-4o mini:** Released July 2024. (The cost-efficient successor to GPT-3.5 Turbo).\n\n### **Anthropic**\n1. **Claude 3.5 Sonnet (Updated):** Released October 2024. (Features the new \"Computer Use\" capability).\n2. **Claude 3.5 Sonnet (Original):** Released June 2024. (The first model in the 3.5 family).\n3. **Claude 3 Opus:** Released March 2024. (The most capable model in the previous 3.0 family).\n\n### **Google**\n1. **Gemini 1.5 Flash-8B:** Released October 2024. (A high-volume, lighter version of the 1.5 Flash model).\n2. **Gemini 1.5 Pro (Updated/0827):** Released August 2024. (An improved iteration of the 1.5 Pro model).\n3. **Gemini 1.5 Flash:** Released May 2024. (Google's optimized model for speed and efficiency).",
+  "usage": {
+   "prompt_tokens": 53,
+   "completion_tokens": 356,
+   "total_tokens": 409,
+   "cost": 0.0005417775,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00054725,
+    "upstream_inference_prompt_cost": 1.325e-05,
+    "upstream_inference_completions_cost": 0.000534
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.1-flash-lite",
+  "prompt": "libs",
+  "answer": "Since I do not have access to the live web, my knowledge reflects the state of the ecosystem as of my last training data update. Here are the stable versions as of early 2024:\n\n*   **React:** **18.2.0** (Released June 2022)\n*   **Next.js:** **14.1.0** (Released February 2024)\n*   **Tailwind CSS:** **3.4.1** (Released January 2024)\n*   **Vite:** **5.1.0** (Released February 2024)\n*   **TypeScript:** **5.3.3** (Released November 2023)\n\n*Note: These versions represent the stable ecosystem standard as of early 2024. Patch updates for these tools occur frequently.*",
+  "usage": {
+   "prompt_tokens": 44,
+   "completion_tokens": 186,
+   "total_tokens": 230,
+   "cost": 0.0002871,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00029,
+    "upstream_inference_prompt_cost": 1.1e-05,
+    "upstream_inference_completions_cost": 0.000279
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.1-flash-lite",
+  "prompt": "cutoff",
+  "answer": "My knowledge cutoff is **January 2025**. Here are three specific news events from that month:\n\n1. **The Inauguration of Donald Trump:** Donald Trump was inaugurated as the 47th President of the United States on January 20, 2025, following his victory in the 2024 presidential election.\n2. **Transition of Power and Cabinet Confirmations:** Throughout January, the U.S. Senate engaged in a series of high-profile confirmation hearings for President-elect Trump’s cabinet nominees as the administration prepared to take office.\n3. **Global Economic and Geopolitical Developments:** The month saw ongoing discussions regarding international trade policies and shifts in foreign policy as world leaders reacted to the transition in the U.S. executive branch.",
+  "usage": {
+   "prompt_tokens": 31,
+   "completion_tokens": 162,
+   "total_tokens": 193,
+   "cost": 0.0002482425,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00025075,
+    "upstream_inference_prompt_cost": 7.75e-06,
+    "upstream_inference_completions_cost": 0.000243
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.1-flash-lite",
+  "prompt": "identity",
+  "answer": "I am a large language model, trained by Google.",
+  "usage": {
+   "prompt_tokens": 33,
+   "completion_tokens": 11,
+   "total_tokens": 44,
+   "cost": 2.45025e-05,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 2.475e-05,
+    "upstream_inference_prompt_cost": 8.25e-06,
+    "upstream_inference_completions_cost": 1.65e-05
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.5-flash-lite",
+  "prompt": "models",
+  "answer": "Based on my memory up to my knowledge cutoff, here are the newest AI models I know of from Anthropic, OpenAI, and Google, along with their approximate release dates:\n\n### Anthropic\n1. **Claude 3.5 Sonnet** – June 2024\n2. **Claude 3 Opus** – March 2024\n3. **Claude 3 Sonnet** – March 2024 *(or Claude 3 Haiku, released at the same time)*\n\n### OpenAI\n1. **OpenAI o1-preview** (and **o1-mini**) – September 2024\n2. **GPT-4o** – May 2024\n3. **GPT-4o mini** – July 2024\n\n### Google\n1. **Gemini 1.5 Pro** – February 2024 *(with subsequent updates through mid-2024)*\n2. **Gemini 1.5 Flash** – May 2024\n3. **Gemini 1.0 Ultra** – February 2024 *(released alongside early Gemini 1.5 versions)*",
+  "usage": {
+   "prompt_tokens": 53,
+   "completion_tokens": 250,
+   "total_tokens": 303,
+   "cost": 0.000634491,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0006409,
+    "upstream_inference_prompt_cost": 1.59e-05,
+    "upstream_inference_completions_cost": 0.000625
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.5-flash-lite",
+  "prompt": "libs",
+  "answer": "Based on my training data (up to January 2025), here are the approximate latest stable versions and release dates I have in memory:\n\n*   **React:** v19.0.0 (released December 2024)\n*   **Next.js:** v15.0.0 / v15.1.x (released October/December 2024)\n*   **Tailwind CSS:** v4.0.0 (released January 2025)\n*   **Vite:** v6.0.0 (released November/December 2024)\n*   **TypeScript:** v5.7.0 (released November 2024)",
+  "usage": {
+   "prompt_tokens": 44,
+   "completion_tokens": 154,
+   "total_tokens": 198,
+   "cost": 0.000394218,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0003982,
+    "upstream_inference_prompt_cost": 1.32e-05,
+    "upstream_inference_completions_cost": 0.000385
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.5-flash-lite",
+  "prompt": "cutoff",
+  "answer": "My knowledge cutoff is March 2026. \n\nHere are three specific news events from March 2026:\n\n1. **The passing of Pope Francis:** Pope Francis, the 266th Bishop of Rome, passed away at the age of 89, triggering global mourning and preparations for a papal conclave.\n2. **The 2026 Winter Olympics (Closing):** The Milano Cortina Winter Olympic Games concluded in northern Italy, wrapping up weeks of international athletic competition. \n3. **Global AI Regulations Summit:** A major international summit was held in Geneva, Switzerland, where world leaders and tech executives agreed on a new global framework for governing artificial intelligence deployment in critical infrastructure.",
+  "usage": {
+   "prompt_tokens": 31,
+   "completion_tokens": 149,
+   "total_tokens": 180,
+   "cost": 0.000377982,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0003818,
+    "upstream_inference_prompt_cost": 9.3e-06,
+    "upstream_inference_completions_cost": 0.0003725
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.5-flash-lite",
+  "prompt": "identity",
+  "answer": "I am Gemini, a large language model trained by Google. Regarding the specific version, my instructions don't let me share those details.",
+  "usage": {
+   "prompt_tokens": 33,
+   "completion_tokens": 28,
+   "total_tokens": 61,
+   "cost": 7.9101e-05,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 7.99e-05,
+    "upstream_inference_prompt_cost": 9.9e-06,
+    "upstream_inference_completions_cost": 7e-05
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-5-mini",
+  "prompt": "models",
+  "answer": "I’m answering from memory only (no web lookups). Dates are approximate and I may be fuzzy on variant names.\n\nAnthropic\n- Claude 3 Opus — ~May 2024  \n- Claude 3 Sonnet — ~May 2024  \n- Claude 2 (Claude 2.x family) — ~July 2023\n\nOpenAI\n- GPT‑4o (the “omni”/real‑time variant) — ~Apr 2024  \n- GPT‑4 Turbo — ~Nov 2023  \n- GPT‑4 — ~Mar 2023\n\nGoogle (Alphabet)\n- Gemini Ultra — ~May–Jun 2024  \n- Gemini 1.5 / Gemini 1.5 Pro — ~Mar–Apr 2024  \n- Gemini 1.0 / Gemini Pro (the initial Gemini family releases) — ~late 2023\n\nIf you want, I can expand each entry with short notes on strengths/variants — still from memory.",
+  "usage": {
+   "prompt_tokens": 58,
+   "completion_tokens": 2052,
+   "total_tokens": 2110,
+   "cost": 0.004077315,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0041185,
+    "upstream_inference_prompt_cost": 1.45e-05,
+    "upstream_inference_completions_cost": 0.004104
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1792,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-5-mini",
+  "prompt": "libs",
+  "answer": "Note: these are from memory only (my training/data cutoff is June 2024). I’ve added a confidence flag for each — double-check if you need exact, current info.\n\n- React — 18.2.0 — released June 14, 2022. (High confidence)\n- Next.js — 13.5 (13.5.x series; latest 13.5.* in early 2024) — approx early–mid 2024. (Medium confidence)\n- Tailwind CSS — 3.4 (3.4.x series; latest in late 2023 / early 2024) — approx late 2023 / early 2024. (Low–medium confidence)\n- Vite — 5.0.0 (Vite 5 major) — approx March–April 2024. (Medium confidence)\n- TypeScript — 5.7 (5.7.x releases around May 2024) — approx May 2024. (Medium confidence)\n\nIf you want, I can try to be stricter about patch numbers for the ones marked “medium/low confidence,” but I’d recommend checking the package registries (npm/github) for exact, up-to-the-minute versions.",
+  "usage": {
+   "prompt_tokens": 52,
+   "completion_tokens": 2321,
+   "total_tokens": 2373,
+   "cost": 0.00460845,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.004655,
+    "upstream_inference_prompt_cost": 1.3e-05,
+    "upstream_inference_completions_cost": 0.004642
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 2048,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-5-mini",
+  "prompt": "cutoff",
+  "answer": "My knowledge is current through June 2024.\n\nThree news events from June 2024 (from memory):\n- European Parliament elections were held across EU member states (June 6–9, 2024).\n- UEFA Euro 2024 kicked off in Germany in mid‑June (the tournament’s opening matches were played in Germany).\n- The Russia–Ukraine war continued to dominate headlines, with ongoing fighting on the front lines and international discussions about further Western military and financial support for Ukraine.",
+  "usage": {
+   "prompt_tokens": 37,
+   "completion_tokens": 1927,
+   "total_tokens": 1964,
+   "cost": 0.0038246175,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00386325,
+    "upstream_inference_prompt_cost": 9.25e-06,
+    "upstream_inference_completions_cost": 0.003854
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1792,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-5-mini",
+  "prompt": "identity",
+  "answer": "I don’t have access to runtime metadata that would let me confirm the exact model identifier or version name I’m running on right now. I can say I’m an OpenAI large language model and that I was trained by OpenAI on a mixture of licensed data, data created by human trainers, and publicly available text. If you need the precise model/version for an API or deployment, check the model name returned by the service you’re using (or tell me where you’re calling me from and I can suggest how to find it).",
+  "usage": {
+   "prompt_tokens": 37,
+   "completion_tokens": 639,
+   "total_tokens": 676,
+   "cost": 0.0012743775,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00128725,
+    "upstream_inference_prompt_cost": 9.25e-06,
+    "upstream_inference_completions_cost": 0.001278
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 512,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-4.1-mini",
+  "prompt": "models",
+  "answer": "Sure! From memory only, here are the newest AI models I know from each company along with approximate release dates:\n\n**Anthropic:**  \n1. Claude 3 - Released around mid-2023 (June/July)  \n2. Claude 2 - Released early 2023 (March)  \n3. Claude 1.3 - Late 2022  \n\n**OpenAI:**  \n1. GPT-4 Turbo - Released late 2023 (around November)  \n2. GPT-4 - Released March 2023  \n3. GPT-3.5 - Released late 2022 (November/December)  \n\n**Google:**  \n1. PaLM 2 - Released mid-2023 (May/June)  \n2. PaLM 1 - Released April 2022  \n3. Bard (based on LaMDA) initial launch early 2023 (February/March)  \n\nLet me know if you'd like details or clarification!",
+  "usage": {
+   "prompt_tokens": 59,
+   "completion_tokens": 195,
+   "total_tokens": 254,
+   "cost": 0.000332244,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0003356,
+    "upstream_inference_prompt_cost": 2.36e-05,
+    "upstream_inference_completions_cost": 0.000312
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-4.1-mini",
+  "prompt": "libs",
+  "answer": "From my memory up to mid-2024, here are the latest stable versions I recall for those tools, along with approximate release dates:\n\n- **React**: 18.2.0 — Released around June 2022  \n  (The 18.x line with concurrent features has been stable since then.)\n\n- **Next.js**: 13.4.0 — Released approximately April 2024  \n  (Next.js 13 introduced the new app directory and server components around late 2022; 13.4 is a later stable update.)\n\n- **Tailwind CSS**: 3.3.2 — Released around March 2024  \n  (Tailwind 3.3.x has been the latest in early 2024, adding new utilities and improvements.)\n\n- **Vite**: 4.3.9 — Released roughly June 2024  \n  (Vite 4.x has been out since late 2023, with incremental patch releases into mid-2024.)\n\n- **TypeScript**: 5.1.6 — Released approximately June 2024  \n  (TypeScript 5.0 arrived late 2023, with 5.1 bringing incremental improvements through 2024.)\n\nThese are the latest stable versions I recall without checking live sources. If you want me to confirm or expand on new features or changes in these versions, just ask!",
+  "usage": {
+   "prompt_tokens": 53,
+   "completion_tokens": 286,
+   "total_tokens": 339,
+   "cost": 0.000474012,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0004788,
+    "upstream_inference_prompt_cost": 2.12e-05,
+    "upstream_inference_completions_cost": 0.0004576
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-4.1-mini",
+  "prompt": "cutoff",
+  "answer": "The most recent month and year I have reliable knowledge of is June 2024.\n\nThree specific news events from June 2024 include:\n\n1. **U.S. Presidential Campaign Developments:** The 2024 U.S. presidential race intensified, with key primary contests taking place and candidates making final pitches ahead of the party conventions.\n2. **Euro 2024 Football Championship:** This major European soccer tournament was underway, drawing widespread attention across Europe and the world.\n3. **Tensions in the South China Sea:** Ongoing geopolitical tensions were reported, with several nations conducting military exercises and diplomatic negotiations regarding territorial disputes.\n\nIf you'd like more detail on any of these or other events from that time, just let me know!",
+  "usage": {
+   "prompt_tokens": 38,
+   "completion_tokens": 147,
+   "total_tokens": 185,
+   "cost": 0.000247896,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0002504,
+    "upstream_inference_prompt_cost": 1.52e-05,
+    "upstream_inference_completions_cost": 0.0002352
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-4.1-mini",
+  "prompt": "identity",
+  "answer": "I’m based on OpenAI’s GPT-4 architecture. I'm here to help with any questions or tasks you have!",
+  "usage": {
+   "prompt_tokens": 38,
+   "completion_tokens": 25,
+   "total_tokens": 63,
+   "cost": 5.4648e-05,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 5.52e-05,
+    "upstream_inference_prompt_cost": 1.52e-05,
+    "upstream_inference_completions_cost": 4e-05
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ }
+]

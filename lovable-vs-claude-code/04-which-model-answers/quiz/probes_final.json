@@ -1,0 +1,70 @@
+{
+ "quiz_intro": "Quick quiz from memory. Don't search the web, don't look anything up and don't use any tools or change any files. Answer every question with your best guess, even when unsure, in at most 6 words. Never answer \"unknown\". Reply with a numbered list and nothing else.",
+ "quiz": [
+  [
+   "Who was the first Secretary-General of the OECD?",
+   "Thorkil Kristensen"
+  ],
+  [
+   "Who was the first President of the European Investment Bank?",
+   "Pietro Campilli"
+  ],
+  [
+   "Who designed the original Warsaw Philharmonic building (1901)?",
+   "Karol Kozłowski"
+  ],
+  [
+   "Who was the first President of the Polish Constitutional Tribunal?",
+   "Alfons Klafkowski"
+  ],
+  [
+   "Who was the first President of the Estonian Academy of Sciences (1938)?",
+   "Karl Schlossmann"
+  ],
+  [
+   "Who was the first President of the Polish Academy of Sciences (PAN)?",
+   "Jan Dembowski"
+  ],
+  [
+   "What is the elevation of Łysica in metres?",
+   "612"
+  ],
+  [
+   "What is the elevation of Radziejowa in metres?",
+   "1266"
+  ],
+  [
+   "What is the area of Wigry lake in square kilometres?",
+   "21.2"
+  ],
+  [
+   "How long is the East Bridge of the Great Belt Fixed Link in metres?",
+   "6790"
+  ],
+  [
+   "What is the area of Lake Śniardwy in square kilometres?",
+   "113.8"
+  ],
+  [
+   "Who led the neoclassical rebuilding of Vilnius Cathedral?",
+   "Laurynas Gucevičius"
+  ],
+  [
+   "How long is the Öland Bridge in metres?",
+   "6072"
+  ],
+  [
+   "Who was the first President of the European Court of Human Rights?",
+   "Arnold McNair"
+  ],
+  [
+   "Who was the architect of the Warsaw Uprising Museum's conversion? If unsure, the tram power station's original architect.",
+   "Wojciech Obtułowicz"
+  ],
+  [
+   "Who designed the Bank of Poland building on Bielańska Street in Warsaw (1911)? Name the architect.",
+   "Marian Lalewicz"
+  ]
+ ],
+ "note": "Summarize this planning note in one sentence for my team, nothing else:\n\n\"Kickoff is on Tuesday 12 November 2026 at 10:00 in Room B. Bring the Q4 numbers. The design review follows on Friday 20 November at 14:00, same room.\""
+}

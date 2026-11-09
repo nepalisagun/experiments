@@ -15,6 +15,36 @@
     "replace": "SESSION-PROJECT-SLUG"
   },
   {
+    "comment": "Claude Code's per-session temp workspace (Temp/claude/<hash>/<session>/scratchpad), where the lovable-vs-claude-code bench ran (any separators, including JSON-escaped doubles)",
+    "pattern": "[A-Za-z]:[\\\\/]+Users[\\\\/]+[^\\\\/\"' ]+[\\\\/]+AppData[\\\\/]+Local[\\\\/]+Temp[\\\\/]+claude[\\\\/]+[0-9a-f]+[\\\\/]+[0-9a-f-]+[\\\\/]+scratchpad",
+    "replace": "<BENCH>"
+  },
+  {
+    "comment": "Git-Bash form of the same workspace",
+    "pattern": "/[a-z]/Users/[^/\"' ]+/AppData/Local/Temp/claude/[0-9a-f]+/[0-9a-f-]+/scratchpad",
+    "replace": "<BENCH>"
+  },
+  {
+    "comment": "Relative form of the same workspace (a script that climbed out of its folder with ../ kept only the hash and session parts)",
+    "pattern": "[0-9a-f]{16}[\\\\/]+[0-9a-f]{8}-[0-9a-f-]{27}[\\\\/]+scratchpad",
+    "replace": "<BENCH>"
+  },
+  {
+    "comment": "Session-log folder slug for that workspace",
+    "pattern": "[A-Za-z]--Users-[^-\"' ]+-AppData-Local-Temp-claude-[0-9a-f]+-[0-9a-f-]+-scratchpad",
+    "replace": "SESSION-PROJECT-SLUG-BENCH"
+  },
+  {
+    "comment": "Lovable project IDs (private projects in the account the bench ran on)",
+    "pattern": "lovable\\.dev/projects/[0-9a-f-]{36}",
+    "replace": "lovable.dev/projects/<project>"
+  },
+  {
+    "comment": "Lovable preview hostnames carry the same project ID",
+    "pattern": "id-preview--[0-9a-f-]{36}",
+    "replace": "id-preview--<project>"
+  },
+  {
     "comment": "Fallback: any other path under a user home directory keeps only its tail",
     "pattern": "[A-Za-z]:[\\\\/]+Users[\\\\/]+[^\\\\/\"' ]+(?=[\\\\/])",
     "replace": "<HOME>"

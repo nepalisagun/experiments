@@ -1,0 +1,100 @@
+diff --git a/e2e/budget.spec.ts b/e2e/budget.spec.ts
+index 2c80c48..78c349b 100644
+--- a/e2e/budget.spec.ts
++++ b/e2e/budget.spec.ts
+@@ -125,6 +125,31 @@ for (const s of sizes) {
+       await page.getByRole('button', { name: 'Clear filters' }).click()
+       await expect(page.getByTestId('tx-row')).toHaveCount(6)
+ 
++      // Clear filters button: disabled when idle, resets category + type + search together
++      const clear = page.getByRole('button', { name: 'Clear filters' })
++      await expect(clear).toBeDisabled()
++      await page.getByLabel('Filter by category').selectOption({ label: 'Food' })
++      await expect(clear).toBeEnabled()
++      await page.getByLabel('Filter by type').selectOption('expense')
++      await page.getByLabel('Search notes').fill('Tea')
++      await expect(page.getByTestId('tx-row')).toHaveCount(1)
++      await clear.click()
++      await expect(page.getByLabel('Filter by category')).toHaveValue('all')
++      await expect(page.getByLabel('Filter by type')).toHaveValue('all')
++      await expect(page.getByLabel('Search notes')).toHaveValue('')
++      await expect(page.getByTestId('tx-row')).toHaveCount(6)
++      await expect(clear).toBeDisabled()
++      // button sits next to the filters and inside the viewport
++      const box = await clear.boundingBox()
++      expect(box!.x + box!.width).toBeLessThanOrEqual(s.width)
++
++      // income is teal (total, row amount, type toggle)
++      await expect(page.getByTestId('total-income')).toHaveClass(/text-teal-600/)
++      await expect(page.getByTestId('tx-row').filter({ hasText: 'Salary' }).locator('p.font-semibold')).toHaveClass(/text-teal-600/)
++      await page.getByRole('form', { name: 'Add transaction' }).getByText('income', { exact: true }).click()
++      await expect(page.getByRole('form', { name: 'Add transaction' }).locator('label', { hasText: 'income' })).toHaveClass(/bg-teal-600/)
++      await page.getByRole('form', { name: 'Add transaction' }).getByText('expense', { exact: true }).click()
++
+       // 8. CSV export (whole month, even when filtered)
+       await page.getByLabel('Search notes').fill('Tea')
+       const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()])
+diff --git a/src/App.tsx b/src/App.tsx
+index 2fa37fc..480523d 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -56,7 +56,7 @@ export default function App() {
+ 
+       <main className="mx-auto max-w-6xl space-y-4 px-4 py-4">
+         <section aria-label="Month totals" className="grid grid-cols-3 gap-2 sm:gap-3">
+-          <Stat label="Income" testid="total-income" tone="text-emerald-600"><Money cents={t.income} /></Stat>
++          <Stat label="Income" testid="total-income" tone="text-teal-600"><Money cents={t.income} /></Stat>
+           <Stat label="Expenses" testid="total-expenses" tone="text-rose-600"><Money cents={t.expenses} /></Stat>
+           <Stat label="Balance" testid="total-balance" tone={t.balance < 0 ? 'text-red-600' : 'text-slate-900'}>
+             {t.balance < 0 && '−'}<Money cents={Math.abs(t.balance)} />
+@@ -82,7 +82,7 @@ export default function App() {
+                 <h2 className="font-semibold">Transactions</h2>
+                 <button onClick={exportCsv} disabled={monthTxs.length === 0} className={btnGhost + ' disabled:cursor-not-allowed disabled:opacity-50'}>Export CSV</button>
+               </div>
+-              <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1.5fr]">
++              <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr]">
+                 <select aria-label="Filter by category" value={filters.categoryId} onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })} className={inputCls}>
+                   <option value="all">All categories</option>
+                   {data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+@@ -92,13 +92,16 @@ export default function App() {
+                   <option value="income">Income</option>
+                   <option value="expense">Expenses</option>
+                 </select>
+-                <input type="search" aria-label="Search notes" placeholder="Search notes…" value={filters.search}
+-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })} className={inputCls + ' col-span-2 sm:col-span-1'} />
++                <div className="col-span-2 flex gap-2 sm:col-span-1">
++                  <input type="search" aria-label="Search notes" placeholder="Search notes…" value={filters.search}
++                    onChange={(e) => setFilters({ ...filters, search: e.target.value })} className={inputCls + ' min-w-0 flex-1'} />
++                  <button type="button" onClick={() => setFilters({ categoryId: 'all', type: 'all', search: '' })} disabled={!filtering}
++                    className={btnGhost + ' shrink-0 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50'}>Clear filters</button>
++                </div>
+               </div>
+               {visible.length === 0 ? (
+                 <p className="py-8 text-center text-sm text-slate-500">
+                   {filtering ? 'No transactions match your filters.' : 'No transactions in ' + monthLabel(month) + ' yet.'}
+-                  {filtering && <> <button className="text-indigo-600 underline" onClick={() => setFilters({ categoryId: 'all', type: 'all', search: '' })}>Clear filters</button></>}
+                 </p>
+               ) : (
+                 <ul className="divide-y divide-slate-100">
+diff --git a/src/components.tsx b/src/components.tsx
+index 2351158..6df76a8 100644
+--- a/src/components.tsx
++++ b/src/components.tsx
+@@ -44,7 +44,7 @@ export function TransactionForm({ categories, initial, defaultDate, onSubmit, on
+     <form onSubmit={submit} noValidate className="space-y-3" aria-label={initial ? 'Edit transaction' : 'Add transaction'}>
+       <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" role="radiogroup" aria-label="Type">
+         {(['expense', 'income'] as TxType[]).map((t) => (
+-          <label key={t} className={`cursor-pointer rounded-md py-1.5 text-center text-sm font-medium capitalize ${f.type === t ? (t === 'income' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white') : 'text-slate-600'}`}>
++          <label key={t} className={`cursor-pointer rounded-md py-1.5 text-center text-sm font-medium capitalize ${f.type === t ? (t === 'income' ? 'bg-teal-600 text-white' : 'bg-rose-600 text-white') : 'text-slate-600'}`}>
+             <input type="radio" name="type" value={t} checked={f.type === t} onChange={() => set('type', t)} className="sr-only" />
+             {t}
+           </label>
+@@ -226,7 +226,7 @@ export function TxRow({ t, cat, onEdit, onDelete }: { t: Transaction; cat?: Cate
+         <p className="truncate text-sm font-medium">{cat?.name ?? 'Unknown'}{t.note && <span className="font-normal text-slate-500"> · {t.note}</span>}</p>
+         <p className="text-xs text-slate-500">{t.date}</p>
+       </div>
+-      <p className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-emerald-600' : 'text-slate-900'}`}>
++      <p className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-teal-600' : 'text-slate-900'}`}>
+         {t.type === 'income' ? '+' : '−'}${formatCents(t.amount)}
+       </p>
+       <div className="flex shrink-0 gap-1">

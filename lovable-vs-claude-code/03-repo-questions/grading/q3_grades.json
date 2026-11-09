@@ -1,0 +1,150 @@
+{
+  "A": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 10,
+    "errors": [
+      {
+        "claim": "alert_rules is checked in set_alert_routing (alert_channels.sql:69)",
+        "truth": "Line 69 only refuses a null p_alert_rules (limits_required); the plan refusal alert_rules_required is at line 71",
+        "evidence": "supabase/migrations/20261023120000_alert_channels.sql:71",
+        "severity": "low"
+      },
+      {
+        "claim": "Demo cloning sends all the same limits",
+        "truth": "The clone action sends apps, pages, monitors, assertions, per-host, interval and white_label; heartbeat limits are not sent (clone_demo_page passes p_max_heartbeats => 0)",
+        "evidence": "src/app/(app)/app/clone/[slug]/actions.ts:44-46",
+        "severity": "low"
+      },
+      {
+        "claim": "white_label/private_pages: the action sends them at actions.ts:874-875",
+        "truth": "874-875 is only the first save inside createPage; the editor's save (savePage) goes through save_demo_page -> save_status_page_access -> save_status_page with the flags at 922-923, and coerces powered_by/noindex to the plan default at 917-918",
+        "evidence": "src/app/(app)/app/actions.ts:894-923",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "The editor save path (savePage -> save_demo_page) and its action-side coercion of powered_by/noindex for unentitled workspaces",
+      "Agent pause tool capped at 24 h (1,440 min), separate from the 30-day dashboard pause",
+      "Fixed per-workspace admission budget of 120/min on the agent API before the plan budget"
+    ]
+  },
+  "B": {
+    "correctness": 9,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "monitor_limit is raised at phase1_dashboard.sql:308-309 (redefined later)",
+        "truth": "That is the superseded first definition; the live create_monitor is in heartbeat_url_sealed.sql:82-113. The answer flags redefinition but never names the current file",
+        "evidence": "supabase/migrations/20261022040000_heartbeat_url_sealed.sql:82",
+        "severity": "low"
+      },
+      {
+        "claim": "SSL checks run every few hours and DNS every few minutes",
+        "truth": "Exactly 6 h for SSL (21,600 s, enforced as equality) and at least 10 min for DNS (600 s)",
+        "evidence": "supabase/migrations/20261022040000_heartbeat_url_sealed.sql:101-103",
+        "severity": "low"
+      },
+      {
+        "claim": "Limits table at plans.ts:69-108; entitlementsFrom at plans.ts:148-166",
+        "truth": "The table is at 73-110 and entitlementsFrom at 147-162",
+        "evidence": "src/lib/plans.ts:73",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Where the feature switches are enforced (white_label_required/private_pages_required in save_status_page, alert_rules in action + set_alert_routing, notify_teammates in action + create_alert_address)",
+      "That create_monitor/update_monitor refuse an interval below p_min_interval_sec (interval_not_allowed)",
+      "save_service_monitor only checks the interval is in {60,180}/{300,600}, not which plan may use it: the plan interval for Stripe/Supabase is enforced only by the action",
+      "SQL files for app_limit and the service-monitor caps",
+      "Plan-independent caps: 100 API tokens, 3 pending custom domains, 50 components per page, 30-day pause",
+      "Over-limit objects survive a downgrade (only the next create is refused)",
+      "Subscribers feature is switched off (launch.ts:93)"
+    ]
+  },
+  "C": {
+    "correctness": 8,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      {
+        "claim": "apiPerMin is charged using the Postgres spend_budget counter (src/lib/budgets.ts:1-4)",
+        "truth": "The agent budget goes through spendAgentBudget -> the agent_budget SQL function (which also refuses any limit above 120), not spend_budget",
+        "evidence": "src/lib/agent-auth.ts:57-58; supabase/migrations/20261023150000_agent_surface.sql:73-77",
+        "severity": "medium"
+      },
+      {
+        "claim": "mcpMonitors and mcpIntervalMin are only shown in PlanTable.tsx:44",
+        "truth": "PlanTable shows only mcpMonitors; mcpIntervalMin is not referenced anywhere outside plans.ts",
+        "evidence": "src/components/PlanTable.tsx:44",
+        "severity": "low"
+      },
+      {
+        "claim": "Demo clone SQL is in 20261028090000_demo_clone.sql",
+        "truth": "clone_demo_page was redefined in 20261028220000_demo_clone_branding.sql:45, which is the live version",
+        "evidence": "supabase/migrations/20261028220000_demo_clone_branding.sql:45",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Upgrade/downgrade behaviour: Free 3-min HTTP/TCP/Supabase monitors move to 1 min on upgrade; nothing slows down or is removed on downgrade",
+      "Explicit note that save_service_monitor does not tie the interval to the plan (only the action does)",
+      "SQL refusals for the feature switches (white_label_required, private_pages_required, alert_rules_required)",
+      "50 components per page and 30-day pause caps"
+    ]
+  },
+  "D": {
+    "correctness": 9,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "A fixed 120-per-minute check on each token or OAuth user at sign-in (L103, L115)",
+        "truth": "The token path is keyed by the workspace (agentHash(\"admission-token\", data.workspace_id)), so it caps all tokens of a workspace together, not each token; the OAuth path is per user",
+        "evidence": "src/lib/agent-auth.ts:103",
+        "severity": "low"
+      },
+      {
+        "claim": "The same file [service_monitors.sql] holds the current monitor_limit and host_limit count queries",
+        "truth": "True only for save_service_monitor; the live create_monitor counts are in heartbeat_url_sealed.sql, which the answer never names",
+        "evidence": "supabase/migrations/20261022040000_heartbeat_url_sealed.sql:82-113",
+        "severity": "low"
+      },
+      {
+        "claim": "mcpMonitors and mcpIntervalMin are used only in plans.ts and the screens that show them",
+        "truth": "No screen shows mcpIntervalMin; only mcpMonitors appears (PlanTable.tsx:44)",
+        "evidence": "src/components/PlanTable.tsx:44",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "alert_rules enforcement (alerts/actions.ts:317, set_alert_routing)",
+      "Plan-independent caps: DNS >= 10 min / SSL = 6 h intervals, 100 API tokens, 3 pending domains, 50 components, 30-day pause",
+      "save_service_monitor does not tie the interval to the plan; only the action does",
+      "Over-limit objects survive a downgrade",
+      "Exact SQL line locations (all line refs approximate, no SQL lines)"
+    ]
+  },
+  "E": {
+    "correctness": 9,
+    "completeness": 6,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "The probe knows the plan from a store table, probe_builder_workspaces",
+        "truth": "probe_builder_workspaces is a SQL function reading the workspaces.plan column, called from probe/store.ts:214",
+        "evidence": "supabase/migrations/20261024090000_workspace_plan.sql:6-14",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Where the feature switches are enforced (white_label/private_pages in save_status_page and the page actions, alert_rules, notify_teammates)",
+      "Custom-domain verification, demo clone and agent create paths that also pass the limits",
+      "Upgrade moves Free-interval monitors to 1 min; downgrade does not slow them or remove anything",
+      "Plan-independent caps: 100 API tokens, 3 pending domains, 50 components, 30-day pause",
+      "Subscribers feature is switched off (launch.ts:93)",
+      "Explicit note that the Stripe/Supabase plan interval is enforced only by the action"
+    ]
+  }
+}

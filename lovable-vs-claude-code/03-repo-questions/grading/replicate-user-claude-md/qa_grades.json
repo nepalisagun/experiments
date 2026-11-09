@@ -1,0 +1,202 @@
+{
+  "q1A": {
+    "correctness": 9,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "Quotes the edge unit as 'so it can't starve the probe on the same box'; the file says 'The limits keep it from starving the probe on the same box' (examples/edge/staygreen-edge.service:7). Paraphrase presented as a quote (trivial)."
+    ],
+    "missed": [
+      "Canary drop of failures from an isolated probe (probe/runtime.ts:499)",
+      "alert_mark, retry backoff 30 s..1 h and the 8-attempt cap (src/lib/alerts/sender.ts:47-53)",
+      "Trigger runs in the same transaction as the incident insert (alerts_email.sql:5-6,209-239)",
+      "Resolved alerts only reach channels that received 'opened' (alerts_email.sql:342-345)",
+      "Caddy/on-demand TLS as its own moving part; alert_sender restricted schema",
+      "Few line-level citations"
+    ]
+  },
+  "q1B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      "Cites alert_expand at 20261022195510_alerts_email.sql:284-353; superseded by 20261023120000_alert_channels.sql:132-201 (behaviour described still holds).",
+      "Says alert_claim claims receipts; the Worker (deps.channels set) calls alert_claim_channels (sender.ts:392); legacy alert_claim only claims email/Telegram (alert_channels.sql:219)."
+    ],
+    "missed": [
+      "Dashboard's inline deliverNow path running the same runSender (src/lib/alerts/server.ts:25-27)",
+      "Stale 'Netlify scheduled function' header in alerts_email.sql:7-9"
+    ]
+  },
+  "q1C": {
+    "correctness": 8,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      "Headline says 'eight separately deployed parts: four processes you host yourself ... and three Cloudflare Workers, all sharing one Supabase Postgres': 4 + 3 = 7, with the database treated as separate; also counts the Netlify-hosted Next.js app as 'host yourself' while its own table says Netlify by default."
+    ],
+    "missed": [
+      "Resolved alerts only reach channels that received 'opened' (alerts_email.sql:342-345)"
+    ]
+  },
+  "q2A": {
+    "correctness": 7,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "Claims a website monitor's incident closes when 'the monitor is edited and the new settings pass a check: \"Monitor edited and verified, incident closed\" (service_monitors.sql ~L66, added in 20261022081211)'. That text is in save_service_monitor, which only handles stripe/supabase (service_monitors.sql:24,62-67), and it closes on the edit itself. For website monitors 20261022081211_monitor_edit_closes_incident.sql:103-108 closes only on an address change, with 'Address changed, incident closed'."
+    ],
+    "missed": [
+      "What counts as a failed HTTP check (status/expect default 2xx, keyword, assertions, bot page, network/TLS errors, 15 s timeout) (src/checks/http.ts:225-253, probe/runtime.ts:474,477)",
+      "Canary drop of failures from an isolated probe (probe/runtime.ts:499)",
+      "Conditions on the resolved alert: state up (or degraded for a down incident) and a prior 'opened' event (alerts_email.sql:224-231)",
+      "Blip/unconfirmed failures do not reset passStreak (state.ts:122)",
+      "No manual resolve exists; pausing does not close an incident"
+    ]
+  },
+  "q2B": {
+    "correctness": 8,
+    "completeness": 9,
+    "usefulness": 8,
+    "errors": [
+      "Lists 'Editing the monitor (081211:105-107)' as closing the incident without the condition that only an address/target change does (081211:103); also omits the service-monitor edit path.",
+      "'Unconfirmed: ... no second location could look' contradicts its own correct statement: when no other location can look (none live, or all declined) the probe re-checks itself (probe/runtime.ts:576,587).",
+      "Resolved-email condition is garbled and omits the requirement of a prior 'opened' event (alerts_email.sql:226-227)."
+    ],
+    "missed": [
+      "No manual resolve exists",
+      "Builder monitors prefer a confirmer on the other continent (probe/schedule.ts:72-80)"
+    ]
+  },
+  "q2C": {
+    "correctness": 10,
+    "completeness": 10,
+    "usefulness": 9,
+    "errors": [],
+    "missed": [
+      "Further confirmed failures while already down are still recorded in check_failures (state.ts:90, service_monitors.sql:184-189)"
+    ]
+  },
+  "q3A": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 10,
+    "errors": [
+      "Marks the Stripe poll interval (10/5 min) as enforced by SQL interval_not_allowed; the SQL accepts 300 or 600 for any plan (service_monitors.sql:60); the plan value is chosen by the action (actions.ts:314).",
+      "Cites workspace-plan.ts:22 for the 'slowing monitors remains deferred' comment; it is line 19 (trivial)."
+    ],
+    "missed": [
+      "API path reads the plan from Clerk's billing API (src/lib/api-entitlements.ts), not the session",
+      "SQL-side alert_rules_required (alert_channels.sql:71) and teammates_required (alerts_email.sql:483)",
+      "Status-page history is fixed at 30/90 days for every plan (phase1_dashboard.sql:181)"
+    ]
+  },
+  "q3B": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "Says the fixed 120/min admission check applies 'on each token'; for tokens it is keyed by workspace (agentHash('admission-token', data.workspace_id), agent-auth.ts:103).",
+      "Says monitor/per-host numbers are passed 'when a domain is added'; they are passed when a domain is verified, because verify_page_domain creates a DNS monitor (actions.ts:982-985, status_edge.sql:187-193)."
+    ],
+    "missed": [
+      "Fixed per-type intervals: DNS >= 600 s, SSL = 21600 s, Supabase 60/180, Stripe 300/600 (heartbeat_url_sealed.sql:101-105, service_monitors.sql:46,60)",
+      "Downgrades keep existing apps/pages/monitors and 1-minute intervals (apps_limit_and_logo.sql:63-65, workspace-plan.ts:19)",
+      "Where alert_rules is enforced (alerts/actions.ts:317, alert_channels.sql:71)",
+      "Non-plan limits: 100 active tokens, 3 pending custom domains",
+      "Dashboard history is not plan-limited (admitted not traced)",
+      "Latest create_monitor definition not cited (20261022040000_heartbeat_url_sealed.sql)"
+    ]
+  },
+  "q3C": {
+    "correctness": 8,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      "Presents alert_rules as giving 'alert timing and maintenance windows' and subscribers as giving 'email subscribers (1,000 per page)'. Alert timing and maintenance windows are off (launch.ts:87-88) and subscribers is deferred (launch.ts:93) with no enforcement anywhere.",
+      "Several plans.ts line cites drift by 3-5 lines (e.g. entitlementsFrom at 144-157, actually 147-162) (trivial)."
+    ],
+    "missed": [
+      "Downgrade gaps (existing items and 1-minute monitors kept)",
+      "Non-plan limits: 100 active tokens (agent_surface.sql:66), 3 pending domains (status_edge.sql:165-166)",
+      "Dashboard history not plan-limited: page history_days is 30/90 for all (phase1_dashboard.sql:181)",
+      "Supabase interval follows the HTTP plan minimum (actions.ts:314)"
+    ]
+  },
+  "q4A": {
+    "correctness": 8,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      "'A read token gets 403 insufficient_scope before any input is parsed': executeAgentTool parses the input (agent-service.ts:214) before write() checks scope.",
+      "'The most a write token can do is draft an incident update': write tokens can also provision_app, create_monitor and pause (agent-contract.ts:85)."
+    ],
+    "missed": [
+      "scan_app is callable with a read token and makes outbound requests (agent-service.ts:217-219)",
+      "agent_calls usage log written for every call (agent-transport.ts:41-64)",
+      "Origin/content-type/64 KiB/POST-only hardening (agent-transport.ts:26-37)",
+      "SELF_HOSTED_PLAN=builder sync writes workspaces.plan and monitor intervals on any authenticated request (agent-auth.ts:134-136, workspace-plan.ts:6-21)",
+      "OAuth principals always get scope write (agent-auth.ts:126); list of write tools"
+    ]
+  },
+  "q4B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      "'before input parsing': input is parsed at agent-service.ts:214 before write() checks scope.",
+      "Cites agent_surface.sql:127 for the p_scope check; it is line 126 (trivial)."
+    ],
+    "missed": [
+      "SELF_HOSTED_PLAN=builder sync is a configuration write a read-only request can trigger (agent-auth.ts:134-136, workspace-plan.ts:14-20)"
+    ]
+  },
+  "q4C": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 10,
+    "errors": [
+      "'write() calls requireAgentPermission as its first line, before parsing input': executeAgentTool already parsed the input (agent-service.ts:214).",
+      "Several agent-auth.ts line cites are about 3 lines early (lookup :91 -> 94, 401 :93-94 -> 96-97, admission :100 -> 103, last_used_at :101 -> 104, REST refusal :104 -> 107) (trivial)."
+    ],
+    "missed": []
+  },
+  "q5A": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 10,
+    "errors": [
+      "Cites sendDiscord at providers.ts:66-86; it is 58-78 (minor).",
+      "Lists tests/unit/channel-routing-screen.test.ts among suites that 'already cover Discord'; that file never mentions Discord (minor)."
+    ],
+    "missed": [
+      "launch.ts:83 stage comment lists the channels (trivial)"
+    ]
+  },
+  "q5B": {
+    "correctness": 9,
+    "completeness": 10,
+    "usefulness": 9,
+    "errors": [
+      "Cites sendDiscord at providers.ts:52-69; it is 58-78 (minor).",
+      "Says an uncertain Teams send 'falls through to the email branch and is retried (sender.ts:274)'. :274 leaves the receipt claimed; the blind resend happens after the lease at sender.ts:336-363. Consequence right, wording loose (minor)."
+    ],
+    "missed": [
+      "Less concrete on the Workflows URL shape (query parameters, explicit :443), leaving teamsUrl design open"
+    ]
+  },
+  "q5C": {
+    "correctness": 8,
+    "completeness": 8,
+    "usefulness": 7,
+    "errors": [
+      "Instructs teamsUrl to 'refuse query strings ... the same way discordUrl' does (channel-input.ts:17). Teams Workflows webhook URLs carry required query parameters (api-version, sp, sv, sig), so this would reject every valid Teams URL (external fact, stated without hedge).",
+      "Lists tests/unit/alerts.test.ts under 'Extend the existing Discord cases'; that file has no Discord case (minor)."
+    ],
+    "missed": [
+      "Deploy order: migration, then sender Worker, then app, else the old sender fails Teams receipts (docs/deploying.md:70, sender.ts:387)",
+      "SendResult 'sent' requires messageId (outcome.ts:11); a sendDiscord-style success check (providers.ts:72) would turn id-less Teams replies into 'unknown' and fail every receipt",
+      "Host-pinning vs DNS-pinned transport/SSRF decision (actions.ts:284-287)"
+    ]
+  }
+}

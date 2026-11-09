@@ -1,0 +1,716 @@
+[
+ {
+  "kind": "build",
+  "rc": 0,
+  "wall_s": 618,
+  "diff": {
+   "files": 10,
+   "added": 1516,
+   "deleted": 4
+  },
+  "result": {
+   "duration_api_ms": 437765,
+   "stop_reason": "end_turn",
+   "session_id": "e5e9489a-b06f-4adf-a23e-d7671850759e",
+   "total_cost_usd": 2.1941557,
+   "usage": {
+    "input_tokens": 58,
+    "cache_creation_input_tokens": 92510,
+    "cache_read_input_tokens": 2228984,
+    "output_tokens": 50394,
+    "output_tokens_details": {
+     "thinking_tokens": 7289
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 92510,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1428,
+      "cache_read_input_tokens": 117862,
+      "cache_creation_input_tokens": 442,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 442
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1574,
+     "outputTokens": 19,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00016690000000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 58,
+     "outputTokens": 50394,
+     "cacheReadInputTokens": 2228984,
+     "cacheCreationInputTokens": 92510,
+     "webSearchRequests": 0,
+     "costUSD": 2.1939888,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 7289,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 92510,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_0187uxNtsPtnvEBraqtyPaPo",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/opus_kanban\" && python - <<'EOF'\nimport re\np='src/App.tsx'; s=open(p,encoding='utf8').read()\ns=s.replace(\"{isTarget && drag.over!.beforeId === null && <DropIndicator />}\",\"{isTarget && drag?.over?.beforeId === null && <DropIndicator />}\")\ns=s.replace('<p className=\"mb-3 hidden text-xs','<p id=\"card-help\" className=\"mb-3 hidden text-xs')\ns=s.replace(\"Alt + \u2191/\u2193 reorders it.\",\"Alt + \u2191/\u2193 reorders it. Enter edits, Delete removes.\")\nopen(p,'w',encoding='utf8').write(s)\np='src/CardDialog.tsx'; s=open(p,encoding='utf8').read()\ns=s.replace('<div className=\"flex gap-1\" role=\"radiogroup\" aria-label=\"Priority\">','<div className=\"flex gap-1\">')\nopen(p,'w',encoding='utf8').write(s)\nEOF\ncat > src/index.css <<'EOF'\n@import \"tailwindcss\";\n\n@custom-variant dark (&:where(.dark, .dark *));\n\n@layer components {\n  .field {\n    @apply rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100;\n  }\n  .btn {\n    @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1;\n  }\n  .btn-primary { @apply bg-blue-600 text-white hover:bg-blue-700; }\n  .btn-secondary { @apply border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700; }\n  .btn-ghost { @apply text-slate-700 hover:bg-white/70 dark:text-slate-200 dark:hover:bg-slate-800; }\n  .btn-danger { @apply text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950; }\n  .btn-danger-solid { @apply bg-red-600 text-white hover:bg-red-700; }\n  .icon-btn {\n    @apply inline-flex min-h-8 min-w-8 cursor-pointer items-center justify-center gap-1 rounded-md px-1.5 text-slate-500 outline-none hover:bg-slate-100 hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100;\n  }\n  .prio-low { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200; }\n  .prio-medium { @apply bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100; }\n  .prio-high { @apply bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-100; }\n}\n\nbody.dragging, body.dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }\nEOF\nsed -i 's#<title>base</title>#<title>My Kanban</title>#' index.html\nnode -e \"const p=require('./package.json');p.name='personal-kanban';p.scripts.test='vitest run src';p.scripts.e2e='playwright test';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n')\"\nnpx tsc -b 2>&1 | head -30; npx oxlint src 2>&1 | tail -15",
+      "description": "Apply fixes, add CSS, typecheck and lint"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01Q3TKnsJhvgYX5Vc5EL3DM9",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/opus_kanban\" && npx playwright test e2e/board.spec.ts -g \"drag between\" --project=mobile --reporter=line 2>&1 | tail -5; sed -n '1,80p' test-results/*/error-context.md",
+      "timeout": 120000,
+      "description": "Rerun failing test and show page snapshot"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01XgPZixQpTbQyGfVNA4tRmH",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/opus_kanban\" && rm e2e/debug.spec.ts shots/debug.png && npx playwright test --reporter=line 2>&1 | grep -vE '^\\[[0-9]+/' | tail -30",
+      "timeout": 300000,
+      "description": "Remove debug test and rerun all browser tests"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 53,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "I've built the Kanban board and it meets all 11 requirements. The 24 logic tests and 19 browser tests pass, and typecheck, lint and the production build are clean. Run it with `npm run dev` and open http://localhost:5212. I haven't committed anything.\n\n**How it works**\n- **Logic** is in `src/board.ts`, kept separate from the interface: adding, editing, deleting and moving cards, search and filter, overdue, the WIP check, and saving.\n  - A drop is placed relative to another card rather than by position number, so dragging stays correct while search or the priority filter hides some cards.\n  - If the saved data is broken, the app drops the bad parts and starts from what's left instead of crashing.\n- **Drag and drop** is my own code (`src/useDragAndDrop.ts`) using one approach for mouse, touch and pen, so there's no extra library. While you drag, a copy of the card follows the pointer, a blue line shows where it will land, and the page scrolls when you get near the top or bottom edge. Esc cancels a drag.\n  - With a mouse you can grab anywhere on the card. On touch you drag by the \u283f handle, so swiping over cards still scrolls the page.\n- **Keyboard:** each card has visible \"\u2190 To do\" / \"Done \u2192\" buttons. On a focused card, Alt+\u2190/\u2192 moves it to another column, Alt+\u2191/\u2193 reorders it, Enter edits and Delete deletes after the confirmation. Focus stays on the moved card and screen readers announce the move.\n- **WIP limit:** Doing's header shows \"n / 3\". At 4 or more cards the column turns amber and shows a warning. It warns but still lets you add cards.\n- **Persistence and sync:** the board is saved to localStorage and stays in sync if it's open in another tab. A banner appears if the browser blocks saving.\n\n**Bugs found while clicking through**\n- On mobile, holding a card at the bottom edge scrolled past Doing and dropped it in Done. I slowed the auto-scroll a little and fixed the test, which was releasing too close to the edge.\n- At 375px the search placeholder was cut off and \"(optional)\" wrapped onto its own line in the card dialog. Both are fixed.\n- The mobile screen had no hint that the \u283f handle is for dragging. I added one.\n\nI added one development dependency, `vitest`, because Node 20 can't run TypeScript tests on its own. I also added `npm test` and `npm run e2e` scripts and set up the Playwright config to run at both widths.\n\n**What I tested and how**\n- **Logic, in `src/board.test.ts` (24 tests):** add, edit and delete; required title and impossible dates; moving and reordering cards, including moves that change nothing and moves while cards are hidden; keyboard moves stopping at the first and last column; search across title and description combined with the priority filter; overdue rules (yesterday yes, today no, Done never); the WIP check at 3 versus 4 cards; saving and loading, broken data, and storage that throws errors.\n- **In real Chrome, in `e2e/board.spec.ts`, every test run at 1280px with a mouse and at 375px with real touch input:**\n  - empty columns, counts and empty-state messages\n  - add, edit and delete, with Cancel and Delete in the confirmation\n  - reordering within a column and moving between columns by dragging, including on mobile where the page has to scroll to reach the column\n  - a finished drag doesn't open the editor, and the order survives a reload\n  - the move buttons and Alt+arrow shortcuts, plus where focus ends up\n  - the WIP warning appearing and clearing\n  - search, priority filter, \"No matching cards\" in a column and the \"No cards match\" message with Clear filters\n  - the overdue badge, which disappears once the card is in Done\n  - every field surviving a reload, and broken saved data not crashing the app\n  - no sideways scrolling and the dialog fitting the screen\n  - a desktop-only check of a drag held mid-way: copy of the card, drop line, and Esc cancelling\n- **By eye:** I looked at the screenshots the tests saved in `shots/` at both widths: the board, empty board, WIP warning, overdue cards, no results, the dialog and a drag in progress.",
+   "ttft_ms": 1580,
+   "type": "result",
+   "duration_ms": 615903,
+   "uuid": "3d7315a7-13f9-4664-b4c6-2d386e6766a0",
+   "ttft_stream_ms": 1178,
+   "time_to_request_ms": 506,
+   "time_to_request_phases_ms": {
+    "other": 6,
+    "system_prompt": 88,
+    "resume_other": 1,
+    "process_user_input": 4,
+    "input_attachments": 24,
+    "input_hooks": 4,
+    "conversation_append": 1,
+    "transcript_persist": 242,
+    "tool_pool_refresh": 4,
+    "init_message": 26,
+    "init_frame_send": 8,
+    "engine_pickup": 3,
+    "loop_entry": 7,
+    "message_prep": 2,
+    "model_config_wait": 2,
+    "autocompact": 5,
+    "request_announcements": 10,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 10,
+    "message_normalization": 1,
+    "client_creation": 41,
+    "request_build": 15
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 90,
+   "time_to_request_cpu_ms": 688,
+   "time_to_request_major_faults": 8037,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 6,
+    "cpu_ms": 31,
+    "major_faults": 796,
+    "setup_ms": 0,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 14,
+    "ambient_wait_ms": 5,
+    "render_ms": 2,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 6,
+    "after_ms": 0,
+    "other_ms": 1,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 1,
+    "images_ms": 0,
+    "post_process_ms": 0,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 2,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 2,
+    "record_attempt_ms": 8,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1179,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1574,
+     "outputTokens": 19,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00016690000000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 58,
+     "outputTokens": 50394,
+     "cacheReadInputTokens": 2228984,
+     "cacheCreationInputTokens": 92510,
+     "webSearchRequests": 0,
+     "costUSD": 2.1939888,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 7289,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 92510,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "small",
+  "rc": 0,
+  "wall_s": 101,
+  "diff": {
+   "files": 4,
+   "added": 32,
+   "deleted": 12
+  },
+  "result": {
+   "duration_api_ms": 505190,
+   "stop_reason": "end_turn",
+   "session_id": "e5e9489a-b06f-4adf-a23e-d7671850759e",
+   "total_cost_usd": 2.6308981,
+   "usage": {
+    "input_tokens": 18,
+    "cache_creation_input_tokens": 15091,
+    "cache_read_input_tokens": 983512,
+    "output_tokens": 5962,
+    "output_tokens_details": {
+     "thinking_tokens": 339
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 15091,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 544,
+      "cache_read_input_tokens": 127643,
+      "cache_creation_input_tokens": 5752,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 5752
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1574,
+     "outputTokens": 19,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00016690000000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 76,
+     "outputTokens": 56356,
+     "thinkingTokens": 7628,
+     "cacheReadInputTokens": 3212496,
+     "cacheCreationInputTokens": 107601,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 107601,
+     "webSearchRequests": 0,
+     "costUSD": 2.6307312,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01HExVqB7WvrbJVyRGTrQfKJ",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/opus_kanban\" && sed -i \"s/\\['doing', 'Doing'\\]/['doing', 'In progress']/; s/'Move to Doing'/'Move to In progress'/g; s/cards in Doing/cards in In progress/; s/(empty Doing)/(empty In progress)/; s/WIP limit warning on Doing/WIP limit warning on In progress/\" e2e/board.spec.ts && grep -n \"Doing\\|In progress\" e2e/board.spec.ts",
+      "description": "Update test references to the renamed column"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 22,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The \"Doing\" column is now called \"In progress\", and card titles in Done are shown struck through and greyed. All tests pass and both changes look right at 1280px and 375px.\n\n- **Rename:** the new name appears in the column header, the move buttons (\"In progress \u2192\", \"\u2190 In progress\"), the WIP warning and what screen readers announce. The column's internal key is still `doing`, so boards already saved in browsers load unchanged.\n- **Strikethrough:** it follows the card. It appears when a card moves into Done, by dragging or with the buttons or keyboard, and disappears when the card moves back out. It stays after a reload, and the copy of the card you see while dragging shows it too.\n\nI updated the existing tests for the new name and added one browser test for the strikethrough.\n\nWhat I checked:\n- **Tests:** typecheck and lint are clean; 24/24 logic tests pass; 21/21 browser tests pass at 1280px (mouse) and 375px (touch). One desktop-only drag test is skipped on mobile, as before.\n- **New browser test:**\n  - Only the Done card's title is struck through.\n  - The strikethrough goes when the card moves back to In progress.\n  - It appears when a card moves into Done and is still there after a reload.\n- **Screenshots, by eye:** \"In progress\" fits in the header, buttons and WIP warning without breaking the layout at either width, and Done titles show the strikethrough at both widths.",
+   "ttft_ms": 2331,
+   "type": "result",
+   "duration_ms": 99690,
+   "uuid": "cd9f4197-e359-41f2-8a1c-88feb83634ef",
+   "ttft_stream_ms": 1315,
+   "time_to_request_ms": 533,
+   "time_to_request_phases_ms": {
+    "other": 6,
+    "system_prompt": 65,
+    "resume_other": 1,
+    "process_user_input": 3,
+    "input_attachments": 27,
+    "input_hooks": 2,
+    "conversation_append": 2,
+    "transcript_persist": 337,
+    "tool_pool_refresh": 4,
+    "init_message": 16,
+    "init_frame_send": 5,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 5,
+    "query_setup": 1,
+    "model_gates": 0,
+    "tool_schema_build": 15,
+    "message_normalization": 11,
+    "client_creation": 4,
+    "request_build": 20
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 212,
+   "time_to_request_cpu_ms": 1141,
+   "time_to_request_major_faults": 31197,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 13,
+    "cpu_ms": 47,
+    "major_faults": 210,
+    "changed_files_reread": 0,
+    "setup_ms": 3,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 8,
+    "ambient_wait_ms": 13,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 0,
+    "placement_ms": 3,
+    "render_ms": 11,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 8,
+    "images_ms": 0,
+    "post_process_ms": 2,
+    "after_ms": 1,
+    "other_ms": 0,
+    "messages": 159,
+    "wire_messages": 63
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 2,
+    "cache_break_record_ms": 2,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 8,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1316,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 18,
+     "outputTokens": 5962,
+     "cacheReadInputTokens": 983512,
+     "cacheCreationInputTokens": 15091,
+     "webSearchRequests": 0,
+     "costUSD": 0.4367424,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 339,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 15091,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "medium",
+  "rc": 0,
+  "wall_s": 469,
+  "diff": {
+   "files": 7,
+   "added": 1139,
+   "deleted": 33
+  },
+  "result": {
+   "duration_api_ms": 860215,
+   "stop_reason": "end_turn",
+   "session_id": "e5e9489a-b06f-4adf-a23e-d7671850759e",
+   "total_cost_usd": 4.635678100000001,
+   "usage": {
+    "input_tokens": 46,
+    "cache_creation_input_tokens": 61443,
+    "cache_read_input_tokens": 3585360,
+    "output_tokens": 39799,
+    "output_tokens_details": {
+     "thinking_tokens": 6783
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 61443,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1302,
+      "cache_read_input_tokens": 194142,
+      "cache_creation_input_tokens": 696,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 696
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1574,
+     "outputTokens": 19,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00016690000000000005,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 122,
+     "outputTokens": 96155,
+     "thinkingTokens": 14411,
+     "cacheReadInputTokens": 6797856,
+     "cacheCreationInputTokens": 169044,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 169044,
+     "webSearchRequests": 0,
+     "costUSD": 4.635511200000001,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 42,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The app now has multiple boards, and a board saved by the old version opens as the first board, \"My board\", with every card in place. All 45 logic tests and 31 browser tests pass (one desktop-only drag test is skipped on mobile, as before), and typecheck, lint and the production build are clean. Nothing is committed.\n\n**Board switcher** (header, next to the title): a board dropdown with New, Rename and Delete buttons. The buttons have text labels at desktop width and are icon-only at 375px.\n- **Create:** the new board starts empty and becomes the current board.\n- **Rename:** the name box is pre-filled with the current name.\n- **Names:** a name is required, at most 60 characters, and can't match another board's name, ignoring case.\n- **Delete:** asks first, naming the board and how many cards will go with it. When only one board is left, the Delete button is disabled with a tooltip, and the logic refuses to delete it anyway.\n- After you delete the board you're on, the app switches to the next board, or the previous one if it was last.\n- The dropdown shows each board's card count, and the browser tab title shows the board name.\n\n**Each board is separate:** it has its own three columns and cards. The WIP warning and empty states apply per board. The current board is remembered across reloads.\n\n**Card menu:** each card now has a \"\u22ef\" menu with Edit, Move to board\u2026 and Delete. This replaces the separate edit and delete icons, so deleting a card now takes two clicks. Clicking the card still edits it, and the Delete key still asks for confirmation. You can open and navigate the menu with the arrow keys and close it with Escape.\n- **Move to board\u2026** lists your other boards and lets you pick the column, which defaults to the card's current one. The card is added at the end of that column with all its fields and you stay on the board you were on.\n- With only one board, the item is greyed out and says \"Create another board first\".\n\n**Old saved data:** boards are now saved under a new storage key. The first time it runs, the app copies the old single board into \"My board\", keeping the card order. The old key is left untouched, so going back to the earlier version still works. If the new data is ever unreadable, the app first saves a copy of it under a backup key, then falls back to the old board.\n\n**What I tested and how**\n- **Logic:** 21 new tests in `src/workspace.test.ts`, on top of the 24 existing ones.\n  - Name rules; create, rename, switch and delete, including never deleting the last board and which board becomes current.\n  - Boards staying independent; moving a card to another board, a chosen column, an unknown card or board, and the rare case of a duplicate card ID.\n  - Loading and conversion: old data becoming \"My board\" with nothing lost, newer data taking priority over old, unreadable data being backed up first, storage that throws errors, and repairing broken saved data.\n- **In real Chrome, 1280px with a mouse and 375px with touch:** the 11 existing tests, updated to delete through the card menu, plus 5 new ones.\n  - Old saved data, including an overdue card and 4 cards in progress, opens intact and survives a reload. The old key is unchanged.\n  - Full board create, switch, rename and delete flow: validation messages, Cancel and Escape, the delete confirmation text, the disabled last-board Delete, where focus lands, and reload.\n  - Move to board\u2026: greyed out with one board, then mouse and keyboard menu use, picking a board and column, Cancel, the card's data, the screen-reader announcement, and reload.\n  - The card menu closing on Escape or a click outside without opening the editor.\n  - The WIP warning and search applying per board.\n- **By eye:** I looked at screenshots of the converted board, the switcher, the card menu and the Move to board dialog at both widths. Layout held and nothing scrolled sideways.",
+   "ttft_ms": 28872,
+   "type": "result",
+   "duration_ms": 467749,
+   "uuid": "a13124bf-ad6c-40cf-bbaa-28b22a5401ae",
+   "ttft_stream_ms": 1650,
+   "time_to_request_ms": 808,
+   "time_to_request_phases_ms": {
+    "other": 13,
+    "system_prompt": 92,
+    "resume_other": 0,
+    "process_user_input": 8,
+    "input_attachments": 70,
+    "input_hooks": 6,
+    "conversation_append": 4,
+    "transcript_persist": 467,
+    "tool_pool_refresh": 2,
+    "init_message": 16,
+    "init_frame_send": 11,
+    "engine_pickup": 4,
+    "loop_entry": 12,
+    "message_prep": 2,
+    "model_config_wait": 2,
+    "autocompact": 4,
+    "request_announcements": 13,
+    "query_setup": 2,
+    "model_gates": 1,
+    "tool_schema_build": 25,
+    "message_normalization": 26,
+    "client_creation": 4,
+    "request_build": 24
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 156,
+   "time_to_request_cpu_ms": 1343,
+   "time_to_request_major_faults": 36677,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 31,
+    "cpu_ms": 111,
+    "major_faults": 280,
+    "changed_files_reread": 0,
+    "setup_ms": 12,
+    "prompt_producers_ms": 2,
+    "ambient_start_ms": 22,
+    "ambient_wait_ms": 30,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 2,
+    "placement_ms": 7,
+    "render_ms": 14,
+    "after_ms": 1,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 1,
+    "normalize_ms": 20,
+    "images_ms": 1,
+    "post_process_ms": 2,
+    "after_ms": 1,
+    "other_ms": 1,
+    "messages": 212,
+    "wire_messages": 79
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 2,
+    "plans_ms": 3,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 11,
+    "other_ms": 1,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1651,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 46,
+     "outputTokens": 39799,
+     "cacheReadInputTokens": 3585360,
+     "cacheCreationInputTokens": 61443,
+     "webSearchRequests": 0,
+     "costUSD": 2.0047800000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 6783,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 61443,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

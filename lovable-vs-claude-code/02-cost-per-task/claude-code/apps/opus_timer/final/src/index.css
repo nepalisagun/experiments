@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-card: var(--card);
+  --color-accent: var(--accent);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --ink: #2b2d2f;
+  --muted: #6f7275;
+  --line: #e3ded6;
+  --card: #fffdf9;
+  --bg: #f6f2ec;
+  --accent: #a8553a;
+  /* Chart bars always use the focus colour (validated: chroma + 3:1 contrast on the card surface). */
+  --focus: #a8553a;
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  background: var(--bg);
+}
+.app[data-phase="short"] {
+  --bg: #eef3ef;
+  --line: #d9e3dc;
+  --card: #fbfdfb;
+  --accent: #4d7c62;
+}
+.app[data-phase="long"] {
+  --bg: #edf1f6;
+  --line: #d8e0ea;
+  --card: #fbfcfe;
+  --accent: #4b6a8c;
+}

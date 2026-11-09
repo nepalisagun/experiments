@@ -1,0 +1,1521 @@
+diff --git a/e2e/kanban.spec.ts b/e2e/kanban.spec.ts
+new file mode 100644
+index 0000000..08c9621
+--- /dev/null
++++ b/e2e/kanban.spec.ts
+@@ -0,0 +1,340 @@
++import { expect, type Locator, type Page, test } from '@playwright/test'
++
++type Seed = { id: string; title: string; column: 'todo' | 'doing' | 'done'; priority?: string; due?: string; description?: string }
++
++function isoOffset(days: number) {
++  const d = new Date()
++  d.setDate(d.getDate() + days)
++  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
++}
++
++async function seed(page: Page, cards: Seed[]) {
++  await page.goto('/')
++  await page.evaluate((cards) => {
++    const full = cards.map((c) => ({ description: '', due: '', priority: 'medium', ...c }))
++    localStorage.setItem('kanban-board-v1', JSON.stringify({ version: 1, cards: full }))
++  }, cards)
++  await page.reload()
++}
++
++const column = (page: Page, id: string) => page.locator(`[data-column="${id}"]`)
++const card = (page: Page, title: string) => page.locator('article[data-card-id]', { has: page.getByRole('heading', { name: title, exact: true }) })
++const titlesIn = (page: Page, id: string) => column(page, id).locator('article h3').allTextContents()
++const shot = (page: Page, name: string) => page.screenshot({ path: `shots/${test.info().project.name}-${name}.png`, fullPage: true })
++
++async function fillCard(page: Page, opts: { title: string; description?: string; due?: string; priority?: 'Low' | 'Medium' | 'High' }) {
++  const dialog = page.getByRole('dialog')
++  await dialog.getByLabel('Title').fill(opts.title)
++  if (opts.description !== undefined) await dialog.getByLabel(/Description/).fill(opts.description)
++  if (opts.due !== undefined) await dialog.getByLabel(/Due date/).fill(opts.due)
++  if (opts.priority) await dialog.getByText(opts.priority, { exact: true }).click()
++}
++
++async function center(l: Locator) {
++  const b = (await l.boundingBox())!
++  return { x: b.x + b.width / 2, y: b.y + b.height / 2, box: b }
++}
++
++test.beforeEach(async ({ page }) => {
++  await page.goto('/')
++  await page.evaluate(() => localStorage.clear())
++  await page.reload()
++})
++
++test('three columns with counts and empty states', async ({ page }) => {
++  for (const [id, name] of [['todo', 'To do'], ['doing', 'Doing'], ['done', 'Done']]) {
++    await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible()
++    await expect(page.getByTestId(`count-${id}`)).toContainText('0')
++  }
++  await expect(page.getByText('Nothing to do yet — add a card')).toBeVisible()
++  await expect(page.getByText('Nothing in progress')).toBeVisible()
++  await expect(page.getByText('Nothing done yet')).toBeVisible()
++  await shot(page, 'empty')
++  // No horizontal scrolling at this width.
++  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
++})
++
++test('add, edit and delete a card with confirmation', async ({ page }) => {
++  await page.getByRole('button', { name: '+ Add card' }).click()
++  // Title is required.
++  await page.getByRole('dialog').getByRole('button', { name: 'Add card' }).click()
++  await expect(page.getByText('Title is required.')).toBeVisible()
++  await fillCard(page, { title: 'Write report', description: 'Quarterly numbers', due: isoOffset(3), priority: 'High' })
++  await shot(page, 'add-dialog')
++  // Nothing in the dialog overflows its box (caught a 375px layout bug).
++  const dlg = (await page.getByRole('dialog').boundingBox())!
++  for (const l of await page.getByRole('dialog').locator('label span, input, button').all()) {
++    const b = await l.boundingBox()
++    if (b) expect(b.x + b.width).toBeLessThanOrEqual(dlg.x + dlg.width)
++  }
++  await page.getByRole('dialog').getByRole('button', { name: 'Add card' }).click()
++  await expect(page.getByRole('dialog')).toBeHidden()
++
++  const c = card(page, 'Write report')
++  await expect(c).toBeVisible()
++  await expect(c).toContainText('High')
++  await expect(c).toContainText('Quarterly numbers')
++  await expect(c).toContainText('Due')
++  await expect(page.getByTestId('count-todo')).toHaveText('1')
++
++  // Add straight into a specific column.
++  await page.getByRole('button', { name: 'Add card to Done' }).click()
++  await fillCard(page, { title: 'Old task' })
++  await page.keyboard.press('Enter')
++  await expect(column(page, 'done').getByRole('heading', { name: 'Old task' })).toBeVisible()
++  await expect(card(page, 'Old task')).toContainText('Medium')
++
++  // Edit.
++  await c.getByRole('button', { name: /Edit/ }).click()
++  await expect(page.getByRole('dialog').getByLabel('Title')).toHaveValue('Write report')
++  await fillCard(page, { title: 'Write final report', description: '', due: '', priority: 'Low' })
++  await page.getByRole('button', { name: 'Save changes' }).click()
++  const edited = card(page, 'Write final report')
++  await expect(edited).toContainText('Low')
++  await expect(edited).not.toContainText('Quarterly')
++  await expect(edited).not.toContainText('Due')
++
++  // Cancel the edit dialog with Escape — no change.
++  await edited.getByRole('button', { name: /Edit/ }).click()
++  await page.getByRole('dialog').getByLabel('Title').fill('Should not save')
++  await page.keyboard.press('Escape')
++  await expect(page.getByRole('dialog')).toBeHidden()
++  await expect(edited).toBeVisible()
++
++  // Delete: cancel first, then confirm.
++  await edited.getByRole('button', { name: /Delete/ }).click()
++  await expect(page.getByRole('dialog')).toContainText('Delete card?')
++  await expect(page.getByRole('dialog')).toContainText('Write final report')
++  await shot(page, 'confirm-delete')
++  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
++  await expect(edited).toBeVisible()
++  await edited.getByRole('button', { name: /Delete/ }).click()
++  await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click()
++  await expect(edited).toHaveCount(0)
++  await expect(page.getByTestId('count-todo')).toHaveText('0')
++})
++
++test('keyboard: move between columns and reorder', async ({ page }) => {
++  await seed(page, [
++    { id: 'a', title: 'Alpha', column: 'todo' },
++    { id: 'b', title: 'Bravo', column: 'todo' },
++  ])
++  const a = card(page, 'Alpha')
++  await a.focus()
++  await page.keyboard.press('Shift+ArrowRight')
++  expect(await titlesIn(page, 'doing')).toEqual(['Alpha'])
++  await expect(card(page, 'Alpha')).toBeFocused() // focus follows the card
++  await page.keyboard.press('Shift+ArrowRight')
++  expect(await titlesIn(page, 'done')).toEqual(['Alpha'])
++  await page.keyboard.press('Shift+ArrowLeft')
++  await page.keyboard.press('Shift+ArrowLeft')
++  expect(await titlesIn(page, 'todo')).toEqual(['Bravo', 'Alpha'])
++  await page.keyboard.press('Shift+ArrowUp')
++  expect(await titlesIn(page, 'todo')).toEqual(['Alpha', 'Bravo'])
++  await expect(page.locator('[aria-live="polite"]')).toContainText('position 1 of 2')
++
++  // The "Move to" select is reachable with Tab and operable with the keyboard.
++  await card(page, 'Bravo').focus()
++  await page.keyboard.press('Tab')
++  const select = card(page, 'Bravo').getByLabel(/Move .* to column/)
++  await expect(select).toBeFocused()
++  await select.selectOption('done')
++  expect(await titlesIn(page, 'done')).toEqual(['Bravo'])
++})
++
++test('WIP limit warning on Doing above 3 cards', async ({ page }) => {
++  await seed(page, [
++    { id: '1', title: 'One', column: 'doing' },
++    { id: '2', title: 'Two', column: 'doing' },
++    { id: '3', title: 'Three', column: 'doing' },
++    { id: '4', title: 'Four', column: 'todo' },
++  ])
++  await expect(page.getByTestId('count-doing')).toHaveText('3 / 3')
++  await expect(page.getByRole('alert')).toHaveCount(0)
++  await card(page, 'Four').getByLabel(/Move .* to column/).selectOption('doing')
++  await expect(page.getByRole('alert')).toContainText('Work-in-progress limit exceeded')
++  await expect(page.getByTestId('count-doing')).toHaveText('4 / 3')
++  await shot(page, 'wip')
++  await card(page, 'One').getByLabel(/Move .* to column/).selectOption('done')
++  await expect(page.getByRole('alert')).toHaveCount(0)
++})
++
++test('search and priority filter with no-results state', async ({ page }) => {
++  await seed(page, [
++    { id: '1', title: 'Buy milk', column: 'todo', priority: 'low' },
++    { id: '2', title: 'Fix bug', description: 'The login crash', column: 'doing', priority: 'high' },
++    { id: '3', title: 'Ship release', column: 'done', priority: 'high' },
++  ])
++  const search = page.getByRole('searchbox', { name: 'Search cards' })
++  await search.fill('LOGIN') // matches description, case-insensitive
++  await expect(page.locator('article[data-card-id]')).toHaveCount(1)
++  await expect(card(page, 'Fix bug')).toBeVisible()
++  await expect(page.getByTestId('count-todo')).toHaveText('0/1')
++  await expect(column(page, 'todo').getByText('No matching cards')).toBeVisible()
++
++  await search.fill('milk') // matches title
++  await expect(page.locator('article[data-card-id]')).toHaveCount(1)
++
++  await search.fill('')
++  await page.getByLabel('Filter by priority').selectOption('high')
++  await expect(page.locator('article[data-card-id]')).toHaveCount(2)
++  await search.fill('ship')
++  await expect(page.locator('article[data-card-id]')).toHaveCount(1)
++
++  await search.fill('zzz')
++  await expect(page.getByText(/No cards match your search/)).toBeVisible()
++  await shot(page, 'no-results')
++  await page.getByRole('button', { name: 'Clear filters' }).click()
++  await expect(search).toHaveValue('')
++  await expect(page.locator('article[data-card-id]')).toHaveCount(3)
++})
++
++test('overdue cards are highlighted unless done', async ({ page }) => {
++  await seed(page, [
++    { id: '1', title: 'Late', column: 'todo', due: isoOffset(-1) },
++    { id: '2', title: 'Today', column: 'todo', due: isoOffset(0) },
++    { id: '3', title: 'Late but done', column: 'done', due: isoOffset(-5) },
++  ])
++  await expect(card(page, 'Late')).toHaveAttribute('data-overdue', 'true')
++  await expect(card(page, 'Late')).toContainText('Overdue')
++  await expect(card(page, 'Today')).not.toHaveAttribute('data-overdue')
++  await expect(card(page, 'Late but done')).not.toHaveAttribute('data-overdue')
++  await shot(page, 'overdue')
++  await card(page, 'Late').getByLabel(/Move .* to column/).selectOption('done')
++  await expect(card(page, 'Late')).not.toHaveAttribute('data-overdue')
++})
++
++test('board survives reload', async ({ page }) => {
++  await page.getByRole('button', { name: '+ Add card' }).click()
++  await fillCard(page, { title: 'Persist me', priority: 'High', due: isoOffset(1), description: 'desc' })
++  await page.keyboard.press('Enter')
++  await card(page, 'Persist me').getByLabel(/Move .* to column/).selectOption('doing')
++  await page.reload()
++  const c = card(page, 'Persist me')
++  await expect(column(page, 'doing').getByRole('heading', { name: 'Persist me' })).toBeVisible()
++  await expect(c).toContainText('High')
++  await expect(c).toContainText('desc')
++})
++
++test('mouse drag and drop between and within columns', async ({ page }, info) => {
++  test.skip(info.project.name !== 'desktop', 'mouse drag runs at desktop size')
++  await seed(page, [
++    { id: 'a', title: 'Alpha', column: 'todo' },
++    { id: 'b', title: 'Bravo', column: 'todo' },
++    { id: 'c', title: 'Charlie', column: 'todo' },
++    { id: 'd', title: 'Delta', column: 'doing' },
++  ])
++  // Reorder: drag Charlie above Alpha.
++  let from = await center(card(page, 'Charlie').locator('h3'))
++  let to = await center(card(page, 'Alpha'))
++  await page.mouse.move(from.x, from.y)
++  await page.mouse.down()
++  await page.mouse.move(to.x, to.box.y + 5, { steps: 10 })
++  await expect(page.getByTestId('drop-indicator')).toBeVisible()
++  await shot(page, 'dragging')
++  await page.mouse.up()
++  expect(await titlesIn(page, 'todo')).toEqual(['Charlie', 'Alpha', 'Bravo'])
++
++  // Between columns: drag Alpha below Delta.
++  from = await center(card(page, 'Alpha').locator('h3'))
++  to = await center(card(page, 'Delta'))
++  await page.mouse.move(from.x, from.y)
++  await page.mouse.down()
++  await page.mouse.move(to.x, to.box.y + to.box.height - 5, { steps: 10 })
++  await page.mouse.up()
++  expect(await titlesIn(page, 'doing')).toEqual(['Delta', 'Alpha'])
++  // Into the empty Done column.
++  from = await center(card(page, 'Bravo').locator('h3'))
++  to = await center(column(page, 'done'))
++  await page.mouse.move(from.x, from.y)
++  await page.mouse.down()
++  await page.mouse.move(to.x, to.y, { steps: 10 })
++  await page.mouse.up()
++  expect(await titlesIn(page, 'done')).toEqual(['Bravo'])
++  // Escape cancels a drag.
++  from = await center(card(page, 'Charlie').locator('h3'))
++  await page.mouse.move(from.x, from.y)
++  await page.mouse.down()
++  await page.mouse.move(to.x, to.y, { steps: 10 })
++  await page.keyboard.press('Escape')
++  await page.mouse.up()
++  expect(await titlesIn(page, 'todo')).toEqual(['Charlie'])
++  // A click (no movement) on Edit still works and no dialog opened by drags.
++  await expect(page.getByRole('dialog')).toBeHidden()
++  await page.reload()
++  expect(await titlesIn(page, 'doing')).toEqual(['Delta', 'Alpha'])
++})
++
++test('touch drag and drop via the grip handle', async ({ page }, info) => {
++  test.skip(info.project.name !== 'mobile', 'touch drag runs at mobile size')
++  await seed(page, [
++    { id: 'a', title: 'Alpha', column: 'todo' },
++    { id: 'b', title: 'Bravo', column: 'todo' },
++    { id: 'd', title: 'Delta', column: 'doing' },
++  ])
++  const cdp = await page.context().newCDPSession(page)
++  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) =>
++    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
++  async function touchDrag(from: { x: number; y: number }, to: () => Promise<{ x: number; y: number }>) {
++    await touch('touchStart', from.x, from.y)
++    let p = from
++    const target = await to()
++    for (let i = 1; i <= 12; i++) {
++      p = { x: from.x + ((target.x - from.x) * i) / 12, y: from.y + ((target.y - from.y) * i) / 12 }
++      await touch('touchMove', p.x, p.y)
++    }
++    const final = await to()
++    await touch('touchMove', final.x, final.y)
++    await touch('touchEnd', final.x, final.y)
++  }
++  const handle = (title: string) => center(card(page, title).locator('[data-drag-handle]'))
++
++  // Reorder within To do: Bravo above Alpha.
++  await touchDrag(await handle('Bravo'), async () => {
++    const b = (await card(page, 'Alpha').boundingBox())!
++    return { x: b.x + b.width / 2, y: b.y + 5 }
++  })
++  await expect.poll(() => titlesIn(page, 'todo')).toEqual(['Bravo', 'Alpha'])
++
++  // Between columns: Alpha into Doing below Delta.
++  await touchDrag(await handle('Alpha'), async () => {
++    const b = (await card(page, 'Delta').boundingBox())!
++    return { x: b.x + b.width / 2, y: b.y + b.height - 5 }
++  })
++  await expect.poll(() => titlesIn(page, 'doing')).toEqual(['Delta', 'Alpha'])
++
++  // Touching the card body (not the handle) scrolls instead of dragging.
++  const body = await center(card(page, 'Bravo').locator('h3'))
++  await touch('touchStart', body.x, body.y)
++  for (let i = 1; i <= 5; i++) await touch('touchMove', body.x, body.y + i * 20)
++  await touch('touchEnd', body.x, body.y + 100)
++  expect(await titlesIn(page, 'todo')).toEqual(['Bravo'])
++
++  // Drag to the Done column, which is below the fold: hold near the bottom edge to auto-scroll.
++  const vh = page.viewportSize()!.height
++  const start = await handle('Bravo')
++  await touch('touchStart', start.x, start.y)
++  for (let i = 1; i <= 8; i++) await touch('touchMove', start.x, start.y + ((vh - 10 - start.y) * i) / 8)
++  await expect.poll(async () => {
++    await touch('touchMove', start.x, vh - 10)
++    const b = (await column(page, 'done').boundingBox())!
++    return b.y + 40 < vh - 80
++  }, { timeout: 10_000 }).toBe(true)
++  const done = (await column(page, 'done').boundingBox())!
++  await touch('touchMove', done.x + done.width / 2, Math.min(done.y + done.height / 2, vh - 80))
++  await touch('touchEnd', done.x + done.width / 2, done.y + done.height / 2)
++  await expect.poll(() => titlesIn(page, 'done')).toEqual(['Bravo'])
++  await page.reload()
++  expect(await titlesIn(page, 'doing')).toEqual(['Delta', 'Alpha'])
++  expect(await titlesIn(page, 'done')).toEqual(['Bravo'])
++})
++
++test('screenshot of a populated board', async ({ page }) => {
++  await seed(page, [
++    { id: '1', title: 'Plan sprint', description: 'Pick stories for next week', column: 'todo', priority: 'high', due: isoOffset(-2) },
++    { id: '2', title: 'Buy groceries', column: 'todo', priority: 'low', due: isoOffset(4) },
++    { id: '3', title: 'Write blog post', description: 'About Kanban', column: 'doing', priority: 'medium' },
++    { id: '4', title: 'Tax return', column: 'done', priority: 'high', due: isoOffset(-10) },
++  ])
++  await shot(page, 'board')
++})
+diff --git a/index.html b/index.html
+index 3d7efb3..3a86c61 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,7 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>My Kanban</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..10c41c1 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,9 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
+-    "preview": "vite preview"
++    "preview": "vite preview",
++    "test": "vitest run src",
++    "e2e": "playwright test"
+   },
+   "dependencies": {
+     "react": "^19.3.1",
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/playwright.config.ts b/playwright.config.ts
+index 656daa3..aa0ea23 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -5,5 +5,9 @@ const PORT = 5212
+ export default defineConfig({
+   testDir: './e2e',
+   use: { baseURL: `http://localhost:${PORT}`, channel: 'chrome', headless: true },
++  projects: [
++    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
++    { name: 'mobile', use: { viewport: { width: 375, height: 740 }, hasTouch: true, isMobile: true } },
++  ],
+   webServer: { command: 'npm run dev', url: `http://localhost:${PORT}`, reuseExistingServer: true, timeout: 60_000 },
+ })
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..b3444cb 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,369 @@
++import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
++import {
++  addCard,
++  type Card,
++  type CardInput,
++  type ColumnId,
++  COLUMNS,
++  deleteCard,
++  type Filter,
++  isFilterActive,
++  isOverdue,
++  isWipExceeded,
++  loadBoard,
++  matchesFilter,
++  moveCard,
++  PRIORITIES,
++  type Priority,
++  saveBoard,
++  shiftColumn,
++  shiftWithinColumn,
++  STORAGE_KEY,
++  todayISO,
++  updateCard,
++  WIP_LIMIT,
++} from './board'
++import { CardDialog, ConfirmDialog } from './Dialogs'
++import { type DragView, useCardDrag } from './useCardDrag'
++
++const EMPTY_INPUT: CardInput = { title: '', description: '', due: '', priority: 'medium' }
++const columnTitle = (id: ColumnId) => COLUMNS.find((c) => c.id === id)!.title
++
++const PRIORITY_STYLE: Record<Priority, string> = {
++  low: 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
++  medium: 'bg-amber-100 text-amber-800 ring-amber-600/20',
++  high: 'bg-rose-100 text-rose-800 ring-rose-600/20',
++}
++
++function formatDate(iso: string) {
++  const [y, m, d] = iso.split('-').map(Number)
++  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
++}
++
++type Editing = { mode: 'add'; column: ColumnId } | { mode: 'edit'; id: string } | null
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [cards, setCards] = useState<Card[]>(() => loadBoard())
++  const [filter, setFilter] = useState<Filter>({ query: '', priority: 'all' })
++  const [editing, setEditing] = useState<Editing>(null)
++  const [deletingId, setDeletingId] = useState<string | null>(null)
++  const [announcement, setAnnouncement] = useState('')
++  const [today, setToday] = useState(todayISO)
++  const focusAfterRender = useRef<string | null>(null)
++
++  // Persist on every change.
++  useEffect(() => {
++    saveBoard(cards)
++  }, [cards])
++
++  // Keep other tabs in sync, and roll "today" over at midnight.
++  useEffect(() => {
++    const onStorage = (e: StorageEvent) => {
++      if (e.key === STORAGE_KEY) setCards(loadBoard())
++    }
++    const timer = setInterval(() => setToday(todayISO()), 60_000)
++    window.addEventListener('storage', onStorage)
++    return () => {
++      window.removeEventListener('storage', onStorage)
++      clearInterval(timer)
++    }
++  }, [])
++
++  // Return focus to a card after a keyboard move (it re-mounts in another column).
++  useLayoutEffect(() => {
++    const id = focusAfterRender.current
++    if (!id) return
++    focusAfterRender.current = null
++    document.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)?.focus()
++  })
++
++  const describePosition = useCallback((list: Card[], id: string) => {
++    const card = list.find((c) => c.id === id)
++    if (!card) return ''
++    const col = list.filter((c) => c.column === card.column)
++    return `“${card.title}” moved to ${columnTitle(card.column)}, position ${col.findIndex((c) => c.id === id) + 1} of ${col.length}.`
++  }, [])
++
++  const applyMove = useCallback((next: Card[], id: string, refocus: boolean) => {
++    setCards(next)
++    setAnnouncement(describePosition(next, id))
++    if (refocus) focusAfterRender.current = id
++  }, [describePosition])
++
++  const { drag, startDrag, suppressClick } = useCardDrag((id, target) => {
++    applyMove(moveCard(cards, id, target.column, target.beforeId), id, false)
++  })
++
++  const filterActive = isFilterActive(filter)
++  const visible = useMemo(() => cards.filter((c) => matchesFilter(c, filter)), [cards, filter])
++  const wipExceeded = isWipExceeded(cards)
++  const editingCard = editing?.mode === 'edit' ? cards.find((c) => c.id === editing.id) : undefined
++  const deletingCard = deletingId ? cards.find((c) => c.id === deletingId) : undefined
++  const draggedCard = drag ? cards.find((c) => c.id === drag.id) : undefined
++
++  const handleSave = (input: CardInput) => {
++    if (editing?.mode === 'add') {
++      const next = addCard(cards, input, editing.column)
++      setCards(next)
++      setAnnouncement(`Added “${input.title.trim()}” to ${columnTitle(editing.column)}.`)
++    } else if (editing?.mode === 'edit') {
++      setCards(updateCard(cards, editing.id, input))
++      setAnnouncement(`Saved “${input.title.trim()}”.`)
++    }
++    setEditing(null)
++  }
++
++  const handleCardKey = (e: React.KeyboardEvent, card: Card) => {
++    if (e.target !== e.currentTarget || !e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return
++    const moves: Record<string, () => Card[]> = {
++      ArrowLeft: () => shiftColumn(cards, card.id, -1),
++      ArrowRight: () => shiftColumn(cards, card.id, 1),
++      ArrowUp: () => shiftWithinColumn(cards, card.id, -1),
++      ArrowDown: () => shiftWithinColumn(cards, card.id, 1),
++    }
++    const fn = moves[e.key]
++    if (!fn) return
++    e.preventDefault()
++    const next = fn()
++    if (next !== cards) applyMove(next, card.id, true)
++  }
++
++  return (
++    <div className="min-h-screen bg-slate-100 text-slate-900">
++      <header className="border-b border-slate-200 bg-white">
++        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">
++          <h1 className="mr-auto text-xl font-bold tracking-tight">My Kanban</h1>
++          <button
++            type="button"
++            onClick={() => setEditing({ mode: 'add', column: 'todo' })}
++            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
++          >
++            + Add card
++          </button>
++          <div role="search" className="flex w-full flex-wrap gap-2 sm:w-auto">
++            <label className="sr-only" htmlFor="search">Search cards</label>
++            <input
++              id="search"
++              type="search"
++              placeholder="Search title or description…"
++              value={filter.query}
++              onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
++              className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-base sm:w-64 sm:flex-none sm:text-sm"
++            />
++            <label className="sr-only" htmlFor="priority-filter">Filter by priority</label>
++            <select
++              id="priority-filter"
++              value={filter.priority}
++              onChange={(e) => setFilter((f) => ({ ...f, priority: e.target.value as Filter['priority'] }))}
++              className="rounded-md border border-slate-300 bg-white px-2 py-2 text-base sm:text-sm"
++            >
++              <option value="all">All priorities</option>
++              {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
++            </select>
++          </div>
++        </div>
++      </header>
++
++      <main className="mx-auto max-w-7xl px-4 py-4">
++        <p className="mb-3 hidden text-xs text-slate-500 md:block">
++          Tip: drag cards to move them, or focus a card and press <kbd className="rounded border bg-white px-1">Shift</kbd> + arrow keys.
++        </p>
++
++        {filterActive && visible.length === 0 && (
++          <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm">
++            <span>No cards match your search{filter.priority !== 'all' ? ' and priority filter' : ''}.</span>
++            <button type="button" onClick={() => setFilter({ query: '', priority: 'all' })} className="font-medium text-indigo-700 hover:underline">
++              Clear filters
++            </button>
++          </div>
++        )}
++
++        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
++          {COLUMNS.map((col) => {
++            const all = cards.filter((c) => c.column === col.id)
++            const shown = visible.filter((c) => c.column === col.id)
++            const isDoing = col.id === 'doing'
++            const warn = isDoing && wipExceeded
++            const isTarget = drag?.target?.column === col.id
++            return (
++              <section
++                key={col.id}
++                data-column={col.id}
++                aria-labelledby={`col-${col.id}`}
++                className={`flex flex-col rounded-xl border p-3 transition-colors ${
++                  warn ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-200/60'
++                } ${isTarget ? 'ring-2 ring-indigo-400' : ''}`}
++              >
++                <div className="mb-3 flex items-center gap-2">
++                  <h2 id={`col-${col.id}`} className="font-semibold">{col.title}</h2>
++                  <span
++                    data-testid={`count-${col.id}`}
++                    aria-label={filterActive ? `${shown.length} of ${all.length} cards shown` : `${all.length} cards`}
++                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${warn ? 'bg-amber-500 text-white' : 'bg-white text-slate-700'}`}
++                  >
++                    {filterActive ? `${shown.length}/${all.length}` : all.length}
++                    {isDoing && !filterActive && <span className="font-normal"> / {WIP_LIMIT}</span>}
++                  </span>
++                  <button
++                    type="button"
++                    onClick={() => setEditing({ mode: 'add', column: col.id })}
++                    aria-label={`Add card to ${col.title}`}
++                    className="ml-auto grid size-8 place-items-center rounded-md text-lg text-slate-600 hover:bg-white"
++                  >
++                    +
++                  </button>
++                </div>
++
++                {warn && (
++                  <p role="alert" className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">
++                    ⚠ Work-in-progress limit exceeded: {all.length} cards in Doing (limit {WIP_LIMIT}).
++                  </p>
++                )}
++
++                <ol className="flex min-h-24 flex-1 flex-col gap-2" aria-label={`${col.title} cards`}>
++                  {shown.map((card) => (
++                    <li key={card.id} className="contents">
++                      {isTarget && drag?.target?.beforeId === card.id && <DropLine />}
++                      <CardItem
++                        card={card}
++                        overdue={isOverdue(card, today)}
++                        dragging={drag?.id === card.id}
++                        onPointerDown={(e) => startDrag(e, card.id)}
++                        onKeyDown={(e) => handleCardKey(e, card)}
++                        onEdit={() => !suppressClick.current && setEditing({ mode: 'edit', id: card.id })}
++                        onDelete={() => !suppressClick.current && setDeletingId(card.id)}
++                        onMoveTo={(to) => applyMove(moveCard(cards, card.id, to, null), card.id, true)}
++                      />
++                    </li>
++                  ))}
++                  {isTarget && drag?.target?.beforeId === null && <DropLine />}
++                  {shown.length === 0 && (
++                    <li className="grid flex-1 place-items-center rounded-lg border-2 border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500">
++                      {all.length > 0 ? 'No matching cards' : col.id === 'todo' ? 'Nothing to do yet — add a card' : col.id === 'doing' ? 'Nothing in progress' : 'Nothing done yet'}
++                    </li>
++                  )}
++                </ol>
++              </section>
++            )
++          })}
++        </div>
++      </main>
++
++      {drag && draggedCard && <DragGhost drag={drag} card={draggedCard} overdue={isOverdue(draggedCard, today)} />}
++
++      <div aria-live="polite" className="sr-only">{announcement}</div>
++
++      <CardDialog
++        open={editing !== null && (editing.mode === 'add' || !!editingCard)}
++        mode={editing?.mode ?? 'add'}
++        initial={editingCard ?? EMPTY_INPUT}
++        onSave={handleSave}
++        onClose={() => setEditing(null)}
++      />
++      <ConfirmDialog
++        open={!!deletingCard}
++        cardTitle={deletingCard?.title ?? ''}
++        onClose={() => setDeletingId(null)}
++        onConfirm={() => {
++          if (deletingCard) {
++            setCards(deleteCard(cards, deletingCard.id))
++            setAnnouncement(`Deleted “${deletingCard.title}”.`)
++          }
++          setDeletingId(null)
++        }}
++      />
++    </div>
++  )
++}
++
++function DropLine() {
++  return <div aria-hidden className="h-1 shrink-0 rounded-full bg-indigo-500" data-testid="drop-indicator" />
++}
++
++function CardBody({ card, overdue }: { card: Card; overdue: boolean }) {
++  return (
++    <>
++      <div className="flex flex-wrap items-center gap-1.5">
++        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${PRIORITY_STYLE[card.priority]}`}>
++          {PRIORITIES.find((p) => p.id === card.priority)!.label}
++        </span>
++        {overdue && <span className="rounded bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white">Overdue</span>}
++      </div>
++      <h3 className="mt-1.5 font-medium break-words">{card.title}</h3>
++      {card.description && <p className="mt-1 text-sm whitespace-pre-line break-words text-slate-600 line-clamp-4">{card.description}</p>}
++      {card.due && (
++        <p className={`mt-1.5 text-xs ${overdue ? 'font-semibold text-red-700' : 'text-slate-500'}`}>
++          Due <time dateTime={card.due}>{formatDate(card.due)}</time>
++        </p>
++      )}
++    </>
++  )
++}
++
++function CardItem({ card, overdue, dragging, onPointerDown, onKeyDown, onEdit, onDelete, onMoveTo }: {
++  card: Card
++  overdue: boolean
++  dragging: boolean
++  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void
++  onKeyDown: (e: React.KeyboardEvent) => void
++  onEdit: () => void
++  onDelete: () => void
++  onMoveTo: (column: ColumnId) => void
++}) {
++  return (
++    <article
++      data-card-id={card.id}
++      data-overdue={overdue || undefined}
++      tabIndex={0}
++      aria-label={`${card.title}, ${card.priority} priority${overdue ? ', overdue' : ''}`}
++      aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight Shift+ArrowUp Shift+ArrowDown"
++      onPointerDown={onPointerDown}
++      onKeyDown={onKeyDown}
++      className={`group relative overflow-hidden rounded-lg border p-3 pl-8 shadow-sm select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 md:cursor-grab ${
++        overdue ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'
++      } ${dragging ? 'opacity-40' : ''}`}
++    >
++      {overdue && <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-red-500" />}
++      <span
++        data-drag-handle
++        aria-hidden
++        title="Drag to move"
++        className="absolute inset-y-0 left-0 flex w-7 cursor-grab touch-none items-center justify-center text-slate-400"
++      >
++        <svg width="12" height="20" viewBox="0 0 12 20" fill="currentColor">
++          {[3, 10, 17].flatMap((y) => [<circle key={`a${y}`} cx="3" cy={y} r="1.6" />, <circle key={`b${y}`} cx="9" cy={y} r="1.6" />])}
++        </svg>
++      </span>
++      <CardBody card={card} overdue={overdue} />
++      <div className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2">
++        <label className="sr-only" htmlFor={`move-${card.id}`}>Move “{card.title}” to column</label>
++        <select
++          id={`move-${card.id}`}
++          value={card.column}
++          onChange={(e) => onMoveTo(e.target.value as ColumnId)}
++          className="mr-auto min-h-9 rounded border border-slate-200 bg-white px-1.5 text-sm text-slate-700 md:min-h-7 md:text-xs"
++        >
++          {COLUMNS.map((c) => <option key={c.id} value={c.id}>{c.id === card.column ? `In: ${c.title}` : `Move to ${c.title}`}</option>)}
++        </select>
++        <button type="button" onClick={onEdit} aria-label={`Edit “${card.title}”`} className="min-h-9 rounded px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 md:min-h-7 md:px-2 md:text-xs">
++          Edit
++        </button>
++        <button type="button" onClick={onDelete} aria-label={`Delete “${card.title}”`} className="min-h-9 rounded px-3 text-sm font-medium text-red-600 hover:bg-red-50 md:min-h-7 md:px-2 md:text-xs">
++          Delete
++        </button>
++      </div>
++    </article>
++  )
++}
++
++function DragGhost({ drag, card, overdue }: { drag: DragView; card: Card; overdue: boolean }) {
++  return (
++    <div
++      aria-hidden
++      className={`pointer-events-none fixed top-0 left-0 z-50 rotate-2 rounded-lg border p-3 pl-8 shadow-xl ${overdue ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'}`}
++      style={{ width: drag.width, transform: `translate(${drag.x - drag.offsetX}px, ${drag.y - drag.offsetY}px) rotate(2deg)` }}
++    >
++      <CardBody card={card} overdue={overdue} />
++    </div>
++  )
+ }
+diff --git a/src/Dialogs.tsx b/src/Dialogs.tsx
+new file mode 100644
+index 0000000..37539d2
+--- /dev/null
++++ b/src/Dialogs.tsx
+@@ -0,0 +1,150 @@
++import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
++import { type CardInput, PRIORITIES, type Priority } from './board'
++
++function Modal({ open, onClose, labelledBy, children }: {
++  open: boolean
++  onClose: () => void
++  labelledBy: string
++  children: ReactNode
++}) {
++  const ref = useRef<HTMLDialogElement>(null)
++  useEffect(() => {
++    const d = ref.current
++    if (!d) return
++    if (open && !d.open) d.showModal()
++    if (!open && d.open) d.close()
++  }, [open])
++  return (
++    <dialog
++      ref={ref}
++      aria-labelledby={labelledBy}
++      onCancel={(e) => {
++        e.preventDefault()
++        onClose()
++      }}
++      onClick={(e) => {
++        // Click on the backdrop (the dialog element itself) closes.
++        if (e.target === ref.current) onClose()
++      }}
++      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-900/50"
++    >
++      {open && <div className="p-5">{children}</div>}
++    </dialog>
++  )
++}
++
++export function CardDialog({ open, mode, initial, onSave, onClose }: {
++  open: boolean
++  mode: 'add' | 'edit'
++  initial: CardInput
++  onSave: (input: CardInput) => void
++  onClose: () => void
++}) {
++  const titleId = useId()
++  return (
++    <Modal open={open} onClose={onClose} labelledBy={titleId}>
++      <CardForm key={JSON.stringify(initial) + mode} titleId={titleId} mode={mode} initial={initial} onSave={onSave} onClose={onClose} />
++    </Modal>
++  )
++}
++
++function CardForm({ titleId, mode, initial, onSave, onClose }: {
++  titleId: string
++  mode: 'add' | 'edit'
++  initial: CardInput
++  onSave: (input: CardInput) => void
++  onClose: () => void
++}) {
++  const [title, setTitle] = useState(initial.title)
++  const [description, setDescription] = useState(initial.description)
++  const [due, setDue] = useState(initial.due)
++  const [priority, setPriority] = useState<Priority>(initial.priority)
++  const [error, setError] = useState('')
++  const ids = useId()
++  const field = 'mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200'
++
++  return (
++    <form
++      noValidate
++      onSubmit={(e) => {
++        e.preventDefault()
++        if (!title.trim()) {
++          setError('Title is required.')
++          return
++        }
++        onSave({ title, description, due, priority })
++      }}
++    >
++      <h2 id={titleId} className="text-lg font-semibold">{mode === 'add' ? 'Add card' : 'Edit card'}</h2>
++      <div className="mt-4 space-y-4">
++        <div>
++          <label htmlFor={`${ids}-title`} className="text-sm font-medium">Title</label>
++          <input
++            id={`${ids}-title`}
++            autoFocus
++            value={title}
++            maxLength={200}
++            aria-invalid={!!error}
++            aria-describedby={error ? `${ids}-err` : undefined}
++            onChange={(e) => {
++              setTitle(e.target.value)
++              if (error) setError('')
++            }}
++            className={field}
++          />
++          {error && <p id={`${ids}-err`} className="mt-1 text-sm text-red-600">{error}</p>}
++        </div>
++        <div>
++          <label htmlFor={`${ids}-desc`} className="text-sm font-medium">Description <span className="font-normal text-slate-500">(optional)</span></label>
++          <textarea id={`${ids}-desc`} rows={3} value={description} maxLength={2000} onChange={(e) => setDescription(e.target.value)} className={field} />
++        </div>
++        <div className="grid gap-4 sm:grid-cols-2">
++          <div className="min-w-0">
++            <label htmlFor={`${ids}-due`} className="text-sm font-medium">Due date <span className="font-normal text-slate-500">(optional)</span></label>
++            <input id={`${ids}-due`} type="date" value={due} onChange={(e) => setDue(e.target.value)} className={field} />
++          </div>
++          <fieldset className="min-w-0">
++            <legend className="text-sm font-medium">Priority</legend>
++            <div className="mt-1 flex gap-1">
++              {PRIORITIES.map((p) => (
++                <label key={p.id} className="flex-1">
++                  <input type="radio" name={`${ids}-priority`} value={p.id} checked={priority === p.id} onChange={() => setPriority(p.id)} className="peer sr-only" />
++                  <span className="block cursor-pointer rounded-md border border-slate-300 px-2 py-2 text-center text-sm peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-300">
++                    {p.label}
++                  </span>
++                </label>
++              ))}
++            </div>
++          </fieldset>
++        </div>
++      </div>
++      <div className="mt-6 flex justify-end gap-2">
++        <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancel</button>
++        <button type="submit" className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
++          {mode === 'add' ? 'Add card' : 'Save changes'}
++        </button>
++      </div>
++    </form>
++  )
++}
++
++export function ConfirmDialog({ open, cardTitle, onConfirm, onClose }: {
++  open: boolean
++  cardTitle: string
++  onConfirm: () => void
++  onClose: () => void
++}) {
++  const titleId = useId()
++  return (
++    <Modal open={open} onClose={onClose} labelledBy={titleId}>
++      <h2 id={titleId} className="text-lg font-semibold">Delete card?</h2>
++      <p className="mt-2 text-sm text-slate-600">
++        “<span className="font-medium break-words text-slate-900">{cardTitle}</span>” will be permanently deleted.
++      </p>
++      <div className="mt-6 flex justify-end gap-2">
++        <button type="button" autoFocus onClick={onClose} className="rounded-md px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancel</button>
++        <button type="button" onClick={onConfirm} className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Delete</button>
++      </div>
++    </Modal>
++  )
++}
+diff --git a/src/board.test.ts b/src/board.test.ts
+new file mode 100644
+index 0000000..2ec30f4
+--- /dev/null
++++ b/src/board.test.ts
+@@ -0,0 +1,222 @@
++import { describe, expect, it } from 'vitest'
++import {
++  addCard,
++  type Card,
++  type CardInput,
++  cardsIn,
++  deleteCard,
++  isFilterActive,
++  isOverdue,
++  isWipExceeded,
++  loadBoard,
++  matchesFilter,
++  moveCard,
++  parseBoard,
++  saveBoard,
++  serializeBoard,
++  shiftColumn,
++  shiftWithinColumn,
++  STORAGE_KEY,
++  todayISO,
++  updateCard,
++} from './board'
++
++const input = (title: string, extra: Partial<CardInput> = {}): CardInput => ({
++  title,
++  description: '',
++  due: '',
++  priority: 'medium',
++  ...extra,
++})
++
++function board(): Card[] {
++  let cards: Card[] = []
++  cards = addCard(cards, input('A'), 'todo', 'a')
++  cards = addCard(cards, input('B'), 'todo', 'b')
++  cards = addCard(cards, input('C'), 'todo', 'c')
++  cards = addCard(cards, input('D'), 'doing', 'd')
++  cards = addCard(cards, input('E'), 'done', 'e')
++  return cards
++}
++const ids = (cards: Card[], col: Card['column']) => cardsIn(cards, col).map((c) => c.id)
++
++describe('add / update / delete', () => {
++  it('adds a card to To do by default with trimmed fields', () => {
++    const cards = addCard([], input('  Hello  ', { description: '  world ' }), undefined, 'x')
++    expect(cards).toEqual([{ id: 'x', title: 'Hello', description: 'world', due: '', priority: 'medium', column: 'todo' }])
++  })
++  it('drops invalid due dates and priorities', () => {
++    const [c] = addCard([], { title: 't', description: '', due: 'tomorrow', priority: 'urgent' as never })
++    expect(c.due).toBe('')
++    expect(c.priority).toBe('medium')
++  })
++  it('generates unique ids', () => {
++    const cards = addCard(addCard([], input('a')), input('b'))
++    expect(cards[0].id).not.toBe(cards[1].id)
++  })
++  it('updates fields but keeps id and column', () => {
++    const cards = updateCard(board(), 'd', input('New', { priority: 'high', due: '2026-01-02', description: 'x' }))
++    expect(cards.find((c) => c.id === 'd')).toEqual({
++      id: 'd', title: 'New', description: 'x', due: '2026-01-02', priority: 'high', column: 'doing',
++    })
++  })
++  it('deletes a card', () => {
++    expect(deleteCard(board(), 'b').map((c) => c.id)).toEqual(['a', 'c', 'd', 'e'])
++  })
++})
++
++describe('moveCard', () => {
++  it('reorders within a column (before a card)', () => {
++    expect(ids(moveCard(board(), 'c', 'todo', 'a'), 'todo')).toEqual(['c', 'a', 'b'])
++  })
++  it('moves to the end of a column with beforeId null', () => {
++    expect(ids(moveCard(board(), 'a', 'todo', null), 'todo')).toEqual(['b', 'c', 'a'])
++  })
++  it('moves between columns at a specific position', () => {
++    const cards = moveCard(board(), 'b', 'doing', 'd')
++    expect(ids(cards, 'todo')).toEqual(['a', 'c'])
++    expect(ids(cards, 'doing')).toEqual(['b', 'd'])
++  })
++  it('moves into an empty column', () => {
++    const cards = moveCard(deleteCard(board(), 'e'), 'a', 'done', null)
++    expect(ids(cards, 'done')).toEqual(['a'])
++  })
++  it('is a no-op when dropped before itself or for unknown ids', () => {
++    const b = board()
++    expect(moveCard(b, 'a', 'todo', 'a')).toBe(b)
++    expect(moveCard(b, 'zzz', 'todo', null)).toBe(b)
++  })
++  it('falls back to end of column if beforeId is in a different column', () => {
++    expect(ids(moveCard(board(), 'a', 'doing', 'e'), 'doing')).toEqual(['d', 'a'])
++  })
++  it('never loses or duplicates cards', () => {
++    const cards = moveCard(moveCard(board(), 'a', 'done', 'e'), 'e', 'todo', 'c')
++    expect(cards.map((c) => c.id).sort()).toEqual(['a', 'b', 'c', 'd', 'e'])
++  })
++})
++
++describe('keyboard moves', () => {
++  it('shifts a card right and left between columns', () => {
++    let cards = shiftColumn(board(), 'a', 1)
++    expect(ids(cards, 'doing')).toEqual(['d', 'a'])
++    cards = shiftColumn(cards, 'a', 1)
++    expect(ids(cards, 'done')).toEqual(['e', 'a'])
++    cards = shiftColumn(cards, 'a', -1)
++    expect(ids(cards, 'doing')).toEqual(['d', 'a'])
++  })
++  it('does nothing past the first/last column', () => {
++    const b = board()
++    expect(shiftColumn(b, 'a', -1)).toBe(b)
++    expect(shiftColumn(b, 'e', 1)).toBe(b)
++  })
++  it('reorders up and down within a column', () => {
++    expect(ids(shiftWithinColumn(board(), 'a', 1), 'todo')).toEqual(['b', 'a', 'c'])
++    expect(ids(shiftWithinColumn(board(), 'b', 1), 'todo')).toEqual(['a', 'c', 'b'])
++    expect(ids(shiftWithinColumn(board(), 'c', -1), 'todo')).toEqual(['a', 'c', 'b'])
++    const b = board()
++    expect(shiftWithinColumn(b, 'a', -1)).toBe(b)
++    expect(shiftWithinColumn(b, 'c', 1)).toBe(b)
++  })
++})
++
++describe('overdue', () => {
++  const today = '2026-11-09'
++  const card = (due: string, column: Card['column'] = 'todo'): Card => ({
++    id: '1', title: 't', description: '', priority: 'low', due, column,
++  })
++  it('is overdue when due before today and not done', () => {
++    expect(isOverdue(card('2026-11-08'), today)).toBe(true)
++    expect(isOverdue(card('2025-12-31', 'doing'), today)).toBe(true)
++  })
++  it('is not overdue when due today, in the future, missing, or done', () => {
++    expect(isOverdue(card('2026-11-09'), today)).toBe(false)
++    expect(isOverdue(card('2026-11-10'), today)).toBe(false)
++    expect(isOverdue(card(''), today)).toBe(false)
++    expect(isOverdue(card('2020-01-01', 'done'), today)).toBe(false)
++  })
++  it('todayISO uses the local date with padding', () => {
++    expect(todayISO(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05')
++  })
++})
++
++describe('WIP limit', () => {
++  it('is exceeded only above 3 cards in Doing', () => {
++    let cards = board() // 1 in doing
++    cards = addCard(cards, input('x'), 'doing')
++    cards = addCard(cards, input('y'), 'doing')
++    expect(isWipExceeded(cards)).toBe(false) // exactly 3
++    cards = addCard(cards, input('z'), 'doing')
++    expect(isWipExceeded(cards)).toBe(true)
++  })
++})
++
++describe('filter', () => {
++  const c: Card = { id: '1', title: 'Write Report', description: 'Quarterly numbers', due: '', priority: 'high', column: 'todo' }
++  it('matches title and description case-insensitively', () => {
++    expect(matchesFilter(c, { query: 'report', priority: 'all' })).toBe(true)
++    expect(matchesFilter(c, { query: 'QUARTER', priority: 'all' })).toBe(true)
++    expect(matchesFilter(c, { query: 'nope', priority: 'all' })).toBe(false)
++    expect(matchesFilter(c, { query: '   ', priority: 'all' })).toBe(true)
++  })
++  it('filters by priority and combines with search', () => {
++    expect(matchesFilter(c, { query: '', priority: 'high' })).toBe(true)
++    expect(matchesFilter(c, { query: '', priority: 'low' })).toBe(false)
++    expect(matchesFilter(c, { query: 'report', priority: 'low' })).toBe(false)
++  })
++  it('reports when a filter is active', () => {
++    expect(isFilterActive({ query: '', priority: 'all' })).toBe(false)
++    expect(isFilterActive({ query: ' ', priority: 'all' })).toBe(false)
++    expect(isFilterActive({ query: 'a', priority: 'all' })).toBe(true)
++    expect(isFilterActive({ query: '', priority: 'low' })).toBe(true)
++  })
++})
++
++describe('persistence', () => {
++  function memoryStorage() {
++    const map = new Map<string, string>()
++    return {
++      getItem: (k: string) => map.get(k) ?? null,
++      setItem: (k: string, v: string) => void map.set(k, v),
++    }
++  }
++  it('round-trips through storage preserving order', () => {
++    const s = memoryStorage()
++    const cards = moveCard(board(), 'c', 'todo', 'a')
++    expect(saveBoard(cards, s)).toBe(true)
++    expect(loadBoard(s)).toEqual(cards)
++  })
++  it('returns an empty board for missing or corrupt data', () => {
++    expect(parseBoard(null)).toEqual([])
++    expect(parseBoard('{not json')).toEqual([])
++    expect(parseBoard('"str"')).toEqual([])
++    expect(parseBoard('{"cards": 5}')).toEqual([])
++  })
++  it('drops invalid cards and repairs bad fields', () => {
++    const raw = JSON.stringify({
++      cards: [
++        { id: 'ok', title: 'Ok', column: 'doing', priority: 'nope', due: 'x' },
++        { id: 'ok', title: 'Duplicate', column: 'todo' },
++        { id: 'bad-col', title: 'x', column: 'later' },
++        { id: 'no-title', title: '  ', column: 'todo' },
++        null,
++        42,
++      ],
++    })
++    expect(parseBoard(raw)).toEqual([{ id: 'ok', title: 'Ok', description: '', due: '', priority: 'medium', column: 'doing' }])
++  })
++  it('accepts a bare array too', () => {
++    expect(parseBoard(JSON.stringify(board()))).toEqual(board())
++  })
++  it('survives storage that throws', () => {
++    const throwing = {
++      getItem: () => { throw new Error('denied') },
++      setItem: () => { throw new Error('quota') },
++    }
++    expect(loadBoard(throwing)).toEqual([])
++    expect(saveBoard(board(), throwing)).toBe(false)
++  })
++  it('uses a versioned key and format', () => {
++    expect(STORAGE_KEY).toBe('kanban-board-v1')
++    expect(JSON.parse(serializeBoard([])).version).toBe(1)
++  })
++})
+diff --git a/src/board.ts b/src/board.ts
+new file mode 100644
+index 0000000..58bcde5
+--- /dev/null
++++ b/src/board.ts
+@@ -0,0 +1,196 @@
++export type ColumnId = 'todo' | 'doing' | 'done'
++export type Priority = 'low' | 'medium' | 'high'
++
++export interface Card {
++  id: string
++  title: string
++  description: string
++  /** ISO date `YYYY-MM-DD`, or empty string when there is no due date. */
++  due: string
++  priority: Priority
++  column: ColumnId
++}
++
++export type CardInput = Pick<Card, 'title' | 'description' | 'due' | 'priority'>
++
++export const COLUMNS: { id: ColumnId; title: string }[] = [
++  { id: 'todo', title: 'To do' },
++  { id: 'doing', title: 'Doing' },
++  { id: 'done', title: 'Done' },
++]
++
++export const PRIORITIES: { id: Priority; label: string }[] = [
++  { id: 'low', label: 'Low' },
++  { id: 'medium', label: 'Medium' },
++  { id: 'high', label: 'High' },
++]
++
++export const WIP_LIMIT = 3
++export const STORAGE_KEY = 'kanban-board-v1'
++
++const COLUMN_IDS = COLUMNS.map((c) => c.id)
++const PRIORITY_IDS = PRIORITIES.map((p) => p.id)
++const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
++
++export function newId(): string {
++  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
++  return Math.random().toString(36).slice(2) + Date.now().toString(36)
++}
++
++/** Local calendar date as `YYYY-MM-DD` (not UTC, so "today" matches the user's clock). */
++export function todayISO(now: Date = new Date()): string {
++  const y = now.getFullYear()
++  const m = String(now.getMonth() + 1).padStart(2, '0')
++  const d = String(now.getDate()).padStart(2, '0')
++  return `${y}-${m}-${d}`
++}
++
++export function cardsIn(cards: Card[], column: ColumnId): Card[] {
++  return cards.filter((c) => c.column === column)
++}
++
++export function addCard(cards: Card[], input: CardInput, column: ColumnId = 'todo', id: string = newId()): Card[] {
++  const card: Card = { id, column, ...normalizeInput(input) }
++  return [...cards, card]
++}
++
++export function updateCard(cards: Card[], id: string, input: CardInput): Card[] {
++  return cards.map((c) => (c.id === id ? { ...c, ...normalizeInput(input) } : c))
++}
++
++export function deleteCard(cards: Card[], id: string): Card[] {
++  return cards.filter((c) => c.id !== id)
++}
++
++function normalizeInput(input: CardInput): CardInput {
++  return {
++    title: input.title.trim(),
++    description: input.description.trim(),
++    due: DATE_RE.test(input.due) ? input.due : '',
++    priority: PRIORITY_IDS.includes(input.priority) ? input.priority : 'medium',
++  }
++}
++
++/**
++ * Move a card to `toColumn`, placing it immediately before the card `beforeId`
++ * (or at the end of the column when `beforeId` is null). Using a neighbour id
++ * instead of an index keeps drops correct while the board is filtered.
++ */
++export function moveCard(cards: Card[], id: string, toColumn: ColumnId, beforeId: string | null): Card[] {
++  const card = cards.find((c) => c.id === id)
++  if (!card || beforeId === id) return cards
++  const rest = cards.filter((c) => c.id !== id)
++  const moved = { ...card, column: toColumn }
++  let insertAt: number
++  const before = beforeId ? rest.findIndex((c) => c.id === beforeId && c.column === toColumn) : -1
++  if (before >= 0) {
++    insertAt = before
++  } else {
++    // After the last card of the target column (or at the end of the list).
++    let last = -1
++    rest.forEach((c, i) => {
++      if (c.column === toColumn) last = i
++    })
++    insertAt = last >= 0 ? last + 1 : rest.length
++  }
++  return [...rest.slice(0, insertAt), moved, ...rest.slice(insertAt)]
++}
++
++/** Move a card one column left (-1) or right (+1), appending it to the end. */
++export function shiftColumn(cards: Card[], id: string, dir: -1 | 1): Card[] {
++  const card = cards.find((c) => c.id === id)
++  if (!card) return cards
++  const idx = COLUMN_IDS.indexOf(card.column) + dir
++  if (idx < 0 || idx >= COLUMN_IDS.length) return cards
++  return moveCard(cards, id, COLUMN_IDS[idx], null)
++}
++
++/** Move a card one position up (-1) or down (+1) within its column. */
++export function shiftWithinColumn(cards: Card[], id: string, dir: -1 | 1): Card[] {
++  const card = cards.find((c) => c.id === id)
++  if (!card) return cards
++  const col = cardsIn(cards, card.column)
++  const pos = col.findIndex((c) => c.id === id)
++  const target = pos + dir
++  if (target < 0 || target >= col.length) return cards
++  // Moving down by one = insert before the card two positions later.
++  const beforeId = dir === -1 ? col[target].id : (col[target + 1]?.id ?? null)
++  return moveCard(cards, id, card.column, beforeId)
++}
++
++export function isOverdue(card: Card, today: string = todayISO()): boolean {
++  return card.column !== 'done' && card.due !== '' && card.due < today
++}
++
++export function isWipExceeded(cards: Card[]): boolean {
++  return cardsIn(cards, 'doing').length > WIP_LIMIT
++}
++
++export interface Filter {
++  query: string
++  priority: Priority | 'all'
++}
++
++export function matchesFilter(card: Card, filter: Filter): boolean {
++  if (filter.priority !== 'all' && card.priority !== filter.priority) return false
++  const q = filter.query.trim().toLowerCase()
++  if (!q) return true
++  return card.title.toLowerCase().includes(q) || card.description.toLowerCase().includes(q)
++}
++
++export function isFilterActive(filter: Filter): boolean {
++  return filter.query.trim() !== '' || filter.priority !== 'all'
++}
++
++/** Parse stored JSON defensively: drop anything that is not a valid card. */
++export function parseBoard(raw: string | null): Card[] {
++  if (!raw) return []
++  let data: unknown
++  try {
++    data = JSON.parse(raw)
++  } catch {
++    return []
++  }
++  const list = Array.isArray(data) ? data : (data as { cards?: unknown })?.cards
++  if (!Array.isArray(list)) return []
++  const seen = new Set<string>()
++  const out: Card[] = []
++  for (const item of list) {
++    if (!item || typeof item !== 'object') continue
++    const c = item as Record<string, unknown>
++    if (typeof c.id !== 'string' || seen.has(c.id)) continue
++    if (typeof c.title !== 'string' || !c.title.trim()) continue
++    if (!COLUMN_IDS.includes(c.column as ColumnId)) continue
++    seen.add(c.id)
++    out.push({
++      id: c.id,
++      title: c.title,
++      description: typeof c.description === 'string' ? c.description : '',
++      due: typeof c.due === 'string' && DATE_RE.test(c.due) ? c.due : '',
++      priority: PRIORITY_IDS.includes(c.priority as Priority) ? (c.priority as Priority) : 'medium',
++      column: c.column as ColumnId,
++    })
++  }
++  return out
++}
++
++export function serializeBoard(cards: Card[]): string {
++  return JSON.stringify({ version: 1, cards })
++}
++
++export function loadBoard(storage: Pick<Storage, 'getItem'> = localStorage): Card[] {
++  try {
++    return parseBoard(storage.getItem(STORAGE_KEY))
++  } catch {
++    return []
++  }
++}
++
++export function saveBoard(cards: Card[], storage: Pick<Storage, 'setItem'> = localStorage): boolean {
++  try {
++    storage.setItem(STORAGE_KEY, serializeBoard(cards))
++    return true
++  } catch {
++    return false
++  }
++}
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..c1e3d55 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,7 @@
+ @import "tailwindcss";
++
++body.is-dragging,
++body.is-dragging * {
++  cursor: grabbing !important;
++  user-select: none;
++}
+diff --git a/src/useCardDrag.ts b/src/useCardDrag.ts
+new file mode 100644
+index 0000000..66f664f
+--- /dev/null
++++ b/src/useCardDrag.ts
+@@ -0,0 +1,145 @@
++import { useCallback, useEffect, useRef, useState } from 'react'
++import type { ColumnId } from './board'
++
++export interface DropTarget {
++  column: ColumnId
++  beforeId: string | null
++}
++
++export interface DragView {
++  id: string
++  x: number
++  y: number
++  offsetX: number
++  offsetY: number
++  width: number
++  target: DropTarget | null
++}
++
++const THRESHOLD = 5
++const EDGE = 64
++
++/** Work out which column / position is under the pointer. */
++function dropTargetAt(x: number, y: number, draggedId: string): DropTarget | null {
++  const el = document.elementFromPoint(x, y) as HTMLElement | null
++  const colEl = el?.closest<HTMLElement>('[data-column]')
++  if (!colEl) return null
++  const column = colEl.dataset.column as ColumnId
++  const cardEls = Array.from(colEl.querySelectorAll<HTMLElement>('[data-card-id]')).filter(
++    (c) => c.dataset.cardId !== draggedId,
++  )
++  for (const c of cardEls) {
++    const r = c.getBoundingClientRect()
++    if (y < r.top + r.height / 2) return { column, beforeId: c.dataset.cardId ?? null }
++  }
++  return { column, beforeId: null }
++}
++
++/**
++ * Pointer-event based drag and drop: one code path for mouse, touch and pen.
++ * Mouse can drag from anywhere on the card; touch/pen drag from the grip handle
++ * (which has `touch-action: none`) so the rest of the card still scrolls the page.
++ */
++export function useCardDrag(onDrop: (id: string, target: DropTarget) => void) {
++  const [drag, setDrag] = useState<DragView | null>(null)
++  const cleanupRef = useRef<(() => void) | null>(null)
++  const suppressClick = useRef(false)
++  const onDropRef = useRef(onDrop)
++  useEffect(() => {
++    onDropRef.current = onDrop
++  })
++  useEffect(() => () => cleanupRef.current?.(), [])
++
++  const startDrag = useCallback((e: React.PointerEvent<HTMLElement>, id: string) => {
++    if (e.button !== 0 || cleanupRef.current) return
++    const targetEl = e.target as HTMLElement
++    const onHandle = !!targetEl.closest('[data-drag-handle]')
++    if (!onHandle && targetEl.closest('button, select, input, textarea, a, label')) return
++    if (e.pointerType !== 'mouse' && !onHandle) return
++
++    const cardEl = e.currentTarget
++    const rect = cardEl.getBoundingClientRect()
++    const pointerId = e.pointerId
++    const startX = e.clientX
++    const startY = e.clientY
++    const offsetX = startX - rect.left
++    const offsetY = startY - rect.top
++    let active = false
++    let last = { x: startX, y: startY }
++    let target: DropTarget | null = null
++    let raf = 0
++
++    const render = () => {
++      target = dropTargetAt(last.x, last.y, id)
++      setDrag({ id, x: last.x, y: last.y, offsetX, offsetY, width: rect.width, target })
++    }
++
++    const autoScroll = () => {
++      let dy = 0
++      if (last.y < EDGE) dy = -Math.ceil((EDGE - last.y) / 3)
++      else if (last.y > window.innerHeight - EDGE) dy = Math.ceil((last.y - (window.innerHeight - EDGE)) / 3)
++      if (dy) {
++        window.scrollBy(0, dy)
++        render()
++      }
++      raf = requestAnimationFrame(autoScroll)
++    }
++
++    const onMove = (ev: PointerEvent) => {
++      if (ev.pointerId !== pointerId) return
++      last = { x: ev.clientX, y: ev.clientY }
++      if (!active) {
++        if (Math.hypot(last.x - startX, last.y - startY) < THRESHOLD) return
++        active = true
++        document.body.classList.add('is-dragging')
++        raf = requestAnimationFrame(autoScroll)
++      }
++      ev.preventDefault()
++      render()
++    }
++
++    const cleanup = () => {
++      window.removeEventListener('pointermove', onMove)
++      window.removeEventListener('pointerup', onUp)
++      window.removeEventListener('pointercancel', onCancel)
++      window.removeEventListener('keydown', onKey, true)
++      cancelAnimationFrame(raf)
++      document.body.classList.remove('is-dragging')
++      cleanupRef.current = null
++      setDrag(null)
++    }
++
++    const onUp = (ev: PointerEvent) => {
++      if (ev.pointerId !== pointerId) return
++      const wasActive = active
++      const finalTarget = active ? dropTargetAt(ev.clientX, ev.clientY, id) : null
++      cleanup()
++      if (wasActive) {
++        // The browser fires a click after pointerup; don't let it hit a button.
++        suppressClick.current = true
++        setTimeout(() => (suppressClick.current = false), 0)
++        if (finalTarget) onDropRef.current(id, finalTarget)
++      }
++    }
++
++    const onCancel = (ev: PointerEvent) => {
++      if (ev.pointerId === pointerId) cleanup()
++    }
++
++    const onKey = (ev: KeyboardEvent) => {
++      if (ev.key === 'Escape' && active) {
++        ev.preventDefault()
++        ev.stopPropagation()
++        cleanup()
++      }
++    }
++
++    window.addEventListener('pointermove', onMove, { passive: false })
++    window.addEventListener('pointerup', onUp)
++    window.addEventListener('pointercancel', onCancel)
++    window.addEventListener('keydown', onKey, true)
++    cleanupRef.current = cleanup
++  }, [])
++
++  return { drag, startDrag, suppressClick }
++}

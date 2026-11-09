@@ -1,0 +1,710 @@
+[
+ {
+  "kind": "build",
+  "rc": 0,
+  "wall_s": 456,
+  "diff": {
+   "files": 7,
+   "added": 852,
+   "deleted": 2
+  },
+  "result": {
+   "duration_api_ms": 179772,
+   "stop_reason": "end_turn",
+   "session_id": "6defea27-051b-4035-8b70-55e2cd0804d1",
+   "total_cost_usd": 0.6741878000000001,
+   "usage": {
+    "input_tokens": 30,
+    "cache_creation_input_tokens": 76356,
+    "cache_read_input_tokens": 826403,
+    "output_tokens": 28589,
+    "output_tokens_details": {
+     "thinking_tokens": 2406
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 76356,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 843,
+      "cache_read_input_tokens": 75967,
+      "cache_creation_input_tokens": 389,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 389
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 30,
+     "outputTokens": 28589,
+     "cacheReadInputTokens": 826403,
+     "cacheCreationInputTokens": 76356,
+     "webSearchRequests": 0,
+     "costUSD": 0.6740143000000001,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2406,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 76356,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_019UsHhH5stPM8YExUKSAbGH",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/sonnet_timer\" && mkdir -p e2e && \ncat > src/timer.ts <<'EOF'\nexport type Phase = 'focus' | 'short' | 'long'\nexport type Status = 'idle' | 'running' | 'paused'\n\nexport interface Settings {\n  focus: number // minutes\n  short: number\n  long: number\n  muted: boolean\n}\n\nexport interface TimerState {\n  phase: Phase\n  status: Status\n  /** ms left; authoritative while idle/paused */\n  remainingMs: number\n  /** wall-clock ms timestamp when the phase ends; authoritative while running */\n  endAt: number | null\n  /** focus sessions completed toward the long break (0..4) */\n  cycle: number\n}\n\nexport interface LogEntry {\n  id: string\n  task: string\n  finishedAt: number\n}\n\nexport const CYCLE_LENGTH = 4\nexport const MIN_MINUTES = 1\nexport const MAX_MINUTES = 90\nexport const DEFAULT_SETTINGS: Settings = { focus: 25, short: 5, long: 15, muted: false }\n\nexport const PHASE_LABEL: Record<Phase, string> = {\n  focus: 'Focus',\n  short: 'Short break',\n  long: 'Long break',\n}\n\nexport function phaseMs(phase: Phase, s: Settings): number {\n  return s[phase] * 60_000\n}\n\nexport function initialState(s: Settings, phase: Phase = 'focus', cycle = 0): TimerState {\n  return { phase, status: 'idle', remainingMs: phaseMs(phase, s), endAt: null, cycle }\n}\n\nexport function remaining(st: TimerState, now: number): number {\n  if (st.status === 'running' && st.endAt !== null) return Math.max(0, st.endAt - now)\n  return st.remainingMs\n}\n\nexport function start(st: TimerState, now: number): TimerState {\n  if (st.status === 'running') return st\n  return { ...st, status: 'running', endAt: now + st.remainingMs }\n}\n\nexport function pause(st: TimerState, now: number): TimerState {\n  if (st.status !== 'running') return st\n  return { ...st, status: 'paused', remainingMs: remaining(st, now), endAt: null }\n}\n\nexport function toggle(st: TimerState, now: number): TimerState {\n  return st.status === 'running' ? pause(st, now) : start(st, now)\n}\n\n/** Restart the current phase from its full duration. */\nexport function reset(st: TimerState, s: Settings): TimerState {\n  return initialState(s, st.phase, st.cycle)\n}\n\n/** The phase that follows `phase` given `cycle` focus sessions done (after counting a finished one). */\nfunction nextAfter(phase: Phase, cycle: number): { phase: Phase; cycle: number } {\n  if (phase === 'focus') {\n    return cycle >= CYCLE_LENGTH ? { phase: 'long', cycle } : { phase: 'short', cycle }\n  }\n  // after any break: back to focus; a long break closes the cycle\n  return { phase: 'focus', cycle: phase === 'long' ? 0 : cycle }\n}\n\n/** Skip to the next phase without logging or counting the skipped one. */\nexport function skip(st: TimerState, s: Settings): TimerState {\n  // a skipped focus session isn't counted, but the break that follows still depends on the dots so far\n  const n = nextAfter(st.phase, st.phase === 'focus' ? Math.max(st.cycle, 0) : st.cycle)\n  // skipping focus never triggers a long break unless the cycle is already full (it can't be: full cycle goes to long break directly)\n  const phase = st.phase === 'focus' ? 'short' : n.phase\n  return initialState(s, phase, n.cycle)\n}\n\nexport interface TickResult {\n  state: TimerState\n  /** set when a phase just finished */\n  finished: { phase: Phase } | null\n}\n\n/** Advance the clock: completes the phase if its end time has passed. */\nexport function tick(st: TimerState, s: Settings, now: number): TickResult {\n  if (st.status !== 'running' || st.endAt === null || now < st.endAt) {\n    return { state: st, finished: null }\n  }\n  const cycle = st.phase === 'focus' ? Math.min(st.cycle + 1, CYCLE_LENGTH) : st.cycle\n  const n = nextAfter(st.phase, cycle)\n  return { state: initialState(s, n.phase, n.cycle), finished: { phase: st.phase } }\n}\n\n/** Apply new settings: an untouched (idle) phase picks up its new length immediately. */\nexport function applySettings(st: TimerState, s: Settings): TimerState {\n  return st.status === 'idle' ? { ...st, remainingMs: phaseMs(st.phase, s) } : st\n}\n\nexport function formatTime(ms: number): string {\n  const total = Math.ceil(ms / 1000)\n  const m = Math.floor(total / 60)\n  const sec = total % 60\n  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`\n}\n\nexport function tabTitle(st: TimerState, now: number): string {\n  const label = st.phase === 'focus' ? 'Focus' : st.phase === 'short' ? 'Short break' : 'Long break'\n  return `${formatTime(remaining(st, now))} - ${label}`\n}\n\n/** Returns an integer 1..90 or null when invalid. */\nexport function parseMinutes(raw: string): number | null {\n  const t = raw.trim()\n  if (!/^\\d+$/.test(t)) return null\n  const n = Number(t)\n  return n >= MIN_MINUTES && n <= MAX_MINUTES ? n : null\n}\n\nexport function dayKey(ts: number): string {\n  const d = new Date(ts)\n  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`\n}\n\nexport function todaysEntries(log: LogEntry[], now: number): LogEntry[] {\n  const k = dayKey(now)\n  return log.filter((e) => dayKey(e.finishedAt) === k)\n}\n\nexport function sanitizeSettings(raw: unknown): Settings {\n  const out = { ...DEFAULT_SETTINGS }\n  if (raw && typeof raw === 'object') {\n    const r = raw as Record<string, unknown>\n    for (const k of ['focus', 'short', 'long'] as const) {\n      const v = r[k]\n      if (typeof v === 'number' && Number.isInteger(v) && v >= MIN_MINUTES && v <= MAX_MINUTES) out[k] = v\n    }\n    if (typeof r.muted === 'boolean') out.muted = r.muted\n  }\n  return out\n}\n\nexport function sanitizeLog(raw: unknown): LogEntry[] {\n  if (!Array.isArray(raw)) return []\n  return raw.filter(\n    (e): e is LogEntry =>\n      !!e && typeof e.id === 'string' && typeof e.task === 'string' && typeof e.finishedAt === 'number',\n  )\n}\nEOF\ncat > src/storage.ts <<'EOF'\nimport { sanitizeLog, sanitizeSettings, todaysEntries, type LogEntry, type Settings } from './timer'\n\nconst SETTINGS_KEY = 'pomodoro.settings.v1'\nconst LOG_KEY = 'pomodoro.log.v1'\n\nfunction read(key: string): unknown {\n  try {\n    const v = localStorage.getItem(key)\n    return v ? JSON.parse(v) : null\n  } catch {\n    return null\n  }\n}\n\nfunction write(key: string, value: unknown) {\n  try {\n    localStorage.setItem(key, JSON.stringify(value))\n  } catch {\n    /* storage unavailable or full: keep working in memory */\n  }\n}\n\nexport const loadSettings = (): Settings => sanitizeSettings(read(SETTINGS_KEY))\nexport const saveSettings = (s: Settings) => write(SETTINGS_KEY, s)\nexport const loadLog = (now = Date.now()): LogEntry[] => todaysEntries(sanitizeLog(read(LOG_KEY)), now)\nexport const saveLog = (l: LogEntry[]) => write(LOG_KEY, l)\nEOF\ncat > src/sound.ts <<'EOF'\nlet ctx: AudioContext | null = null\n\n/** Create/resume the audio context; call from a user gesture so later beeps are allowed. */\nexport function primeAudio() {\n  try {\n    ctx ??= new AudioContext()\n    if (ctx.state === 'suspended') void ctx.resume()\n  } catch {\n    /* no audio support */\n  }\n}\n\n/** A short two-note chime. */\nexport function chime() {\n  try {\n    primeAudio()\n    if (!ctx) return\n    const t0 = ctx.currentTime\n    ;[660, 880].forEach((freq, i) => {\n      const osc = ctx!.createOscillator()\n      const gain = ctx!.createGain()\n      osc.type = 'sine'\n      osc.frequency.value = freq\n      const t = t0 + i * 0.22\n      gain.gain.setValueAtTime(0.0001, t)\n      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02)\n      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35)\n      osc.connect(gain).connect(ctx!.destination)\n      osc.start(t)\n      osc.stop(t + 0.4)\n    })\n  } catch {\n    /* ignore */\n  }\n}\nEOF\ncat > src/App.tsx <<'EOF'\nimport { useCallback, useEffect, useRef, useState } from 'react'\nimport {\n  CYCLE_LENGTH,\n  MAX_MINUTES,\n  MIN_MINUTES,\n  PHASE_LABEL,\n  applySettings,\n  formatTime,\n  initialState,\n  parseMinutes,\n  remaining,\n  reset,\n  skip,\n  tabTitle,\n  tick,\n  toggle,\n  type LogEntry,\n  type Settings,\n  type TimerState,\n} from './timer'\nimport { loadLog, loadSettings, saveLog, saveSettings } from './storage'\nimport { chime, primeAudio } from './sound'\n\nconst ACCENT = {\n  focus: { ring: 'stroke-rose-400', text: 'text-rose-500', dot: 'bg-rose-400', btn: 'bg-rose-500 hover:bg-rose-600' },\n  short: { ring: 'stroke-teal-500', text: 'text-teal-600', dot: 'bg-teal-500', btn: 'bg-teal-600 hover:bg-teal-700' },\n  long: { ring: 'stroke-indigo-400', text: 'text-indigo-500', dot: 'bg-indigo-400', btn: 'bg-indigo-500 hover:bg-indigo-600' },\n} as const\n\nconst fmtClock = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })\n\nexport default function App() {\n  const [settings, setSettings] = useState<Settings>(loadSettings)\n  const [timer, setTimer] = useState<TimerState>(() => initialState(loadSettings()))\n  const [now, setNow] = useState(() => Date.now())\n  const [task, setTask] = useState('')\n  const [log, setLog] = useState<LogEntry[]>(() => loadLog())\n  const [showSettings, setShowSettings] = useState(false)\n\n  // refs so the interval callback always sees the latest values without re-subscribing\n  const settingsRef = useRef(settings)\n  const taskRef = useRef(task)\n  settingsRef.current = settings\n  taskRef.current = task\n\n  useEffect(() => saveSettings(settings), [settings])\n  useEffect(() => saveLog(log), [log])\n\n  const advance = useCallback(() => {\n    const t = Date.now()\n    setNow(t)\n    setTimer((prev) => {\n      const r = tick(prev, settingsRef.current, t)\n      if (r.finished) {\n        // side effects are deferred out of the updater (it may run twice in StrictMode)\n        const finishedFocus = r.finished.phase === 'focus'\n        queueMicrotask(() => {\n          if (!settingsRef.current.muted) chime()\n          if (finishedFocus) {\n            setLog((l) => [...l, { id: `${t}-${Math.random().toString(36).slice(2, 7)}`, task: taskRef.current.trim(), finishedAt: t }])\n          }\n        })\n      }\n      return r.state\n    })\n  }, [])\n\n  // timestamp-based: each tick recomputes from endAt, so throttled background timers can't drift\n  useEffect(() => {\n    if (timer.status !== 'running') return\n    const id = setInterval(advance, 250)\n    const onVisible = () => document.visibilityState === 'visible' && advance()\n    document.addEventListener('visibilitychange', onVisible)\n    return () => {\n      clearInterval(id)\n      document.removeEventListener('visibilitychange', onVisible)\n    }\n  }, [timer.status, advance])\n\n  const left = remaining(timer, now)\n  useEffect(() => {\n    document.title = tabTitle(timer, now)\n  }, [timer, now])\n\n  const onToggle = useCallback(() => {\n    primeAudio()\n    const t = Date.now()\n    setNow(t)\n    setTimer((p) => toggle(p, t))\n  }, [])\n  const onReset = () => setTimer((p) => reset(p, settings))\n  const onSkip = () => setTimer((p) => skip(p, settings))\n\n  useEffect(() => {\n    const onKey = (e: KeyboardEvent) => {\n      if (e.code !== 'Space' || e.repeat) return\n      const el = e.target as HTMLElement | null\n      const tag = el?.tagName\n      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return\n      e.preventDefault()\n      onToggle()\n    }\n    window.addEventListener('keydown', onKey)\n    return () => window.removeEventListener('keydown', onKey)\n  }, [onToggle])\n\n  const updateSettings = (s: Settings) => {\n    setSettings(s)\n    setTimer((p) => applySettings(p, s))\n  }\n\n  const accent = ACCENT[timer.phase]\n  const total = settings[timer.phase] * 60_000\n  const progress = Math.min(1, Math.max(0, 1 - left / total))\n  const R = 130\n  const C = 2 * Math.PI * R\n  const running = timer.status === 'running'\n  const dotsDone = timer.cycle\n\n  return (\n    <div className=\"min-h-screen bg-stone-50 text-stone-800\">\n      <main className=\"mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-6 sm:py-10\">\n        <header className=\"flex items-center justify-between\">\n          <h1 className=\"text-lg font-semibold tracking-tight\">Pomodoro</h1>\n          <div className=\"flex gap-2\">\n            <button\n              onClick={() => updateSettings({ ...settings, muted: !settings.muted })}\n              aria-pressed={settings.muted}\n              aria-label={settings.muted ? 'Unmute sound' : 'Mute sound'}\n              className=\"rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100\"\n            >\n              {settings.muted ? '\ud83d\udd07 Muted' : '\ud83d\udd0a Sound on'}\n            </button>\n            <button\n              onClick={() => setShowSettings((v) => !v)}\n              aria-expanded={showSettings}\n              className=\"rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100\"\n            >\n              \u2699 Settings\n            </button>\n          </div>\n        </header>\n\n        {showSettings && <SettingsPanel settings={settings} onSave={updateSettings} />}\n\n        <section className=\"flex flex-col items-center gap-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200\">\n          <div className={`text-sm font-medium uppercase tracking-widest ${accent.text}`} data-testid=\"phase\">\n            {PHASE_LABEL[timer.phase]}\n          </div>\n\n          <div className=\"relative grid aspect-square w-full max-w-[300px] place-items-center\">\n            <svg viewBox=\"0 0 300 300\" className=\"absolute inset-0 h-full w-full -rotate-90\" aria-hidden>\n              <circle cx=\"150\" cy=\"150\" r={R} fill=\"none\" className=\"stroke-stone-100\" strokeWidth=\"10\" />\n              <circle\n                cx=\"150\"\n                cy=\"150\"\n                r={R}\n                fill=\"none\"\n                className={accent.ring}\n                strokeWidth=\"10\"\n                strokeLinecap=\"round\"\n                strokeDasharray={C}\n                strokeDashoffset={C * (1 - progress)}\n              />\n            </svg>\n            <div\n              className=\"text-7xl font-light tabular-nums tracking-tight sm:text-8xl\"\n              data-testid=\"countdown\"\n              role=\"timer\"\n              aria-label={`${formatTime(left)} remaining`}\n            >\n              {formatTime(left)}\n            </div>\n          </div>\n\n          <input\n            value={task}\n            onChange={(e) => setTask(e.target.value)}\n            maxLength={80}\n            placeholder=\"What are you working on? (optional)\"\n            aria-label=\"Task label\"\n            className=\"w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-center text-base outline-none placeholder:text-stone-400 focus:border-stone-400\"\n          />\n\n          <div className=\"flex items-center gap-1.5\" role=\"img\" aria-label={`${dotsDone} of ${CYCLE_LENGTH} focus sessions toward the long break`} data-testid=\"dots\">\n            {Array.from({ length: CYCLE_LENGTH }, (_, i) => (\n              <span\n                key={i}\n                data-filled={i < dotsDone}\n                className={`h-3 w-3 rounded-full ${i < dotsDone ? accent.dot : 'bg-stone-200'}`}\n              />\n            ))}\n            <span className=\"ml-2 text-sm text-stone-500\">\n              {dotsDone} of {CYCLE_LENGTH}\n            </span>\n          </div>\n\n          <div className=\"grid w-full grid-cols-[2fr_1fr_1fr] gap-2\">\n            <button onClick={onToggle} className={`rounded-xl px-4 py-3 text-base font-medium text-white ${accent.btn}`}>\n              {running ? 'Pause' : 'Start'}\n            </button>\n            <button onClick={onReset} className=\"rounded-xl border border-stone-200 bg-white px-4 py-3 text-base text-stone-700 hover:bg-stone-100\">\n              Reset\n            </button>\n            <button onClick={onSkip} className=\"rounded-xl border border-stone-200 bg-white px-4 py-3 text-base text-stone-700 hover:bg-stone-100\">\n              Skip\n            </button>\n          </div>\n          <p className=\"hidden text-xs text-stone-400 sm:block\">Press Space to start or pause</p>\n        </section>\n\n        <section className=\"rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200\">\n          <h2 className=\"mb-3 text-sm font-medium uppercase tracking-widest text-stone-500\">Today</h2>\n          {log.length === 0 ? (\n            <p className=\"text-sm text-stone-400\" data-testid=\"log-empty\">No focus sessions finished yet.</p>\n          ) : (\n            <ul className=\"divide-y divide-stone-100\" data-testid=\"log\">\n              {[...log].reverse().map((e) => (\n                <li key={e.id} className=\"flex items-baseline justify-between gap-3 py-2 text-sm\">\n                  <span className={e.task ? 'truncate' : 'text-stone-400'}>{e.task || 'Untitled session'}</span>\n                  <time className=\"shrink-0 tabular-nums text-stone-500\" dateTime={new Date(e.finishedAt).toISOString()}>\n                    {fmtClock(e.finishedAt)}\n                  </time>\n                </li>\n              ))}\n            </ul>\n          )}\n          <p className=\"mt-3 text-xs text-stone-400\">{log.length} focus session{log.length === 1 ? '' : 's'} today</p>\n        </section>\n      </main>\n    </div>\n  )\n}\n\nfunction SettingsPanel({ settings, onSave }: { settings: Settings; onSave: (s: Settings) => void }) {\n  const [vals, setVals] = useState({\n    focus: String(settings.focus),\n    short: String(settings.short),\n    long: String(settings.long),\n  })\n  const fields = [\n    ['focus', 'Focus'],\n    ['short', 'Short break'],\n    ['long', 'Long break'],\n  ] as const\n  const parsed = {\n    focus: parseMinutes(vals.focus),\n    short: parseMinutes(vals.short),\n    long: parseMinutes(vals.long),\n  }\n  const valid = parsed.focus !== null && parsed.short !== null && parsed.long !== null\n  const [saved, setSaved] = useState(false)\n\n  return (\n    <form\n      className=\"rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200\"\n      aria-label=\"Settings\"\n      onSubmit={(e) => {\n        e.preventDefault()\n        if (!valid) return\n        onSave({ ...settings, focus: parsed.focus!, short: parsed.short!, long: parsed.long! })\n        setSaved(true)\n      }}\n    >\n      <h2 className=\"mb-3 text-sm font-medium uppercase tracking-widest text-stone-500\">Durations (minutes)</h2>\n      <div className=\"grid gap-3\">\n        {fields.map(([k, label]) => {\n          const bad = parsed[k] === null\n          return (\n            <label key={k} className=\"grid grid-cols-[1fr_auto] items-center gap-x-3 text-sm\">\n              <span>{label}</span>\n              <input\n                inputMode=\"numeric\"\n                value={vals[k]}\n                onChange={(e) => {\n                  setSaved(false)\n                  setVals({ ...vals, [k]: e.target.value })\n                }}\n                aria-invalid={bad}\n                aria-label={`${label} minutes`}\n                className={`w-20 rounded-lg border px-3 py-2 text-right text-base outline-none ${bad ? 'border-red-400 bg-red-50' : 'border-stone-200 focus:border-stone-400'}`}\n              />\n              {bad && (\n                <span className=\"col-span-2 mt-1 text-xs text-red-600\" role=\"alert\">\n                  Enter a whole number from {MIN_MINUTES} to {MAX_MINUTES}.\n                </span>\n              )}\n            </label>\n          )\n        })}\n      </div>\n      <div className=\"mt-4 flex items-center gap-3\">\n        <button\n          type=\"submit\"\n          disabled={!valid}\n          className=\"rounded-xl bg-stone-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-40\"\n        >\n          Save\n        </button>\n        {saved && <span className=\"text-sm text-teal-600\" role=\"status\">Saved</span>}\n      </div>\n    </form>\n  )\n}\nEOF\nsed -i 's|<title>base</title>|<title>25:00 - Focus</title>|; s|<meta name=\"viewport\"|<meta name=\"theme-color\" content=\"#fafaf9\" />\\n    <meta name=\"viewport\"|' index.html"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_013PgCoCQxKYXVeLaGmGxUs1",
+     "tool_input": {
+      "command": "cd \"<BENCH>/bench/cc/sonnet_timer\" && sed -i 's|<title>base</title>|<title>25:00 - Focus</title>|' index.html && npx tsc -b 2>&1 | head -20; npx playwright test logic 2>&1 | tail -25"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_014A7F3aSsFa89tTbvmfawUp",
+     "tool_input": {
+      "command": "rm e2e/dbg.spec.ts && sed -i \"s|      await page.goto('/')|      await page.goto('/')\\n      await page.clock.runFor(100) // let React flush effects under the fake clock|\" e2e/app.spec.ts && npx playwright test app -g \"space bar|full cycle\" 2>&1 | grep -v \"^\\s*$\" | head -40"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 26,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The Pomodoro timer is built, and all 11 requirements work at 1280px and 375px wide. The production build and typecheck are clean. Nothing is committed.\n\n**How it works**\n- The countdown is based on wall-clock timestamps, so it stays correct when the tab is in the background.\n- A skipped focus session isn't counted and leads to a short break. Skipping a break goes back to focus.\n- A running timer does not survive a reload; settings, the mute choice and today's log do.\n\n**What I tested and how**\n- **Logic tests (13, all pass):** these cover the 25/5/15 defaults, time and tab-title formatting, and the timestamp-based clock, including a late tick finishing the phase. They also cover pause/resume, reset, the 4-focus \u2192 long-break cycle and Skip, the 1\u201390 validation (including `0`, `91`, `abc`, `2.5` and empty input), and settings and log loading with corrupt or old-day data.\n- **Browser tests (14, the same 7 flows at both sizes, all pass):** I drove real Chrome with a controlled clock. Together with the 13 logic tests that is 27 tests, and the full run is green. I clicked through:\n  - Start, Pause, Reset and Skip.\n  - Space starting and pausing, and not firing while typing in the task box.\n  - The tab title (`23:59 - Focus`, `05:00 - Short break`).\n  - A full cycle: dots going 1 \u2192 4 of 4, the long break, then the dots clearing.\n  - The log showing the task label and finish time.\n  - Settings validation (invalid values disable Save and show an error), and new durations applying.\n  - Reload keeping settings, mute and log.\n  - Sound playing only when unmuted, with no sound after muting.\n  - A 10-minute clock jump while no timers fire, ending at the right time.\n  - No horizontal scroll at either width.\n- **Visual check:** I looked at the saved screenshots for the home, settings and long-break views at both sizes, and they look clean. They are in `shots/`.\n- **Not tested:** I didn't listen to the actual chime. The tests only check that the audio code runs, and only when unmuted.\n- **Test fixes:** two tests failed along the way, both test-setup problems rather than app bugs. The fake clock delayed React's startup, and running 25 minutes tick by tick was too slow.\n\nRun `npx playwright test` to rerun everything. The logic tests are in `e2e/logic.spec.ts` and the browser tests in `e2e/app.spec.ts`.",
+   "ttft_ms": 4834,
+   "type": "result",
+   "duration_ms": 454323,
+   "uuid": "87d9446a-0989-418f-b4b5-798394546231",
+   "ttft_stream_ms": 3419,
+   "time_to_request_ms": 388,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 73,
+    "resume_other": 0,
+    "process_user_input": 4,
+    "input_attachments": 27,
+    "input_hooks": 5,
+    "conversation_append": 1,
+    "transcript_persist": 171,
+    "tool_pool_refresh": 3,
+    "init_message": 44,
+    "init_frame_send": 6,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 14,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 7,
+    "message_normalization": 2,
+    "client_creation": 4,
+    "request_build": 11
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 67,
+   "time_to_request_cpu_ms": 703,
+   "time_to_request_major_faults": 8844,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 8,
+    "cpu_ms": 47,
+    "major_faults": 849,
+    "setup_ms": 0,
+    "prompt_producers_ms": 1,
+    "ambient_start_ms": 12,
+    "ambient_wait_ms": 8,
+    "render_ms": 3,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 4,
+    "after_ms": 1,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 1,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 1,
+    "plans_ms": 1,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 3,
+    "record_attempt_ms": 5,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 3419,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 30,
+     "outputTokens": 28589,
+     "cacheReadInputTokens": 826403,
+     "cacheCreationInputTokens": 76356,
+     "webSearchRequests": 0,
+     "costUSD": 0.6740143000000001,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2406,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 76356,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "small",
+  "rc": 0,
+  "wall_s": 66,
+  "diff": {
+   "files": 3,
+   "added": 17,
+   "deleted": 8
+  },
+  "result": {
+   "duration_api_ms": 211226,
+   "stop_reason": "end_turn",
+   "session_id": "6defea27-051b-4035-8b70-55e2cd0804d1",
+   "total_cost_usd": 0.7841218,
+   "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 8992,
+    "cache_read_input_tokens": 394320,
+    "output_tokens": 3451,
+    "output_tokens_details": {
+     "thinking_tokens": 324
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8992,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 600,
+      "cache_read_input_tokens": 82527,
+      "cache_creation_input_tokens": 2821,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2821
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 42,
+     "outputTokens": 32040,
+     "thinkingTokens": 2730,
+     "cacheReadInputTokens": 1220723,
+     "cacheCreationInputTokens": 85348,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 85348,
+     "webSearchRequests": 0,
+     "costUSD": 0.7839482999999999,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 13,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "\"Long break\" is now \"Recharge\" and the mobile countdown digits are bigger. All 27 tests pass and the typecheck is clean.\n\n**Changes**\n- **Rename:** I renamed it in the phase label, the browser tab title (`15:00 - Recharge`), the Settings field label (including its accessible name) and the dot indicator's screen-reader text. The code still calls the phase `long` internally, and the stored settings keep that key, so existing saved settings still load. A few code comments still say \"long break\".\n- **Digits:** they are now 88px on mobile, up from 72px. At 640px and wider they stay at 96px. I also set tight line height so the larger digits stay centred in the ring.\n- **Tests:** I updated the existing tests that expected the old name, and added one that checks the digit size at both widths and that the digits stay inside the ring.\n\n**What I checked**\n- **Existing tests:** I ran the full suite of 27 (13 logic, 14 browser across both sizes), plus `tsc -b`, and all passed.\n- **Rename in the browser:** at both 1280px and 375px, a full 4-session cycle reaches a phase labelled \"Recharge\", and the tab title reads `15:00 - Recharge`. The Settings field reads \"Recharge\", and its 3-minute value survives a reload.\n- **Digit size:** at 375px the computed font size is 88px, and at 1280px it is 96px. At 375px the text is under 260px wide, so it stays inside the ring.\n- **Screenshots:** at 375px the Recharge view shows the larger \"15:00\" inside the ring with nothing clipped, and the page has no horizontal scroll. At 1280px the Settings panel shows \"Recharge\" in place of \"Long break\" and the layout is unchanged.\n\nI didn't test narrower phones than 375px.",
+   "ttft_ms": 2545,
+   "type": "result",
+   "duration_ms": 64246,
+   "uuid": "e933ec19-b168-46db-9581-1b3c8366977f",
+   "ttft_stream_ms": 878,
+   "time_to_request_ms": 215,
+   "time_to_request_phases_ms": {
+    "other": 6,
+    "system_prompt": 72,
+    "resume_other": 0,
+    "process_user_input": 3,
+    "input_attachments": 21,
+    "input_hooks": 2,
+    "conversation_append": 1,
+    "transcript_persist": 31,
+    "tool_pool_refresh": 3,
+    "init_message": 15,
+    "init_frame_send": 4,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 2,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 6,
+    "query_setup": 1,
+    "model_gates": 0,
+    "tool_schema_build": 12,
+    "message_normalization": 8,
+    "client_creation": 5,
+    "request_build": 15
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 49,
+   "time_to_request_cpu_ms": 375,
+   "time_to_request_major_faults": 7212,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 11,
+    "cpu_ms": 16,
+    "major_faults": 517,
+    "changed_files_reread": 0,
+    "setup_ms": 3,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 10,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 0,
+    "placement_ms": 3,
+    "render_ms": 8,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 7,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 81,
+    "wire_messages": 34
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 2,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 3,
+    "record_attempt_ms": 6,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 878,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-sonnet-5-5": {
+     "inputTokens": 12,
+     "outputTokens": 3451,
+     "cacheReadInputTokens": 394320,
+     "cacheCreationInputTokens": 8992,
+     "webSearchRequests": 0,
+     "costUSD": 0.109934,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 324,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 8992,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "medium",
+  "rc": 0,
+  "wall_s": 185,
+  "diff": {
+   "files": 8,
+   "added": 470,
+   "deleted": 18
+  },
+  "result": {
+   "duration_api_ms": 350705,
+   "stop_reason": "end_turn",
+   "session_id": "6defea27-051b-4035-8b70-55e2cd0804d1",
+   "total_cost_usd": 1.2390850999999998,
+   "usage": {
+    "input_tokens": 30,
+    "cache_creation_input_tokens": 31170,
+    "cache_read_input_tokens": 1359333,
+    "output_tokens": 19429,
+    "output_tokens_details": {
+     "thinking_tokens": 2551
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 31170,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1205,
+      "cache_read_input_tokens": 114471,
+      "cache_creation_input_tokens": 2047,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2047
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1630,
+     "outputTokens": 21,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.00017350000000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 72,
+     "outputTokens": 51469,
+     "thinkingTokens": 5281,
+     "cacheReadInputTokens": 2580056,
+     "cacheCreationInputTokens": 116518,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 116518,
+     "webSearchRequests": 0,
+     "costUSD": 1.2389115999999998,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01DL5BRGdjxANigbzPVcekxW",
+     "tool_input": {
+      "command": "sed -i 's/{log\\.length === 0 ? (/{today.length === 0 ? (/; s/\\[\\.\\.\\.log\\]\\.reverse()/[...today].reverse()/; s/{log\\.length} focus session{log\\.length === 1/{today.length} focus session{today.length === 1/' src/App.tsx && grep -n \"log\\b\" src/App.tsx"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 38,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The Stats view is in. Timer and Stats tabs sit at the top, and Stats shows a 7-day bar chart of focus minutes, the weekly total, the current streak and an Export CSV button. All 53 tests pass, `tsc -b` is clean, and I checked both views at 1280px and 375px.\n\n**Choices to know about**\n- **\"This week\":** I used the rolling last 7 days including today, the same window as the chart. The card says \"Last 7 days\" rather than a calendar week.\n- **Streak:** it counts consecutive days with at least one completed focus session, ending today. If you haven't finished one yet today, it counts back from yesterday, so the streak doesn't show 0 each morning. It is 0 only if neither today nor yesterday has a session.\n- **History:** sessions are now kept across days in the same `localStorage` key, each with the minutes it ran. The Today list on the Timer tab still shows only today.\n- **Older saved sessions:** any session saved before this change has no minutes recorded, so it counts as 25.\n- **Space bar:** it now works only on the Timer tab, so it can't start the timer unseen from Stats.\n- **CSV:** the columns are date, time, task and minutes, oldest first, in local time. A task that starts with `=`, `+`, `-` or `@` gets a leading apostrophe so a spreadsheet won't run it as a formula.\n- **File rename:** I named the component `StatsView.tsx` because `Stats.tsx` collided with `stats.ts` on Windows.\n\n**What I tested and how**\n- **Logic tests (22 new or updated, all pass):**\n  - **Chart days:** 7 days oldest first, minutes summed per day, month boundary, just after midnight, and DST.\n  - **Streak:** consecutive days, the grace-from-yesterday case, gaps, empty history, several sessions in one day, and a run crossing a month boundary.\n  - **Totals:** the 7-day total.\n  - **CSV:** quoting, formula protection, ordering and the empty file.\n  - **Loading:** old entries without minutes, and bad data.\n- **Browser tests (real Chrome, a fixed clock and seeded history, all at 1280px and 375px):**\n  - **Tabs:** switching works, and the countdown only appears on Timer.\n  - **Chart and totals:** the chart shows the right 7 days, values and proportional heights, with a total of 130 and a streak of 3. The 7th-day-old session is excluded, and there is no horizontal overflow.\n  - **Live updates:** finishing a session updates the chart, total (155) and streak (4), and the history survives a reload.\n  - **Minutes recorded:** the minutes match the focus length at the time (a 10-minute setting records 10).\n  - **Empty state:** Export CSV is disabled.\n  - **CSV download:** I downloaded the file and compared its exact contents, including older days, quoted text and the formula case.\n  - **Keyboard:** Space does nothing on the Stats tab.\n- **Existing tests:** the earlier timer, settings, persistence, mute and background-clock tests all still pass.\n- **Visual check:** I looked at screenshots of Stats at both sizes. The bars, labels and cards render cleanly with nothing clipped at 375px. They are in `shots/`.\n- **Not tested:** I didn't try other time zones or leaving the page open past midnight.",
+   "ttft_ms": 13524,
+   "type": "result",
+   "duration_ms": 183401,
+   "uuid": "ae3c0260-dc0d-40ae-840e-c84f6b3a8c92",
+   "ttft_stream_ms": 933,
+   "time_to_request_ms": 265,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 72,
+    "resume_other": 0,
+    "process_user_input": 4,
+    "input_attachments": 29,
+    "input_hooks": 4,
+    "conversation_append": 1,
+    "transcript_persist": 76,
+    "tool_pool_refresh": 3,
+    "init_message": 14,
+    "init_frame_send": 4,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 0,
+    "model_config_wait": 2,
+    "autocompact": 1,
+    "request_announcements": 5,
+    "query_setup": 0,
+    "model_gates": 1,
+    "tool_schema_build": 12,
+    "message_normalization": 9,
+    "client_creation": 3,
+    "request_build": 15
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 37,
+   "time_to_request_cpu_ms": 453,
+   "time_to_request_major_faults": 7002,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 13,
+    "cpu_ms": 47,
+    "major_faults": 211,
+    "changed_files_reread": 0,
+    "setup_ms": 4,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 10,
+    "ambient_wait_ms": 12,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 3,
+    "render_ms": 8,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 8,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 112,
+    "wire_messages": 44
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 2,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 3,
+    "record_attempt_ms": 5,
+    "other_ms": 1,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 933,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-sonnet-5-5": {
+     "inputTokens": 30,
+     "outputTokens": 19429,
+     "cacheReadInputTokens": 1359333,
+     "cacheCreationInputTokens": 31170,
+     "webSearchRequests": 0,
+     "costUSD": 0.45496329999999996,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2551,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 31170,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

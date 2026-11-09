@@ -1,0 +1,679 @@
+diff --git a/e2e/settle.spec.ts b/e2e/settle.spec.ts
+new file mode 100644
+index 0000000..af832d8
+--- /dev/null
++++ b/e2e/settle.spec.ts
+@@ -0,0 +1,158 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 900 },
++  { name: 'mobile', width: 375, height: 800 },
++]
++
++for (const size of sizes) {
++  test.describe(`settle-up ${size.name}`, () => {
++    test.use({ viewport: { width: size.width, height: size.height }, permissions: ['clipboard-read', 'clipboard-write'] })
++
++    const addPerson = async (page: Page, n: string) => {
++      await page.getByLabel('New person name').fill(n)
++      await page.getByRole('button', { name: 'Add person' }).click()
++    }
++    const addItem = async (page: Page, name: string, price: string, who: string[]) => {
++      await page.getByLabel('Item name').fill(name)
++      await page.getByLabel('Price').fill(price)
++      for (const w of who) await page.getByRole('checkbox', { name: w }).check()
++      await page.getByRole('button', { name: 'Add item' }).click()
++    }
++    const noHScroll = async (page: Page) =>
++      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
++
++    test('who paid and settle up', async ({ page }) => {
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++
++      // before anything exists
++      await expect(page.getByRole('button', { name: 'Add payer' })).toBeDisabled()
++      await expect(page.getByText('Nothing to settle yet.')).toBeVisible()
++
++      for (const n of ['Ann', 'Ben', 'Cy']) await addPerson(page, n)
++      await addItem(page, 'Pizza', '30', ['Ann', 'Ben'])
++      await addItem(page, 'Wine', '20', ['Cy'])
++      await page.getByLabel('Tax (%)').fill('10')
++      await page.getByRole('button', { name: 'No tip' }).click()
++      await expect(page.getByTestId('bill-total')).toHaveText('$55.00') // Ann 16.50, Ben 16.50, Cy 22.00
++      await expect(page.getByText('Record who paid to see who owes whom.')).toBeVisible()
++
++      // add payer: single payer paid too little
++      await page.getByRole('button', { name: 'Add payer' }).click()
++      await expect(page.getByTestId('payer-row')).toHaveCount(1)
++      await expect(page.getByLabel('Payer 1')).toHaveValue(/.+/)
++      await page.getByLabel('Amount paid by Ann').fill('40')
++      await expect(page.getByText('Payments add up to $40.00, which is $15.00 less than the bill total of $55.00.')).toBeVisible()
++      await expect(page.getByTestId('paid-progress')).toHaveText('Paid $40.00 of $55.00')
++      await expect(page.getByText(/needs the payments to add up/)).toBeVisible()
++      await expect(page.getByTestId('transfer')).toHaveCount(0)
++
++      // too much
++      await page.getByLabel('Amount paid by Ann').fill('60')
++      await expect(page.getByText('Payments add up to $60.00, which is $5.00 more than the bill total of $55.00.')).toBeVisible()
++
++      // row validation
++      await page.getByLabel('Amount paid by Ann').fill('-5')
++      await expect(page.getByText('Amount cannot be negative.')).toBeVisible()
++      await page.getByLabel('Amount paid by Ann').fill('')
++      await expect(page.getByText('Enter an amount.')).toBeVisible()
++      await page.getByLabel('Amount paid by Ann').fill('1.999')
++      await expect(page.getByText(/at most 2 decimal/)).toBeVisible()
++
++      // two payers; the dropdown won't offer someone already listed
++      await page.getByLabel('Amount paid by Ann').fill('40')
++      await page.getByRole('button', { name: 'Add payer' }).click()
++      await expect(page.getByLabel('Payer 2')).toHaveValue(/.+/)
++      await expect(page.getByLabel('Payer 2').locator('option:checked')).toHaveText('Ben')
++      await expect(page.getByLabel('Payer 2').locator('option', { hasText: 'Ann' })).toBeDisabled()
++      // fill remaining -> 15.00, so the payments match
++      await page.getByRole('button', { name: 'Fill remaining for Ben' }).click()
++      await expect(page.getByLabel('Amount paid by Ben')).toHaveValue('15.00')
++      await expect(page.getByText('Payments match the bill total.')).toBeVisible()
++
++      // Ann +23.50, Ben -1.50, Cy -22.00
++      const transfers = page.getByTestId('transfer')
++      await expect(transfers).toHaveCount(2)
++      await expect(transfers).toContainText(['Cy pays Ann $22.00', 'Ben pays Ann $1.50'])
++      await noHScroll(page)
++      await page.screenshot({ path: `shots/${size.name}-settle.png`, fullPage: true })
++
++      // third payer not possible when everyone is listed after adding Cy
++      await page.getByRole('button', { name: 'Add payer' }).click()
++      await expect(page.getByRole('button', { name: 'Add payer' })).toBeDisabled()
++      await expect(page.getByLabel('Payer 3').locator('option:checked')).toHaveText('Cy')
++      await page.getByLabel('Amount paid by Cy').fill('0')
++      await expect(page.getByText('Amount must be greater than zero.')).toBeVisible()
++      await page.getByRole('button', { name: 'Remove payer Cy' }).click()
++      await expect(page.getByTestId('payer-row')).toHaveCount(2)
++
++      // editing the bill re-checks the payments: adding an item makes them short
++      await addItem(page, 'Dessert', '10', ['Cy'])
++      await expect(page.getByText(/less than the bill total of \$66\.00/)).toBeVisible()
++      await expect(page.getByTestId('transfer')).toHaveCount(0)
++      await page.getByRole('button', { name: 'Remove Dessert' }).click()
++      await expect(page.getByTestId('transfer')).toHaveCount(2)
++
++      // currency formatting follows the selector
++      await page.getByLabel('Currency').selectOption('EUR')
++      await expect(transfers.first()).toContainText('€')
++      await expect(transfers).toContainText(['Cy pays Ann 22,00', 'Ben pays Ann 1,50'])
++      await page.getByLabel('Currency').selectOption('USD')
++
++      // copied summary has the transfers
++      await page.getByRole('button', { name: 'Copy summary' }).click()
++      await expect(page.getByRole('status')).toContainText('copied')
++      // the Windows clipboard turns \n into \r\n
++      const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')
++      expect(clip).toContain('Paid by:\n- Ann: $40.00\n- Ben: $15.00')
++      expect(clip).toContain('Settle up:\n- Cy pays Ann $22.00\n- Ben pays Ann $1.50')
++
++      // survives a reload
++      await page.reload()
++      await expect(page.getByTestId('payer-row')).toHaveCount(2)
++      await expect(page.getByLabel('Amount paid by Ann')).toHaveValue('40')
++      await expect(page.getByTestId('transfer')).toHaveCount(2)
++
++      // summary explains a broken payment state
++      await page.getByLabel('Amount paid by Ben').fill('5')
++      await page.getByRole('button', { name: 'Copy summary' }).click()
++      await expect(page.getByRole('status')).toContainText('copied')
++      expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Settle up: not available. Payments add up to $45.00')
++      await page.getByLabel('Amount paid by Ben').fill('15')
++
++      // removing a person removes their payment too
++      await page.getByRole('button', { name: 'Remove Ben' }).click()
++      await expect(page.getByTestId('payer-row')).toHaveCount(1)
++      await expect(page.getByText(/less than the bill total/)).toBeVisible()
++
++      // reset clears the payers
++      await page.getByRole('button', { name: 'Reset' }).click()
++      await page.getByRole('button', { name: 'Yes, reset' }).click()
++      await expect(page.getByTestId('payer-row')).toHaveCount(0)
++      await page.reload()
++      await expect(page.getByTestId('payer-row')).toHaveCount(0)
++      await noHScroll(page)
++    })
++
++    test('everyone paid their own share: all square', async ({ page }) => {
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++      await addPerson(page, 'Ann')
++      await addPerson(page, 'Ben')
++      await addItem(page, 'Soup', '10', ['Ann'])
++      await addItem(page, 'Stew', '10', ['Ben'])
++      await page.getByRole('button', { name: 'No tip' }).click()
++      await page.getByRole('button', { name: 'Add payer' }).click()
++      await page.getByRole('button', { name: 'Fill remaining for Ann' }).click()
++      await page.getByLabel('Amount paid by Ann').fill('10')
++      await page.getByRole('button', { name: 'Add payer' }).click()
++      await page.getByRole('button', { name: 'Fill remaining for Ben' }).click()
++      await expect(page.getByText('All square. Nobody owes anything.')).toBeVisible()
++      await page.getByRole('button', { name: 'Copy summary' }).click()
++      expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('All square, no transfers needed.')
++    })
++  })
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index 9c16d08..6b08d6b 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,6 +1,6 @@
+ import { useEffect, useMemo, useState } from 'react'
+ import {
+-  CURRENCIES, buildSummary, calculate, displayName, emptyBill, formatMoney, loadBill, parsePrice, saveBill,
++  CURRENCIES, buildSummary, calculate, checkPayments, displayName, emptyBill, formatMoney, loadBill, parsePrice, saveBill, settleUp,
+   type Bill, type Currency, type Item,
+ } from './lib/split'
+ 
+@@ -50,9 +50,11 @@ export default function App() {
+           <People bill={bill} setBill={setBill} />
+           <Items bill={bill} setBill={setBill} unassigned={r.unassigned} money={money} />
+           <TaxTip bill={bill} patch={patch} taxError={r.taxError} tipError={r.tipError} />
++          <Payers bill={bill} r={r} setBill={setBill} money={money} />
+         </div>
+         <div className="space-y-5">
+           <Breakdown bill={bill} r={r} money={money} />
++          <SettleUp bill={bill} r={r} money={money} />
+           <Actions bill={bill} onReset={() => setBill(emptyBill())} summary={() => buildSummary(bill, r)} />
+         </div>
+       </div>
+@@ -89,6 +91,7 @@ function People({ bill, setBill }: { bill: Bill; setBill: React.Dispatch<React.S
+     setBill((b) => ({
+       ...b,
+       people: b.people.filter((p) => p.id !== id),
++      payers: b.payers.filter((p) => p.personId !== id),
+       items: b.items.map((i) => ({ ...i, people: i.people.filter((x) => x !== id) })),
+     }))
+   }
+@@ -268,6 +271,81 @@ function TaxTip({ bill, patch, taxError, tipError }: { bill: Bill; patch: (p: Pa
+   )
+ }
+ 
++function Payers({ bill, r, setBill, money }: {
++  bill: Bill; r: ReturnType<typeof calculate>; setBill: React.Dispatch<React.SetStateAction<Bill>>; money: (c: number) => string
++}) {
++  const check = checkPayments(bill, r)
++  const unused = bill.people.filter((p) => !bill.payers.some((x) => x.personId === p.id))
++  const setPayer = (i: number, patch: Partial<Bill['payers'][number]>) =>
++    setBill((b) => ({ ...b, payers: b.payers.map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
++  const remaining = (i: number) => r.total - check.rows.reduce((s, row, j) => s + (j === i ? 0 : row.cents), 0)
++
++  return (
++    <section className={card} aria-labelledby="pay-h">
++      <h2 id="pay-h" className="mb-1 text-lg font-semibold">Who paid</h2>
++      <p className="mb-3 text-sm text-slate-600">Record who paid the restaurant and how much. The amounts must add up to the bill total.</p>
++      {bill.people.length === 0 && <p className="text-sm text-slate-500">Add people first.</p>}
++      <ul className="space-y-3">
++        {bill.payers.map((p, i) => {
++          const row = check.rows[i]
++          const who = bill.people.find((x) => x.id === p.personId)
++          const label = who ? displayName(who, bill.people.indexOf(who)) : 'payer'
++          return (
++            <li key={i} data-testid="payer-row">
++              <div className="flex flex-wrap items-center gap-2">
++                <select aria-label={`Payer ${i + 1}`} className={`${input} basis-full sm:basis-0 sm:flex-1`} value={p.personId} onChange={(e) => setPayer(i, { personId: e.target.value })}>
++                  {!who && <option value="">Choose person</option>}
++                  {bill.people.map((x, idx) => (
++                    <option key={x.id} value={x.id} disabled={x.id !== p.personId && bill.payers.some((y) => y.personId === x.id)}>{displayName(x, idx)}</option>
++                  ))}
++                </select>
++                <input aria-label={`Amount paid by ${label}`} className={`${input} w-24 sm:w-28`} inputMode="decimal" placeholder="0.00" value={p.amount}
++                  onChange={(e) => setPayer(i, { amount: e.target.value })} aria-invalid={!!row.error} />
++                <button type="button" className={btnSecondary} disabled={remaining(i) <= 0}
++                  onClick={() => setPayer(i, { amount: (remaining(i) / 100).toFixed(2) })} aria-label={`Fill remaining for ${label}`}>Fill remaining</button>
++                <button type="button" className={btnDanger} aria-label={`Remove payer ${label}`}
++                  onClick={() => setBill((b) => ({ ...b, payers: b.payers.filter((_, j) => j !== i) }))}>Remove</button>
++              </div>
++              <Err>{row.error}</Err>
++            </li>
++          )
++        })}
++      </ul>
++      <div className="mt-3 flex flex-wrap items-center gap-3">
++        <button type="button" className={btnSecondary} disabled={unused.length === 0}
++          onClick={() => setBill((b) => ({ ...b, payers: [...b.payers, { personId: unused[0].id, amount: '' }] }))}>Add payer</button>
++        {bill.payers.length > 0 && r.total > 0 && (
++          <span className="text-sm tabular-nums text-slate-700" data-testid="paid-progress">Paid {money(check.paid)} of {money(r.total)}</span>
++        )}
++      </div>
++      <Err>{check.sumError}</Err>
++      {check.ok && <p className="mt-1 text-sm text-emerald-800">Payments match the bill total.</p>}
++    </section>
++  )
++}
++
++function SettleUp({ bill, r, money }: { bill: Bill; r: ReturnType<typeof calculate>; money: (c: number) => string }) {
++  const s = settleUp(bill, r)
++  let body: React.ReactNode
++  if (r.total <= 0) body = <p className="text-sm text-slate-500">Nothing to settle yet.</p>
++  else if (bill.payers.length === 0) body = <p className="text-sm text-slate-500">Record who paid to see who owes whom.</p>
++  else if (!s.check.ok) body = <p className="text-sm text-amber-900">Settle-up needs the payments to add up to the bill total. Fix "Who paid" first.</p>
++  else if (s.transfers.length === 0) body = <p className="text-sm text-emerald-800">All square. Nobody owes anything.</p>
++  else body = (
++    <ul className="space-y-2">
++      {s.transfers.map((t, i) => (
++        <li key={i} data-testid="transfer" className="rounded-lg bg-emerald-50 px-3 py-2 text-base">{t.fromName} pays {t.toName} {money(t.cents)}</li>
++      ))}
++    </ul>
++  )
++  return (
++    <section className={card} aria-labelledby="settle-h">
++      <h2 id="settle-h" className="mb-3 text-lg font-semibold">Settle up</h2>
++      {body}
++    </section>
++  )
++}
++
+ function Breakdown({ bill, r, money }: { bill: Bill; r: ReturnType<typeof calculate>; money: (c: number) => string }) {
+   return (
+     <section className={card} aria-labelledby="bd-h">
+diff --git a/src/lib/settle.test.ts b/src/lib/settle.test.ts
+new file mode 100644
+index 0000000..1eadbb7
+--- /dev/null
++++ b/src/lib/settle.test.ts
+@@ -0,0 +1,176 @@
++import { describe, expect, it } from 'vitest'
++import {
++  allocate, buildSummary, calculate, checkPayments, emptyBill, loadBill, minTransfers, saveBill, settleUp, type Bill,
++} from './split'
++
++const bill = (over: Partial<Bill> = {}): Bill => ({
++  ...emptyBill(),
++  tipInput: '',
++  people: [{ id: 'a', name: 'Ann' }, { id: 'b', name: 'Bob' }, { id: 'c', name: 'Cy' }],
++  ...over,
++})
++
++describe('checkPayments', () => {
++  const b = (payers: Bill['payers']) =>
++    bill({ payers, items: [{ id: '1', name: 'x', cents: 5000, people: ['a', 'b'] }], taxInput: '10' }) // total 55.00
++  const chk = (bb: Bill) => checkPayments(bb, calculate(bb))
++  it('accepts payments that add up to the bill total', () => {
++    const c = chk(b([{ personId: 'a', amount: '30' }, { personId: 'b', amount: '25.00' }]))
++    expect(c.ok).toBe(true)
++    expect(c.sumError).toBeUndefined()
++  })
++  it('explains a shortfall and an overpayment', () => {
++    expect(chk(b([{ personId: 'a', amount: '50' }])).sumError).toBe('Payments add up to $50.00, which is $5.00 less than the bill total of $55.00.')
++    expect(chk(b([{ personId: 'a', amount: '60' }])).sumError).toBe('Payments add up to $60.00, which is $5.00 more than the bill total of $55.00.')
++    expect(chk(b([{ personId: 'a', amount: '50' }])).ok).toBe(false)
++  })
++  it('flags bad rows', () => {
++    const c = chk(b([{ personId: 'a', amount: '-5' }, { personId: 'a', amount: '10' }, { personId: 'zz', amount: '1' }, { personId: 'b', amount: '' }]))
++    expect(c.rows[0].error).toMatch(/negative/)
++    expect(c.rows[1].error).toMatch(/already listed/)
++    expect(c.rows[2].error).toMatch(/Pick who paid/)
++    expect(c.rows[3].error).toMatch(/Enter an amount/)
++    expect(c.ok).toBe(false)
++    expect(c.sumError).toBeUndefined() // row errors come first
++  })
++  it('is not ok with no payers', () => {
++    expect(chk(b([])).ok).toBe(false)
++  })
++})
++
++type Bal = { id: string; cents: number }
++const net = (bals: Bal[], ts: ReturnType<typeof minTransfers>) => {
++  const m = new Map(bals.map((x) => [x.id, x.cents]))
++  for (const t of ts) { m.set(t.from, m.get(t.from)! + t.cents); m.set(t.to, m.get(t.to)! - t.cents) }
++  return [...m.values()]
++}
++/** independent reference: max number of zero-sum blocks over all set partitions */
++function maxZeroBlocks(v: number[]): number {
++  if (v.length === 0) return 0
++  const [first, ...rest] = v
++  let best = 0
++  for (let mask = 0; mask < 1 << rest.length; mask++) {
++    let s = first
++    const left: number[] = []
++    rest.forEach((x, i) => (mask & (1 << i) ? (s += x) : left.push(x)))
++    if (s === 0) best = Math.max(best, 1 + maxZeroBlocks(left))
++  }
++  return best
++}
++
++describe('minTransfers', () => {
++  it('handles trivial cases', () => {
++    expect(minTransfers([])).toEqual([])
++    expect(minTransfers([{ id: 'a', cents: 0 }, { id: 'b', cents: 0 }])).toEqual([])
++    expect(minTransfers([{ id: 'a', cents: 1240 }, { id: 'b', cents: -1240 }])).toEqual([{ from: 'b', to: 'a', cents: 1240 }])
++  })
++  it('separates independent groups', () => {
++    // {a,d} and {b,c,e} settle separately: 3 transfers, not 4
++    const bals = [{ id: 'a', cents: 1000 }, { id: 'b', cents: 600 }, { id: 'c', cents: -300 }, { id: 'd', cents: -1000 }, { id: 'e', cents: -300 }]
++    const ts = minTransfers(bals)
++    expect(ts).toHaveLength(3)
++    expect(net(bals, ts).every((x) => x === 0)).toBe(true)
++  })
++  it('settles everyone exactly and matches an independent minimum for random cases', () => {
++    for (let n = 0; n < 300; n++) {
++      const k = 2 + Math.floor(Math.random() * 6)
++      const vals = Array.from({ length: k - 1 }, () => Math.floor(Math.random() * 21) - 10)
++      vals.push(-vals.reduce((a, b) => a + b, 0))
++      const bals = vals.map((cents, i) => ({ id: 'p' + i, cents }))
++      const ts = minTransfers(bals)
++      expect(net(bals, ts).every((x) => x === 0)).toBe(true)
++      expect(ts.every((t) => t.cents > 0 && t.from !== t.to)).toBe(true)
++      const nz = vals.filter((x) => x !== 0)
++      expect(ts.length).toBe(nz.length === 0 ? 0 : nz.length - maxZeroBlocks(nz))
++    }
++  })
++  it('falls back to a valid greedy settle for large groups', () => {
++    const vals = Array.from({ length: 24 }, (_, i) => (i % 2 ? -(i * 7 + 3) : i * 7 + 3))
++    vals.push(-vals.reduce((a, b) => a + b, 0))
++    const bals = vals.map((cents, i) => ({ id: 'p' + i, cents }))
++    const ts = minTransfers(bals)
++    expect(net(bals, ts).every((x) => x === 0)).toBe(true)
++    expect(ts.length).toBeLessThanOrEqual(bals.filter((x) => x.cents).length - 1)
++  })
++})
++
++describe('settleUp', () => {
++  it('writes who pays whom, from payments and shares', () => {
++    // Pizza 30 (Ann, Bob) + Wine 20 (Cy): owes 15/15/20. Ann paid all 50.
++    const b = bill({
++      items: [{ id: '1', name: 'Pizza', cents: 3000, people: ['a', 'b'] }, { id: '2', name: 'Wine', cents: 2000, people: ['c'] }],
++      payers: [{ personId: 'a', amount: '50' }],
++    })
++    const s = settleUp(b, calculate(b))
++    expect(s.transfers.map((t) => `${t.fromName} pays ${t.toName} ${t.cents}`).sort()).toEqual(['Bob pays Ann 1500', 'Cy pays Ann 2000'])
++  })
++  it('multiple payers net out against what they owe', () => {
++    const b = bill({
++      items: [{ id: '1', name: 'x', cents: 3000, people: ['a', 'b', 'c'] }], // 10 each
++      payers: [{ personId: 'a', amount: '20' }, { personId: 'b', amount: '10' }],
++    })
++    const s = settleUp(b, calculate(b))
++    expect(s.transfers).toHaveLength(1)
++    expect(s.transfers[0]).toMatchObject({ fromName: 'Cy', toName: 'Ann', cents: 1000 })
++  })
++  it('is empty when everyone paid their own share, or payments are invalid', () => {
++    const items = [{ id: '1', name: 'x', cents: 3000, people: ['a', 'b', 'c'] }]
++    const even = bill({ items, payers: ['a', 'b', 'c'].map((personId) => ({ personId, amount: '10' })) })
++    const s = settleUp(even, calculate(even))
++    expect(s.check.ok).toBe(true)
++    expect(s.transfers).toEqual([])
++    const bad = bill({ items, payers: [{ personId: 'a', amount: '5' }] })
++    expect(settleUp(bad, calculate(bad)).transfers).toEqual([])
++  })
++  it('random bills: after the transfers everybody has paid exactly their total', () => {
++    let checked = 0
++    for (let n = 0; n < 300; n++) {
++      const people = Array.from({ length: 2 + Math.floor(Math.random() * 6) }, (_, i) => ({ id: 'p' + i, name: 'P' + i }))
++      const items = Array.from({ length: 1 + Math.floor(Math.random() * 6) }, (_, i) => ({
++        id: 'i' + i, name: 'x', cents: 100 + Math.floor(Math.random() * 9999),
++        people: [people[0].id, ...people.slice(1).filter(() => Math.random() < 0.5).map((p) => p.id)],
++      }))
++      const b0 = { ...emptyBill(), people, items, taxInput: '8.25' }
++      const r = calculate(b0)
++      const payers = people.filter(() => Math.random() < 0.5)
++      if (!payers.length) payers.push(people[0])
++      const w = allocate(r.total, payers.map(() => 1 + Math.floor(Math.random() * 9)))
++      if (w.some((x) => x === 0)) continue
++      const bb = { ...b0, payers: payers.map((p, i) => ({ personId: p.id, amount: (w[i] / 100).toFixed(2) })) }
++      const s = settleUp(bb, r)
++      expect(s.check.ok).toBe(true)
++      const bal = r.people.map((p) => ({ id: p.id, cents: (w[payers.findIndex((x) => x.id === p.id)] ?? 0) - p.total }))
++      expect(net(bal, s.transfers).every((x) => x === 0)).toBe(true)
++      checked++
++    }
++    expect(checked).toBeGreaterThan(100)
++  })
++})
++
++describe('summary and persistence with payers', () => {
++  const base = () => bill({
++    items: [{ id: '1', name: 'Pizza', cents: 3000, people: ['a', 'b'] }],
++    payers: [{ personId: 'a', amount: '30' }],
++  })
++  it('includes Paid by and Settle up transfers', () => {
++    const b = base()
++    const s = buildSummary(b, calculate(b))
++    expect(s).toContain('Paid by:\n- Ann: $30.00')
++    expect(s).toContain('Settle up:\n- Bob pays Ann $15.00')
++  })
++  it('says why settle up is missing', () => {
++    const b = { ...base(), payers: [{ personId: 'a', amount: '10' }] }
++    expect(buildSummary(b, calculate(b))).toContain('Settle up: not available. Payments add up to $10.00, which is $20.00 less than the bill total of $30.00.')
++    const none = { ...b, payers: [] }
++    expect(buildSummary(none, calculate(none))).toContain('Settle up: no payments recorded.')
++  })
++  it('round-trips payers and tolerates old saves without them', () => {
++    const store: Record<string, string> = {}
++    const st = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => void (store[k] = v) }
++    const b = base()
++    saveBill(b, st)
++    expect(loadBill(st).payers).toEqual(b.payers)
++    expect(loadBill({ getItem: () => JSON.stringify({ people: [], items: [], tipInput: '15' }) }).payers).toEqual([])
++    expect(loadBill({ getItem: () => JSON.stringify({ payers: [{ personId: 1 }, { personId: 'a', amount: '5' }] }) }).payers).toEqual([{ personId: 'a', amount: '5' }])
++  })
++})
+diff --git a/src/lib/split.ts b/src/lib/split.ts
+index 0d045f0..fd9a3d3 100644
+--- a/src/lib/split.ts
++++ b/src/lib/split.ts
+@@ -4,9 +4,13 @@ export const CURRENCIES: Currency[] = ['USD', 'EUR', 'PLN']
+ export interface Person { id: string; name: string }
+ export interface Item { id: string; name: string; cents: number; people: string[] }
+ 
++/** Someone who paid part of the bill. `amount` is the raw text typed by the user. */
++export interface Payer { personId: string; amount: string }
++
+ export interface Bill {
+   people: Person[]
+   items: Item[]
++  payers: Payer[]
+   taxInput: string
+   tipInput: string
+   currency: Currency
+@@ -14,7 +18,7 @@ export interface Bill {
+ 
+ export const DEFAULT_TIP = '18'
+ 
+-export const emptyBill = (): Bill => ({ people: [], items: [], taxInput: '', tipInput: DEFAULT_TIP, currency: 'USD' })
++export const emptyBill = (): Bill => ({ people: [], items: [], payers: [], taxInput: '', tipInput: DEFAULT_TIP, currency: 'USD' })
+ 
+ /** Split `total` cents over `weights` so the parts sum exactly to `total` (largest remainder). */
+ export function allocate(total: number, weights: number[]): number[] {
+@@ -38,20 +42,23 @@ export function allocate(total: number, weights: number[]): number[] {
+ 
+ const NUM = /^(\d+\.?\d*|\.\d+)$/
+ 
+-/** Parse a money string ("12.50" or "12,5") to cents. */
+-export function parsePrice(raw: string): { cents?: number; error?: string } {
++/** Parse a money string ("12.50" or "12,5") to cents. `label` names the field in messages. */
++function parseMoney(raw: string, label: string, emptyMsg: string): { cents?: number; error?: string } {
+   const s = raw.trim().replace(',', '.')
+-  if (s === '') return { error: 'Enter a price.' }
+-  if (s.startsWith('-')) return { error: 'Price cannot be negative.' }
+-  if (!NUM.test(s)) return { error: 'Price must be a number, e.g. 12.50.' }
+-  if (/\.\d{3,}/.test(s)) return { error: 'Price can have at most 2 decimal places.' }
++  if (s === '') return { error: emptyMsg }
++  if (s.startsWith('-')) return { error: `${label} cannot be negative.` }
++  if (!NUM.test(s)) return { error: `${label} must be a number, e.g. 12.50.` }
++  if (/\.\d{3,}/.test(s)) return { error: `${label} can have at most 2 decimal places.` }
+   const [w, f = ''] = s.split('.')
+   const cents = Number(w || '0') * 100 + Number(f.padEnd(2, '0'))
+-  if (!Number.isSafeInteger(cents) || cents > 10_000_000_000) return { error: 'Price is too large.' }
+-  if (cents === 0) return { error: 'Price must be greater than zero.' }
++  if (!Number.isSafeInteger(cents) || cents > 10_000_000_000) return { error: `${label} is too large.` }
++  if (cents === 0) return { error: `${label} must be greater than zero.` }
+   return { cents }
+ }
+ 
++export const parsePrice = (raw: string) => parseMoney(raw, 'Price', 'Enter a price.')
++export const parseAmount = (raw: string) => parseMoney(raw, 'Amount', 'Enter an amount.')
++
+ /** Parse a percentage field. Empty means 0. */
+ export function parsePercent(raw: string, label: string): { pct: number; error?: string } {
+   const s = raw.trim().replace(',', '.')
+@@ -120,6 +127,122 @@ export function formatMoney(cents: number, currency: Currency): string {
+   return new Intl.NumberFormat(LOCALES[currency], { style: 'currency', currency }).format(cents / 100)
+ }
+ 
++export interface PayerRow { error?: string; cents: number }
++
++export interface PaymentCheck {
++  rows: PayerRow[]
++  paid: number
++  total: number
++  /** Set when every row is valid but the payments do not add up to the bill total. */
++  sumError?: string
++  /** True when payers exist, every row is valid and the payments equal the bill total. */
++  ok: boolean
++}
++
++export function checkPayments(bill: Bill, r: Result): PaymentCheck {
++  const seen = new Set<string>()
++  const rows = bill.payers.map((p): PayerRow => {
++    if (!bill.people.some((x) => x.id === p.personId)) return { error: 'Pick who paid.', cents: 0 }
++    if (seen.has(p.personId)) return { error: 'This person is already listed as a payer.', cents: 0 }
++    seen.add(p.personId)
++    const a = parseAmount(p.amount)
++    return a.error ? { error: a.error, cents: 0 } : { cents: a.cents! }
++  })
++  const paid = rows.reduce((s, x) => s + x.cents, 0)
++  const total = r.total
++  const rowsOk = rows.every((x) => !x.error)
++  let sumError: string | undefined
++  if (rows.length && rowsOk && total > 0 && paid !== total) {
++    const m = (c: number) => formatMoney(c, bill.currency)
++    sumError = paid < total
++      ? `Payments add up to ${m(paid)}, which is ${m(total - paid)} less than the bill total of ${m(total)}.`
++      : `Payments add up to ${m(paid)}, which is ${m(paid - total)} more than the bill total of ${m(total)}.`
++  }
++  return { rows, paid, total, sumError, ok: rows.length > 0 && rowsOk && total > 0 && paid === total }
++}
++
++export interface Transfer { from: string; to: string; cents: number }
++
++const MAX_EXACT = 16
++
++/** Split people with non-zero balances into the largest number of groups that each sum to zero. */
++function bestPartition(nz: { id: string; cents: number }[]): { id: string; cents: number }[][] {
++  const n = nz.length
++  const size = 1 << n
++  const sum = new Float64Array(size)
++  const dp = new Int16Array(size)
++  const pred = new Int8Array(size).fill(-1)
++  for (let mask = 1; mask < size; mask++) {
++    const low = 31 - Math.clz32(mask & -mask)
++    sum[mask] = sum[mask & (mask - 1)] + nz[low].cents
++    let best = -1
++    for (let i = 0; i < n; i++) {
++      if (!(mask & (1 << i))) continue
++      const v = dp[mask ^ (1 << i)]
++      if (v > best) { best = v; pred[mask] = i }
++    }
++    dp[mask] = best + (sum[mask] === 0 ? 1 : 0)
++  }
++  const order: number[] = []
++  for (let mask = size - 1; mask; mask ^= 1 << pred[mask]) order.push(pred[mask])
++  order.reverse()
++  const groups: { id: string; cents: number }[][] = []
++  let cur: { id: string; cents: number }[] = []
++  let run = 0
++  for (const i of order) {
++    cur.push(nz[i]); run += nz[i].cents
++    if (run === 0) { groups.push(cur); cur = [] }
++  }
++  return groups
++}
++
++/** Pay off one group greedily (largest debtor to largest creditor). A zero-sum group of k people needs at most k-1 transfers. */
++function settleGroup(group: { id: string; cents: number }[]): Transfer[] {
++  const cr = group.filter((g) => g.cents > 0).map((g) => ({ ...g }))
++  const db = group.filter((g) => g.cents < 0).map((g) => ({ ...g }))
++  const out: Transfer[] = []
++  while (cr.length && db.length) {
++    cr.sort((a, b) => b.cents - a.cents)
++    db.sort((a, b) => a.cents - b.cents)
++    const c = cr[0], d = db[0]
++    const amt = Math.min(c.cents, -d.cents)
++    out.push({ from: d.id, to: c.id, cents: amt })
++    c.cents -= amt; d.cents += amt
++    if (c.cents === 0) cr.shift()
++    if (d.cents === 0) db.shift()
++  }
++  return out
++}
++
++/**
++ * Fewest transfers that settle `balances` (positive = is owed, negative = owes; must sum to zero).
++ * Minimising transfers means finding the most zero-sum subgroups (NP-hard in general), so up to
++ * 16 people with a non-zero balance are solved exactly by bitmask DP; beyond that it falls back to
++ * a greedy settle, which is correct but may use a few more transfers than the minimum.
++ */
++export function minTransfers(balances: { id: string; cents: number }[]): Transfer[] {
++  const nz = balances.filter((b) => b.cents !== 0)
++  if (nz.length === 0) return []
++  const groups = nz.length <= MAX_EXACT ? bestPartition(nz) : [nz]
++  return groups.flatMap(settleGroup)
++}
++
++export interface SettleUp {
++  check: PaymentCheck
++  transfers: (Transfer & { fromName: string; toName: string })[]
++}
++
++export function settleUp(bill: Bill, r: Result): SettleUp {
++  const check = checkPayments(bill, r)
++  if (!check.ok) return { check, transfers: [] }
++  const paid = new Map<string, number>()
++  bill.payers.forEach((p, i) => paid.set(p.personId, (paid.get(p.personId) ?? 0) + check.rows[i].cents))
++  const balances = r.people.map((p) => ({ id: p.id, cents: (paid.get(p.id) ?? 0) - p.total }))
++  const name = (id: string) => r.people.find((p) => p.id === id)!.name
++  const transfers = minTransfers(balances).map((t) => ({ ...t, fromName: name(t.from), toName: name(t.to) }))
++  return { check, transfers }
++}
++
+ export function buildSummary(bill: Bill, r: Result): string {
+   const m = (c: number) => formatMoney(c, bill.currency)
+   const lines = ['Bill summary', '']
+@@ -137,6 +260,20 @@ export function buildSummary(bill: Bill, r: Result): string {
+     lines.push(`- ${p.name}: ${m(p.total)} (items ${m(p.subtotal)}, tax ${m(p.tax)}, tip ${m(p.tip)})`)
+   }
+   if (!r.people.length) lines.push('- (nobody)')
++
++  const s = settleUp(bill, r)
++  lines.push('')
++  if (s.check.ok) {
++    lines.push('Paid by:')
++    bill.payers.forEach((p, i) => lines.push(`- ${r.people.find((x) => x.id === p.personId)!.name}: ${m(s.check.rows[i].cents)}`))
++    lines.push('', 'Settle up:')
++    if (s.transfers.length) for (const t of s.transfers) lines.push(`- ${t.fromName} pays ${t.toName} ${m(t.cents)}`)
++    else lines.push('- All square, no transfers needed.')
++  } else if (!bill.payers.length) {
++    lines.push('Settle up: no payments recorded.')
++  } else {
++    lines.push(`Settle up: not available. ${s.check.sumError ?? 'Fix the payment amounts first.'}`)
++  }
+   return lines.join('\n')
+ }
+ 
+@@ -155,9 +292,15 @@ export function loadBill(storage: Pick<Storage, 'getItem'> = localStorage): Bill
+           .filter((i: Item) => i && typeof i.id === 'string' && typeof i.name === 'string' && Number.isSafeInteger(i.cents) && i.cents > 0 && Array.isArray(i.people))
+           .map((i: Item) => ({ id: i.id, name: i.name, cents: i.cents, people: i.people.filter((x) => typeof x === 'string') }))
+       : []
++    const payers: Payer[] = Array.isArray(d.payers)
++      ? d.payers
++          .filter((p: Payer) => p && typeof p.personId === 'string' && typeof p.amount === 'string')
++          .map((p: Payer) => ({ personId: p.personId, amount: p.amount }))
++      : []
+     return {
+       people,
+       items,
++      payers,
+       taxInput: typeof d.taxInput === 'string' ? d.taxInput : '',
+       tipInput: typeof d.tipInput === 'string' ? d.tipInput : DEFAULT_TIP,
+       currency: CURRENCIES.includes(d.currency) ? d.currency : 'USD',

@@ -1,0 +1,7 @@
+{
+ "mode": "Chat",
+ "prompt": "Answer from memory only, no web search or package lookups. What are the latest stable versions you know of React, Next.js, Tailwind CSS, Vite and TypeScript? Give exact version numbers and approximate release dates.",
+ "wall": 16,
+ "hdr": "",
+ "reply": "Here are the latest stable versions from memory along with their approximate release timeframes:\n\nReact: 19.0.0 — December 2024\nNext.js: 15.1.x (major: 15.0) — December 2024 (15.0 GA in October 2024)\nTailwind CSS: v3.4.17 (v3 stable line) / v4.0.0 (official release finalized in January 2025 after late-2024 release candidates)\nVite: 6.0.x — November 2024\nTypeScript: 5.7.x — November 2024\n\nLet me know if you are planning an upgrade or want to check compatibility across any of these in your stack!"
+}

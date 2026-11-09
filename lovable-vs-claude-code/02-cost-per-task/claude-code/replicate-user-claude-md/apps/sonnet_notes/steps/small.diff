@@ -1,0 +1,59 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index e129fe5..5b7d64a 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -146,6 +146,19 @@ for (const size of sizes) {
+       await expect(editor(page)).toHaveValue('quick reload text')
+     })
+ 
++    test('empty-state text and word count at bottom right', async ({ page }) => {
++      await open(page)
++      const wc = await page.getByTestId('word-count').boundingBox()
++      const ed = await page.locator('main').boundingBox()
++      expect(wc!.x + wc!.width).toBeGreaterThan(ed!.x + ed!.width - 24)
++      expect(wc!.y + wc!.height).toBeGreaterThan(ed!.y + ed!.height - 20)
++      await page.screenshot({ path: `shots/${size.name}-wordcount.png` })
++      await page.getByRole('button', { name: 'Delete', exact: true }).click()
++      await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click()
++      await expect(page.getByTestId('note-list')).toHaveText('Nothing here yet. Create your first note.')
++      await page.screenshot({ path: `shots/${size.name}-empty.png` })
++    })
++
+     test('theme toggle is remembered', async ({ page }) => {
+       const html = page.locator('html')
+       const before = await html.getAttribute('class')
+diff --git a/src/App.tsx b/src/App.tsx
+index a807d58..497c3d3 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -208,7 +208,7 @@ export default function App() {
+               </li>
+             ))}
+             {visible.length === 0 && (
+-              <li className="p-4 text-sm text-slate-500">{notes.length ? 'No notes match your search.' : 'No notes yet.'}</li>
++              <li className="p-4 text-sm text-slate-500">{notes.length ? 'No notes match your search.' : 'Nothing here yet. Create your first note.'}</li>
+             )}
+           </ul>
+         </aside>
+@@ -237,9 +237,6 @@ export default function App() {
+                 <button className={`${btn} text-red-600 dark:text-red-400`} onClick={() => setConfirmId(selected.id)}>
+                   Delete
+                 </button>
+-                <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="word-count">
+-                  {wordCount(selected.content)} {wordCount(selected.content) === 1 ? 'word' : 'words'}
+-                </span>
+               </div>
+               <div className="grid min-h-0 flex-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
+                 <textarea
+@@ -257,6 +254,11 @@ export default function App() {
+                   dangerouslySetInnerHTML={{ __html: html }}
+                 />
+               </div>
++              <div className="flex justify-end border-t border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
++                <span data-testid="word-count">
++                  {wordCount(selected.content)} {wordCount(selected.content) === 1 ? 'word' : 'words'}
++                </span>
++              </div>
+             </>
+           ) : (
+             <div className="grid flex-1 place-items-center p-6 text-slate-500">

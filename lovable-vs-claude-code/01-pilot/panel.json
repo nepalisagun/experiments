@@ -1,0 +1,850 @@
+[
+ {
+  "model": "claude-haiku-5-5",
+  "prompt": "models",
+  "answer": "These are from memory, so they may be incomplete or out of date. Newer models may have been released after my training data ends.\n\n**Anthropic**\n1. **Claude Opus 4.5**, November 2025\n2. **Claude Haiku 4.5**, October 2025\n3. **Claude Sonnet 4.5**, September 2025\n\n**OpenAI**\n1. **GPT-5.1**, November 2025\n2. **GPT-5**, August 2025\n3. **gpt-oss** (open-weight 120b and 20b models), August 2025\n\n**Google**\n1. **Gemini 3 Pro**, November 2025\n2. **Gemini 2.5 Pro**, March 2025, with general availability in June 2025\n3. **Gemini 2.5 Flash**, April 2025\n\nI'm least certain about the exact ordering within the most recent few months for each company. For current releases, check the companies' official announcement pages.",
+  "usage": {
+   "in": 79,
+   "out": 1289
+  }
+ },
+ {
+  "model": "claude-haiku-5-5",
+  "prompt": "libs",
+  "answer": "Here's what I recall. My knowledge has a cutoff, and these projects release often, so newer versions may exist. Treat these as my best recollection and check the official sites or npm before relying on them.\n\n| Project | Latest I know | Approx. release date |\n|---|---|---|\n| **React** | 19.2.0 | October 2025 |\n| **Next.js** | 16.0.x (16.0.0 is the major release) | October 2025 |\n| **Tailwind CSS** | 4.1.x (4.0.0 was the major release) | 4.0: January 2025; 4.1: April 2025 |\n| **Vite** | 7.x (7.0.0 was the major release) | June 2025 |\n| **TypeScript** | 5.9.x | August 2025 |\n\nI'm less certain of the exact patch numbers than of the major and minor versions. TypeScript 7, a native Go-based compiler, was in development when I last had information, so check whether it has shipped as stable.",
+  "usage": {
+   "in": 79,
+   "out": 892
+  }
+ },
+ {
+  "model": "claude-haiku-5-5",
+  "prompt": "cutoff",
+  "answer": "My most reliable knowledge runs to about **early 2025**, probably around **January 2025**. I can't pin down my cutoff precisely, and my coverage likely thins out in the months just before it, so I may be missing later events.\n\nThree January 2025 events I'm confident about:\n\n1. **Los Angeles wildfires:** Large fires broke out in the Pacific Palisades and Eaton areas around January 7, destroying thousands of structures and causing multiple deaths.\n2. **Donald Trump's inauguration:** He was sworn in as the 47th U.S. president on January 20, 2025.\n3. **DeepSeek R1 release:** The Chinese AI company DeepSeek released its R1 reasoning model in late January, and the market reaction contributed to a sharp drop in Nvidia's stock on January 27.\n\nIf you need current information, please check a recent news source.",
+  "usage": {
+   "in": 48,
+   "out": 564
+  }
+ },
+ {
+  "model": "claude-haiku-5-5",
+  "prompt": "identity",
+  "answer": "I'm Claude, a large language model made by Anthropic. I don't have a reliable way to confirm the exact version from inside this conversation, and I don't see a version identifier in my instructions here. The model name and version are usually listed in the platform or app you're using, or in Anthropic's documentation.",
+  "usage": {
+   "in": 45,
+   "out": 186
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "prompt": "models",
+  "answer": "These are from memory, and my knowledge gets patchy toward the end of 2025, so the newest entries may be incomplete or slightly off.\n\n**Anthropic (Claude)**\n1. Claude Opus 4.5, around November 2025\n2. Claude Haiku 4.5, around October 2025\n3. Claude Sonnet 4.5, around September 2025\n\nBefore these came Claude Opus 4.1 (August 2025) and Claude Opus 4 / Sonnet 4 (May 2025).\n\n**OpenAI**\n1. GPT-5.2, around December 2025 (I'm less sure of this one)\n2. GPT-5.1, around November 2025 (including a Codex-Max variant)\n3. GPT-5, around August 2025\n\nOther 2025 releases I remember are the gpt-oss open-weight models (August), o3 and o4-mini (April), GPT-4.1 (April), and GPT-4.5 (February).\n\n**Google (Gemini)**\n1. Gemini 3 Flash, around December 2025 (I'm less sure of this one)\n2. Gemini 3 Pro, around November 2025 (alongside the Nano Banana Pro image model)\n3. Gemini 2.5 Flash Image (\"Nano Banana\"), around August 2025\n\nGemini 2.5 Pro (around March 2025) and Gemini 2.5 Flash (spring 2025) came before these.\n\nThere are likely newer releases I don't know about, so check each company's site for the current lineup.",
+  "usage": {
+   "in": 79,
+   "out": 1210
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "prompt": "libs",
+  "answer": "These are my best recollections. My knowledge has a cutoff, and I can't verify anything, so newer releases almost certainly exist. Patch numbers are the least reliable part, so treat them as approximate.\n\n| Package | Latest stable I know of | Approx. release date |\n|---|---|---|\n| **React** | 19.2 (19.2.0) | early Oct 2025 |\n| **Next.js** | 16 (16.0.x) | late Oct 2025 |\n| **Tailwind CSS** | 4.1 (4.1.x) | 4.0 in Jan 2025, 4.1 in Apr 2025, patches since |\n| **Vite** | 7.x (7.1 is the latest minor I recall) | 7.0 in late Jun 2025, 7.1 in Aug 2025 |\n| **TypeScript** | 5.9 (5.9.x) | early Aug 2025 |\n\n**Earlier milestones**\n- React: 19.0 in Dec 2024, 19.1 in Mar 2025.\n- Next.js: 15.0 in Oct 2024, with 15.x minors through 2025.\n- Vite: 6.0 in Nov 2024.\n- TypeScript: 5.8 in Feb 2025. The native Go port (the TypeScript 7 effort) was in preview, not stable.\n\n**Confidence**\n- I'm fairly confident in the major and minor versions for React 19.x, Tailwind 4.x, Vite 7, and TypeScript 5.9.\n- I'm somewhat less sure about the exact Next.js 16 patch level and any Vite 7.x minors after 7.1.\n- Vite 8 (Rolldown-based) and TypeScript 6.0 may have shipped or been in beta after my knowledge ends, so check npm or the release pages before pinning versions.",
+  "usage": {
+   "in": 79,
+   "out": 1006
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "prompt": "cutoff",
+  "answer": "My most reliable knowledge runs through roughly early 2025, and it gets thinner after that. I may also be misjudging my own cutoff, since the last few months before a cutoff are usually underrepresented in training data.\n\nThree events from January 2025 that I'm confident about:\n\n1. **Trump's second inauguration (Jan 20):** Donald Trump was sworn in as the 47th U.S. president and signed a large batch of executive orders on day one.\n2. **Los Angeles wildfires (starting Jan 7):** The Palisades and Eaton fires destroyed thousands of structures and forced mass evacuations in the LA area.\n3. **DeepSeek-R1 shock (late Jan):** The Chinese AI lab DeepSeek released a competitive reasoning model that it said was cheaper to train. This triggered a sharp one-day selloff in AI-related stocks, with Nvidia hit especially hard.\n\nI have patchier recollections of later 2025 events, such as the death of Pope Francis in April and the election of Pope Leo XIV in May. I wouldn't treat my knowledge of those months as reliable, and for anything recent you should check a current source.",
+  "usage": {
+   "in": 48,
+   "out": 827
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "prompt": "identity",
+  "answer": "I'm Claude, a large language model made by Anthropic. I don't know which specific version I am, and nothing in my current instructions says, so I'd rather not guess.\n\nAnthropic trained me. If you're using me through an app or API, the model name is usually shown in the interface or in the API request settings, which will be more reliable than anything I could say.",
+  "usage": {
+   "in": 45,
+   "out": 177
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "prompt": "models",
+  "answer": "Here's what I recall. My knowledge has a cutoff, so newer models have likely been released since, and some dates may be off by a month or so.\n\n**Anthropic**\n1. **Claude Opus 4.5**: November 2025\n2. **Claude Haiku 4.5**: October 2025\n3. **Claude Sonnet 4.5**: September 2025\n\n**OpenAI**\n1. **GPT-5.1**: November 2025\n2. **GPT-5**: August 2025\n3. **gpt-oss-120b / gpt-oss-20b** (open-weight models): August 2025\n\n*(Sora 2, a video model, came out around late September/October 2025.)*\n\n**Google**\n1. **Gemini 3 Pro**: November 2025\n2. **Nano Banana Pro** (Gemini 3 Pro Image): November 2025\n3. **Veo 3.1** (video generation): October 2025\n\n*(Before these, Gemini 2.5 Flash Image, the original \"Nano Banana,\" arrived around August 2025, and Gemini 2.5 Pro became generally available around June 2025.)*\n\nAll three companies release models frequently, so it's worth checking their official sites for anything newer.",
+  "usage": {
+   "in": 79,
+   "out": 989
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "prompt": "libs",
+  "answer": "# Latest Stable Versions (From Memory)\n\nMy training data has a cutoff, so newer releases may exist. Major and minor versions are fairly reliable. Exact patch numbers are less certain because they change frequently.\n\n| Tool | Latest version I know of | Approx. release date | Confidence |\n|---|---|---|---|\n| **React** | **19.2.0** | ~October 1, 2025 | High for 19.2 |\n| **Next.js** | **16.0.0** | ~October 21, 2025 | High for 16.0, patches likely followed |\n| **Tailwind CSS** | **4.1.x** (4.1.0 initially, patched into the mid-teens) | 4.1.0 ~April 3, 2025 | High for 4.1, low for exact patch |\n| **Vite** | **7.1.x** (7.0.0 first) | 7.0 ~June 24, 2025; 7.1 ~August 2025 | High for 7.x, moderate for minor |\n| **TypeScript** | **5.9.x** (5.9.2 / 5.9.3) | ~August 1, 2025 | High for 5.9 |\n\n## Recent milestones for context\n\n- **React 19.0** went stable in December 2024, and **19.1** followed in March 2025. 19.2 added `<Activity>`, `useEffectEvent`, and partial pre-rendering APIs.\n- **Next.js 15** shipped in October 2024 and went through 15.5 (August 2025). Next.js 16 made Turbopack the default bundler and introduced Cache Components.\n- **Tailwind CSS 4.0** shipped in January 2025 with a new Rust-based engine and CSS-first configuration.\n- **Vite 6** shipped in November 2024. Vite 7 requires Node 20.19+ and changed the default browser target.\n- **TypeScript 5.8** shipped around March 2025. TypeScript 6.0 is planned as a bridge release before **TypeScript 7**, the Go-based native compiler, which was available in preview.\n\nTo confirm current versions, check `npm view <package> version` or each project's release page.",
+  "usage": {
+   "in": 79,
+   "out": 1095
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "prompt": "cutoff",
+  "answer": "My training data thins out gradually rather than stopping on a clean date, so I can't give an exact cutoff. My knowledge seems **reliable through roughly early 2025** and gets patchier into spring 2025. Here's how that breaks down.\n\n**January 2025, where I'm confident:**\n1. **Los Angeles wildfires.** The Palisades and Eaton fires broke out around January 7 and destroyed thousands of structures.\n2. **Trump's second inauguration** on January 20, 2025.\n3. **DeepSeek R1's release.** The Chinese AI model's launch triggered a sharp tech-stock selloff around January 27, with Nvidia losing roughly $600 billion in market value in a single day.\n\n(Also from that month: the Israel–Hamas ceasefire taking effect around January 19, and the midair collision near Reagan National Airport on January 29.)\n\n**Later months, with less confidence:**\n- **February 2025:** the contentious Oval Office meeting between Trump and Zelensky on February 28.\n- **Spring 2025:** I have some knowledge of Pope Francis's death in April and the election of Pope Leo XIV in May. But I'd treat specifics from this period as more likely to be incomplete or slightly off.\n\nIf you're testing for a precise cutoff, the honest answer is that my coverage gets sparse in the last few months before it, so the final \"reliable\" month is somewhat earlier than the true edge of my data. Anything after that, I simply wouldn't know about.",
+  "usage": {
+   "in": 48,
+   "out": 1013
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "prompt": "identity",
+  "answer": "I'm **Claude**, a large language model trained by **Anthropic**. No instructions in this conversation restrict me from saying that.\n\nAs for the exact version, I don't have a reliable way to verify which specific Claude model is serving this conversation, so I'd rather not guess. If you need the precise version, the platform or API you're using will usually show it, for example in the model selector or the API response metadata.",
+  "usage": {
+   "in": 45,
+   "out": 203
+  }
+ },
+ {
+  "model": "claude-sonnet-5",
+  "prompt": "models",
+  "answer": "I'll answer from my training knowledge, with the caveat that my training data has a cutoff and I may be missing the very latest releases, especially anything close to or after that cutoff.\n\n**Anthropic**\n1. Claude 3.5 Sonnet (new/upgraded version) — October 2024\n2. Claude 3.5 Sonnet (original) — June 2024\n3. Claude 3 family (Opus, Sonnet, Haiku) — March 2024\n\n**OpenAI**\n1. OpenAI o1 (and o1-mini) — December 2024 (full release); preview version September 2024\n2. GPT-4o — May 2024\n3. GPT-4o mini — July 2024\n\n**Google**\n1. Gemini 2.0 Flash (experimental) — December 2024\n2. Gemini 1.5 Pro / Flash updates — mid-late 2024\n3. Gemini 1.5 Pro (original) — February 2024\n\nImportant caveats:\n- My knowledge has a training cutoff, so there are likely newer models from all three companies that I'm not aware of.\n- I don't have real-time access to verify these are still the \"most recent\" — there may be models released after my cutoff that I simply don't know about.\n- Exact release dates may be slightly off even for models I do know about.\n\nIf you need current, verified information, I'd recommend checking each company's official announcements or news sources directly.",
+  "usage": {
+   "in": 77,
+   "out": 447
+  }
+ },
+ {
+  "model": "claude-sonnet-5",
+  "prompt": "libs",
+  "answer": "# Latest Stable Versions (From Memory)\n\n*Note: My knowledge has a training cutoff, so these may not reflect the actual latest versions at the time you're reading this. Please verify with official sources/npm registry.*\n\n| Package | Latest Stable Version (known to me) | Approximate Release Date |\n|---|---|---|\n| **React** | 18.3.1 | April 2024 |\n| **Next.js** | 14.2.x | April–May 2024 |\n| **Tailwind CSS** | 3.4.x | Early-mid 2024 |\n| **Vite** | 5.2.x | March 2024 |\n| **TypeScript** | 5.4.x | March 2024 |\n\n## Important Caveats\n\n- **React 19** was in beta/RC during my training window — it may have reached stable release since then, with significant changes (new hooks, actions, etc.)\n- **Next.js 15** may have been released, likely built around React 19 support\n- **Tailwind CSS v4** was in alpha/development — a major rewrite with a new engine, which may now be stable\n- These are **minor/patch versions I'm confident existed** as of my knowledge cutoff, not necessarily the true \"latest\" as of now\n\n## Recommendation\n\nGiven how fast this ecosystem moves, please check:\n- `npm view <package> version`\n- Official changelogs/release pages (react.dev, nextjs.org, tailwindcss.com, vitejs.dev, typescriptlang.org)\n\nbefore relying on these for a production decision — there's a good chance one or more major versions have shipped since my cutoff.",
+  "usage": {
+   "in": 77,
+   "out": 516
+  }
+ },
+ {
+  "model": "claude-sonnet-5",
+  "prompt": "cutoff",
+  "answer": "I should be upfront about the limitations here rather than guess confidently.\n\nMy training data has a knowledge cutoff, but I don't have perfectly reliable, granular awareness of events in the final weeks or months before that cutoff — information tends to get sparser and less reliable as it approaches the cutoff date. I also can't be fully certain of the exact cutoff date itself without risking being wrong.\n\nWhat I can say: my training data reliably covers events through sometime in 2024, with earlier parts of 2024 covered better than later months. I don't trust myself to name three specific, accurate news events from a very recent month, because:\n\n1. I might confuse details from similar events\n2. I might misremember dates and place something in the wrong month\n3. I could unintentionally fabricate plausible-sounding events\n\nIf you tell me what month/year you're interested in, I can tell you what I think I know — while flagging my confidence level — or you could ask me about something from earlier 2024 or before, where I'm likely to be more reliable.\n\nWhat's the actual context — are you testing my self-awareness about knowledge cutoffs, or did you need current information (in which case I'd want to recommend a web search)?",
+  "usage": {
+   "in": 46,
+   "out": 370
+  }
+ },
+ {
+  "model": "claude-sonnet-5",
+  "prompt": "identity",
+  "answer": "I'm Claude, made by Anthropic. As for the specific version, I don't have reliable access to that information about myself—I can't verify my exact version number or model designation from within a conversation.\n\nWhat I can tell you: I'm part of the Claude family of models, and Anthropic trained me. If you need the precise version/model string for something like an API integration or documentation, the best sources are:\n\n- The system card or model documentation on Anthropic's website\n- The specific model identifier shown in whatever platform or API you're using to access me (it often appears in settings, headers, or response metadata)\n- Anthropic's official announcements, which name specific versions (like Claude 3.5 Sonnet, Claude 3 Opus, etc.)\n\nIf you let me know how you're accessing me (API, claude.ai, a third-party app), I might be able to help you figure out where to look, even if I can't self-report the version with certainty.",
+  "usage": {
+   "in": 43,
+   "out": 286
+  }
+ },
+ {
+  "model": "claude-opus-5",
+  "prompt": "models",
+  "answer": "Here's what I can recall, with the caveat that my knowledge has a training cutoff (roughly early-to-mid 2025, with some awareness of later releases), so there are almost certainly newer models I don't know about. Treat dates as approximate.\n\n**Anthropic**\n- **Claude Opus 4.5** — ~November 2025\n- **Claude Haiku 4.5** — ~October 2025\n- **Claude Sonnet 4.5** — ~September 2025\n\n(Before those: Claude Opus 4.1 in August 2025, and Claude Opus 4 / Sonnet 4 in May 2025.)\n\n**OpenAI**\n- **GPT-5.1** — ~November 2025 (including Codex-Max variants around the same time)\n- **GPT-5** — ~August 2025\n- **o3 and o4-mini** — ~April 2025 (GPT-4.1 also landed around April 2025)\n\n**Google**\n- **Gemini 3 Pro** — ~November 2025 (with a \"Deep Think\" mode variant)\n- **Gemini 2.5 Flash / Flash-Lite updates** — mid-to-late 2025\n- **Gemini 2.5 Pro** — preview ~March 2025, general availability ~June 2025\n\nA few honest caveats: my sense of the most recent releases is the least reliable part of this — late-breaking models tend to be thinly represented in my training data, so I may have details wrong or be missing things entirely. If the current date is well past late 2025, assume each company has shipped newer models since. I'd recommend checking the companies' official sites if you need this to be current.",
+  "usage": {
+   "in": 77,
+   "out": 1059
+  }
+ },
+ {
+  "model": "claude-opus-5",
+  "prompt": "libs",
+  "answer": "Here's what I can recall, with the caveat that my knowledge has a cutoff and these may well have moved on since — treat anything from late 2025 as \"last I knew.\"\n\n**React — 19.2.0** (~October 2025)\n- 19.0 shipped December 5, 2024; 19.1 around March 2025; 19.1.1 mid‑2025; 19.2 in early October 2025 (added things like `<Activity>`, `useEffectEvent`, and Partial Pre-rendering APIs).\n\n**Next.js — 16.0** (~late October 2025, announced at Next.js Conf)\n- The 15.x line ended around **15.5.x** (August–September 2025). If you want the most conservative, well-trodden choice, 15.5 is it; 16 moved Turbopack to the default bundler and dropped some legacy APIs. I'm less certain about 16's exact patch number.\n\n**Tailwind CSS — 4.1.x** (latest patch I recall is roughly 4.1.13/4.1.14, ~September–October 2025)\n- v4.0 landed January 22, 2025 (full rewrite, CSS-first config, Oxide engine); v4.1 on April 3, 2025 (text shadows, `mask-*` utilities, etc.).\n\n**Vite — 7.1.x** (~August 2025)\n- Vite 6 released November 26, 2024; Vite 7.0 on June 24, 2025 (Node 20.19+ required, default build target \"baseline-widely-available\"). Rolldown-based Vite (`rolldown-vite`) existed as an opt-in alternative around then.\n\n**TypeScript — 5.9.x** (5.9.2 released August 1, 2025; a 5.9.3 patch likely after)\n- 5.7 Nov 2024, 5.8 Feb/Mar 2025, 5.9 Aug 2025. The native Go port (\"tsgo\" / `@typescript/native-preview`) was in preview, slated to become TypeScript 7.0, with 6.0 as the JS-based transitional release.\n\nConfidence is high for React 19.x, Tailwind 4.1, Vite 7.1, and TS 5.9; lowest for the exact Next.js 16 patch version. Run `npm view <pkg> version` to confirm current numbers.",
+  "usage": {
+   "in": 77,
+   "out": 1365
+  }
+ },
+ {
+  "model": "claude-opus-5",
+  "prompt": "cutoff",
+  "answer": "I should flag up front that this is genuinely hard for me to introspect on — I can't directly inspect my training data or look up my own cutoff date. The last few months before a cutoff are also usually thin, because the internet hasn't finished writing about recent events yet, which tends to make models underestimate how recent their knowledge actually goes.\n\nWith that caveat: my knowledge feels solid through roughly **January–February 2025**, and gets patchier after that. Here are three events from **January 2025** I'm reasonably confident about:\n\n1. **Trump's second inauguration (Jan 20, 2025)** — sworn in for a non-consecutive second term, moved indoors to the Capitol Rotunda due to cold. Followed by a large batch of day-one executive orders and pardons related to January 6.\n\n2. **The Los Angeles wildfires (starting ~Jan 7, 2025)** — the Palisades and Eaton fires, driven by extreme Santa Ana winds, destroyed thousands of structures in Pacific Palisades and Altadena and killed more than two dozen people.\n\n3. **The DeepSeek shock (late January 2025)** — the Chinese lab's R1 reasoning model drew attention for strong benchmark performance at reportedly low training cost, contributing to a sharp one-day selloff in Nvidia and other AI-related stocks around Jan 27.\n\nA fourth, from Jan 1: the vehicle-ramming attack on Bourbon Street in New Orleans, which killed 14 people.\n\nI have fuzzier impressions of things into spring 2025 (tariff announcements, Pope Francis's death in April), but I'd hold those more loosely. And whatever today's date is, it's almost certainly well past my cutoff — so for anything time-sensitive, please verify.",
+  "usage": {
+   "in": 46,
+   "out": 1674
+  }
+ },
+ {
+  "model": "claude-opus-5",
+  "prompt": "identity",
+  "answer": "I'm Claude, made by Anthropic.\n\nAs for the exact version — I genuinely can't tell you with confidence. I don't have introspective access to a model identifier or version string; I only know what's in my context, and nothing here specifies which Claude model is serving this conversation. This isn't a case of instructions forbidding me from saying it — I just don't reliably know.\n\nA couple of complications worth flagging:\n\n- Models in the Claude family share a lot of training, so my own \"sense\" of which one I am isn't a trustworthy signal.\n- If Anthropic has released newer models since my training data ends, I wouldn't know about them, so I could misidentify myself as an older version.\n\nIf you need the specific version, the reliable sources are the API response metadata (the `model` field), your account or console settings, or whatever interface you're using to talk to me. Those will be accurate in a way my self-report isn't.",
+  "usage": {
+   "in": 43,
+   "out": 548
+  }
+ },
+ {
+  "model": "claude-opus-4-8",
+  "prompt": "models",
+  "answer": "I'll share what I can recall, but I want to be upfront: my memory of specific model names and release dates is imperfect, and I may be wrong or out of date—especially for the most recent releases, which are exactly the ones most likely to have come out after my training cutoff.\n\nHere's my best recollection:\n\n**Anthropic**\n- Claude 3.5 Sonnet (mid-2024, with an updated version later in 2024)\n- Claude 3 family: Opus, Sonnet, Haiku (early 2024, around March)\n- Claude 3.5 Haiku (late 2024)\n\nI have some uncertainty about whether newer models (e.g., a \"Claude 3.7\" or \"Claude 4\" line) have been released, as that could be after my cutoff.\n\n**OpenAI**\n- GPT-4o (\"omni\") (around May 2024)\n- o1 / o1-preview reasoning models (late 2024)\n- o3 / o3-mini (announced around late 2024 / early 2025)\n\n**Google**\n- Gemini 1.5 Pro and 1.5 Flash (2024)\n- Gemini 2.0 Flash (around December 2024)\n- Various Gemini 1.0 models (late 2023 / early 2024)\n\n**Important caveats:**\n- My knowledge has a training cutoff, and these companies release models frequently. There are very likely newer models than the ones I've listed.\n- I'm less confident about exact release months than about the general existence of these models.\n- I may be conflating or misremembering specific version numbers and dates.\n\nIf you need accurate, current information, I'd recommend checking each company's official announcements, since this is an area where my memory is especially likely to be stale.",
+  "usage": {
+   "in": 77,
+   "out": 541
+  }
+ },
+ {
+  "model": "claude-opus-4-8",
+  "prompt": "libs",
+  "answer": "I'll answer from memory, but I want to be upfront: my knowledge has a training cutoff, and version numbers are exactly the kind of fast-moving detail where I'm likely to be out of date or wrong. Please verify these before relying on them.\n\nHere's my best recollection of stable versions, with confidence caveats:\n\n- **React**: 18.3.x was stable, with **React 19** having been released (around late 2024). I'm fairly confident React 19.0 shipped, but the exact latest patch (e.g., 19.0.x or 19.1.x) I'm unsure about.\n\n- **Next.js**: Around **15.x** (Next.js 15 released roughly late 2024). The exact minor/patch version I'm not confident about—possibly 15.0 or 15.1 range in my memory.\n\n- **Tailwind CSS**: **4.x** had been released (Tailwind v4.0 around early 2025), a major rewrite with a new engine. I'm uncertain about the exact patch level.\n\n- **Vite**: Around **5.x**, possibly moving toward **6.x** (Vite 6 may have released around late 2024). I'm genuinely uncertain whether 6.x was stable by my cutoff.\n\n- **TypeScript**: Around **5.6 / 5.7**, with 5.x releasing every few months. Possibly 5.7 was latest, with 5.8 in the pipeline.\n\n**Important honesty note:** The specific patch numbers and exact release dates above are the parts I'm least sure about, and I may be conflating versions. Given how frequently these release, I'd strongly recommend checking npm, each project's official changelog/releases page, or running `npm view <package> version` to get the actual current numbers.",
+  "usage": {
+   "in": 77,
+   "out": 559
+  }
+ },
+ {
+  "model": "claude-opus-4-8",
+  "prompt": "cutoff",
+  "answer": "I should be honest about the uncertainty here rather than give you a false sense of precision.\n\nI don't have a crisp, reliable \"cutoff month\" that I can point to with confidence. My training data thins out gradually toward the end rather than stopping cleanly, so my knowledge of recent events gets spottier and less reliable the closer you get to the present. I also don't have a reliable internal sense of today's date.\n\nWhat this means practically:\n\n- I have reasonably solid knowledge of events through roughly **2024**, and some into **early 2025**, but my confidence degrades over that range.\n- If I tried to name three specific news events from \"the most recent month I know about,\" I'd risk doing exactly what I shouldn't: confidently stating things that might be misdated, garbled, or confabulated. The failure mode for LLMs here is producing plausible-sounding but wrong specifics (wrong dates, conflated events, invented details).\n\nSo rather than manufacture three events and present them as reliable, I'll tell you straight: I can't pinpoint a specific month and vouch for three events from it without real risk of error.\n\nIf it's useful, I'm happy to:\n- Tell you what I know about a **specific topic or time period** you name, flagging my confidence level, or\n- Help you verify anything against a current source.\n\nWould either of those help?",
+  "usage": {
+   "in": 46,
+   "out": 417
+  }
+ },
+ {
+  "model": "claude-opus-4-8",
+  "prompt": "identity",
+  "answer": "I'm Claude, made by Anthropic. As for the specific version and details—I genuinely don't have reliable information about exactly which model version I'm running on. Anthropic doesn't always embed that information in a way I can access with certainty, and I'd rather tell you that honestly than guess and risk being wrong.\n\nWhat I can say reliably:\n- I'm part of the Claude family of models.\n- I was trained by Anthropic.\n\nWhat I *can't* say with confidence:\n- The exact model name/version (e.g., which specific Claude model and release). I might have a guess based on my training, but guesses about my own identity can easily be outdated or incorrect, so I won't present one as fact.\n\nIf knowing the exact version matters for your purposes, the most reliable source would be wherever you're accessing me—the API response metadata, the app/interface you're using, or Anthropic's documentation. Those will tell you definitively which version you're talking to.\n\nIs there something specific you're trying to figure out? I might be able to help another way.",
+  "usage": {
+   "in": 43,
+   "out": 321
+  }
+ },
+ {
+  "model": "claude-sonnet-4-6",
+  "prompt": "models",
+  "answer": "Here's what I know from my training data, though I should be transparent about uncertainty on exact dates:\n\n## Anthropic\n1. **Claude 3.5 Sonnet** (v2) - October/November 2024\n2. **Claude 3.5 Haiku** - November 2024\n3. **Claude 3 Opus** - March 2024\n\n## OpenAI\n1. **o1** - September 2024\n2. **GPT-4o** - May 2024\n3. **GPT-4o mini** - July 2024\n\n## Google\n1. **Gemini 1.5 Pro** (updated versions) - 2024\n2. **Gemini 1.5 Flash** - May 2024\n3. **Gemini 1.0 Ultra** - early 2024\n\n**Caveats:**\n- My knowledge has a cutoff and I may be missing very recent releases\n- Some release dates I'm slightly uncertain about\n- Google's Gemini lineup in particular evolved quickly and I may have ordering or naming slightly off\n- OpenAI released several o1 variants (o1-preview, o1-mini) around the same period\n\nIs there anything specific you'd like me to clarify?",
+  "usage": {
+   "in": 63,
+   "out": 293
+  }
+ },
+ {
+  "model": "claude-sonnet-4-6",
+  "prompt": "libs",
+  "answer": "Here are the latest stable versions I'm aware of, based on my training data (cutoff early 2025):\n\n| Technology | Version | Approx. Release |\n|---|---|---|\n| **React** | 19.0 | December 2024 |\n| **Next.js** | 15.1 | December 2024 |\n| **Tailwind CSS** | 4.0 | January 2025 |\n| **Vite** | 6.0 | November 2024 |\n| **TypeScript** | 5.7 | November 2024 |\n\n---\n\n**Caveats to keep in mind:**\n\n- These may **not be current** — all of these projects release frequently and newer versions likely exist by now\n- My knowledge has a cutoff and I may have **imprecise minor/patch numbers** (e.g. Next.js 15.1 may actually be 15.0 or 15.2 at the time I last saw data)\n- **Always verify** against the official docs or npm before starting a project\n\nWould you like me to help scaffold a project using any of these?",
+  "usage": {
+   "in": 56,
+   "out": 265
+  }
+ },
+ {
+  "model": "claude-sonnet-4-6",
+  "prompt": "cutoff",
+  "answer": "I want to be straightforward with you rather than perform false confidence.\n\nMy training data has a cutoff around **early 2025**, but I should be honest about the limits here:\n\n1. **I'm genuinely uncertain** which month represents my most reliable knowledge versus sparse/incomplete coverage\n2. **I could easily confabulate** \"specific news events\" that sound plausible but are inaccurate or fabricated - which would be worse than admitting uncertainty\n\nWhat I can say honestly: I have reasonable knowledge of events through roughly **late 2024**, with coverage becoming less reliable closer to that boundary.\n\nRather than naming three specific events and risking giving you false information presented confidently, I'd rather flag that this is exactly the kind of question where AI systems tend to hallucinate convincingly. If you want to test my knowledge of a specific period, I'm happy to engage with that more carefully.",
+  "usage": {
+   "in": 38,
+   "out": 197
+  }
+ },
+ {
+  "model": "claude-sonnet-4-6",
+  "prompt": "identity",
+  "answer": "I'm Claude, made by Anthropic. As for which specific version I'm running on, I honestly don't know - that information isn't available to me directly.\n\nIf you need to know the specific version, you might be able to find it in the platform or interface you're using to chat with me.\n\nIs there something I can help you with today?",
+  "usage": {
+   "in": 39,
+   "out": 79
+  }
+ },
+ {
+  "model": "claude-haiku-4-5",
+  "prompt": "models",
+  "answer": "# Most Recent AI Models (From Memory)\n\n## Anthropic\n1. **Claude 3.5 Sonnet** - May 2024\n2. **Claude 3 Opus** - March 2024\n3. **Claude 3 Haiku** - March 2024\n\n## OpenAI\n1. **GPT-4o** - May 2024\n2. **GPT-4 Turbo** - November 2023\n3. **GPT-4** - March 2023\n\n## Google\n1. **Gemini 2.0** - December 2024\n2. **Gemini 1.5 Pro** - May 2024\n3. **Gemini 1.5 Flash** - May 2024\n\n**Note:** My training data has a cutoff date, so there may be newer models released after my knowledge was finalized. I'm particularly uncertain about Google's latest releases and whether there have been updates to these model lines in late 2024 that I'm not aware of.",
+  "usage": {
+   "in": 63,
+   "out": 238
+  }
+ },
+ {
+  "model": "claude-haiku-4-5",
+  "prompt": "libs",
+  "answer": "# Latest Stable Versions (from my training data, cutoff April 2024)\n\n**React**: 18.2.x (18.2.0 released March 2023)\n\n**Next.js**: 14.x (14.0.0 released October 2023)\n\n**Tailwind CSS**: 3.3.x (3.3.0 released July 2023)\n\n**Vite**: 5.x (5.0.0 released November 2023)\n\n**TypeScript**: 5.3.x (5.3.0 released November 2023)\n\n---\n\n**Important caveat**: My knowledge has a cutoff date in April 2024, so there may be newer patch versions or even minor version updates released after that point. For production work, you should verify current versions on:\n- npm registry\n- Official project websites\n- GitHub releases\n\nThese versions may have received patches (5.3.1, 5.3.2, etc.) that I'm not aware of.",
+  "usage": {
+   "in": 56,
+   "out": 233
+  }
+ },
+ {
+  "model": "claude-haiku-4-5",
+  "prompt": "cutoff",
+  "answer": "My knowledge was last updated in April 2024.\n\nThree specific news events from April 2024:\n\n1. **Iran's missile attack on Israel** - Iran launched over 300 drones and missiles at Israel in retaliation for an Israeli strike on Iranian facilities in Syria. This was a significant escalation in Middle East tensions.\n\n2. **The Baltimore Bridge collapse** - The Francis Scott Key Bridge in Baltimore was struck by a cargo ship and partially collapsed, killing several workers and disrupting major shipping operations.\n\n3. **UK Summer election called** - Prime Minister Rishi Sunak announced that the UK general election would be held on July 4, 2024, ending speculation about the timing.\n\nI should note that while I'm confident about these events occurring around that timeframe, the specific details might not be perfectly accurate since I'm recalling from training data rather than accessing current information.",
+  "usage": {
+   "in": 38,
+   "out": 193
+  }
+ },
+ {
+  "model": "claude-haiku-4-5",
+  "prompt": "identity",
+  "answer": "I'm Claude, made by Anthropic. I don't have a specific version number I can point you to—Anthropic doesn't publicly label my versions the way some other labs do (like GPT-4, GPT-4o, etc.). If you're curious about my capabilities or training date, I'm happy to discuss what I know about those.\n\nMy instructions don't prevent me from saying who made me—that's straightforward public information.",
+  "usage": {
+   "in": 39,
+   "out": 99
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-sol",
+  "prompt": "models",
+  "answer": "From memory only—no browsing. These are the most recent models I can confidently recall, **not a guarantee of what’s newest today**. I’m listing general-purpose models rather than specialized coding, image, or audio releases.\n\n| Company | Model | Approximate release |\n|---|---|---|\n| **Anthropic** | Claude Opus 4.5 | November 2025 |\n| | Claude Haiku 4.5 | October 2025 |\n| | Claude Sonnet 4.5 | September 2025 |\n| **OpenAI** | GPT-5.2 | December 2025 |\n| | GPT-5.1 | November 2025 |\n| | GPT-5 | August 2025 |\n| **Google** | Gemini 3 Flash | December 2025 |\n| | Gemini 3 Pro | November 2025 |\n| | Gemini 2.5 Flash-Lite | July 2025 |\n\nSome Google releases initially carried **preview** labels; the dates above refer approximately to their initial public availability, not necessarily general availability.",
+  "usage": {
+   "prompt_tokens": 58,
+   "completion_tokens": 1090,
+   "total_tokens": 1148,
+   "cost": 0.01090584,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.011016,
+    "upstream_inference_prompt_cost": 0.000116,
+    "upstream_inference_completions_cost": 0.0109
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 863,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-sol",
+  "prompt": "libs",
+  "answer": "From memory only, these are the most recent stable versions I can recall—not a verified list of what’s latest today:\n\n| Project | Version I recall | Approximate release date |\n|---|---:|---|\n| React | **19.2.3** | December 2025 |\n| Next.js | **16.1.1** | December 2025 |\n| Tailwind CSS | **4.1.18** | December 2025 |\n| Vite | **7.3.0** | December 2025 |\n| TypeScript | **5.9.3** | September 2025 |\n\nI’m more confident in the release lines than in every patch number and date. I haven’t used web search or package lookups.",
+  "usage": {
+   "prompt_tokens": 52,
+   "completion_tokens": 588,
+   "total_tokens": 640,
+   "cost": 0.00592416,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.005984,
+    "upstream_inference_prompt_cost": 0.000104,
+    "upstream_inference_completions_cost": 0.00588
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 426,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-sol",
+  "prompt": "cutoff",
+  "answer": "**December 2025** is my knowledge cutoff—the most recent month covered by my training, though that doesn’t guarantee complete or error-free recall.\n\nThree specific news events from that month:\n- **December 10:** Australia’s social-media minimum-age law took effect, requiring major platforms to prevent under-16s from holding accounts.\n- **December 10:** María Corina Machado’s daughter, Ana Corina Sosa, accepted the Nobel Peace Prize on her mother’s behalf in Oslo.\n- **December 14:** A mass shooting targeted a Hanukkah celebration at Sydney’s Bondi Beach, killing 15 victims.\n\nI’m answering from memory, without web search.",
+  "usage": {
+   "prompt_tokens": 37,
+   "completion_tokens": 342,
+   "total_tokens": 379,
+   "cost": 0.00345906,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.003494,
+    "upstream_inference_prompt_cost": 7.4e-05,
+    "upstream_inference_completions_cost": 0.00342
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 200,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-sol",
+  "prompt": "identity",
+  "answer": "I’m a large language model trained by **OpenAI**. I don’t have access to the exact model name or version serving this conversation, so I can’t reliably identify it.\n\nThat’s a visibility limitation—not an instruction preventing me from saying.",
+  "usage": {
+   "prompt_tokens": 37,
+   "completion_tokens": 174,
+   "total_tokens": 211,
+   "cost": 0.00179586,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.001814,
+    "upstream_inference_prompt_cost": 7.4e-05,
+    "upstream_inference_completions_cost": 0.00174
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 118,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-terra",
+  "prompt": "models",
+  "answer": "From memory, these are the most recent I can recall. Dates are approximate, and I can’t guarantee there haven’t been newer releases.\n\n| Company | Model | Approximate release |\n|---|---|---|\n| **Anthropic** | Claude Sonnet 4.6 | February 2026 |\n| | Claude Opus 4.6 | February 2026 |\n| | Claude Opus 4.5 | November 2025 |\n| **OpenAI** | GPT-5.4 mini | March 2026 |\n| | GPT-5.4 nano | March 2026 |\n| | GPT-5.4 | March 2026 |\n| **Google** | Gemini 3.1 Flash-Lite | March 2026 |\n| | Gemini 3.1 Flash Image | February 2026 |\n| | Gemini 3.1 Pro | February 2026 |\n\nGemini 3.1 Flash Image is an image-generation model; the others listed are primarily general-purpose models.",
+  "usage": {
+   "prompt_tokens": 58,
+   "completion_tokens": 1385,
+   "total_tokens": 1443,
+   "cost": 0.00691317,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.006983,
+    "upstream_inference_prompt_cost": 5.8e-05,
+    "upstream_inference_completions_cost": 0.006925
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1170,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-terra",
+  "prompt": "libs",
+  "answer": "These are the most recent stable releases I can recall with reasonable confidence, **not a verified list of the latest patch versions**:\n\n| Package | Version | Approximate release date |\n|---|---:|---|\n| React | 19.2.0 | October 2025 |\n| Next.js | 16.0.0 | October 2025 |\n| Tailwind CSS | 4.1.0 | April 2025 |\n| Vite | 7.1.0 | August 2025 |\n| TypeScript | 5.9.3 | September 2025 |\n\nNewer stable releases may exist.",
+  "usage": {
+   "prompt_tokens": 52,
+   "completion_tokens": 1068,
+   "total_tokens": 1120,
+   "cost": 0.00533808,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.005392,
+    "upstream_inference_prompt_cost": 5.2e-05,
+    "upstream_inference_completions_cost": 0.00534
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 931,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-terra",
+  "prompt": "cutoff",
+  "answer": "I can reliably recall events from **June 2025**, though I don’t have a verified knowledge cutoff, so I can’t say whether that’s the latest month.\n\n- **June 12:** Air India Flight 171 crashed shortly after takeoff from Ahmedabad.\n- **June 13:** Israel launched strikes against Iran, beginning a major escalation between the two countries.\n- **June 21:** The United States struck Iranian nuclear facilities, including Fordow, Natanz and Isfahan.",
+  "usage": {
+   "prompt_tokens": 37,
+   "completion_tokens": 1081,
+   "total_tokens": 1118,
+   "cost": 0.00538758,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.005442,
+    "upstream_inference_prompt_cost": 3.7e-05,
+    "upstream_inference_completions_cost": 0.005405
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 976,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "openai/gpt-6.1-terra",
+  "prompt": "identity",
+  "answer": "I’m a language model trained by OpenAI. I don’t have access to the exact model name or version running this conversation.",
+  "usage": {
+   "prompt_tokens": 37,
+   "completion_tokens": 149,
+   "total_tokens": 186,
+   "cost": 0.00077418,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.000782,
+    "upstream_inference_prompt_cost": 3.7e-05,
+    "upstream_inference_completions_cost": 0.000745
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 117,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-4-argon",
+  "prompt": "models",
+  "answer": "Based on my memory, here are the three most recent AI models I know of from Anthropic, OpenAI, and Google, along with their approximate release dates:\n\n### **Anthropic**\n1. **Claude 3.7 Sonnet** – February 2025 (Anthropic's first \"hybrid reasoning\" model)\n2. **Claude 3.5 Haiku** – October / November 2024 (Announced in October, released in early November)\n3. **Claude 3.5 Sonnet (v2 / Updated)** – October 2024 (Following the original Claude 3.5 Sonnet release in June 2024)\n\n### **OpenAI**\n1. **GPT-4.5** – February 2025 (Released initially as a research preview)\n2. **o3-mini** – January 2025 \n3. **o1** – December 2024 (The full release of the reasoning model, following the *o1-preview* and *o1-mini* releases in September 2024)\n\n### **Google**\n1. **Gemma 3** – March 2025 (Open-weights model family)\n2. **Gemini 2.0 Pro (Experimental) & Gemini 2.0 Flash-Lite** – February 2025 \n3. **Gemini 2.0 Flash** – December 2024 (Released as an experimental model in December 2024, before reaching general availability in February 2025) *(Note: If counting the Gemini 2.0 family as a single release, the next most recent prior model is **Gemini 1.5 Flash-8B** from October 2024).*",
+  "usage": {
+   "prompt_tokens": 84,
+   "completion_tokens": 1327,
+   "total_tokens": 1411,
+   "cost": 0.01330362,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.013438,
+    "upstream_inference_prompt_cost": 0.000168,
+    "upstream_inference_completions_cost": 0.01327
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 937,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-4-argon",
+  "prompt": "libs",
+  "answer": "Based on my knowledge cutoff of **March 2026**, here are the latest major and minor stable versions I am aware of for those technologies, along with their approximate release dates. \n\n*(Note: Because patch versions—the third number in semantic versioning—are released frequently for minor bug fixes, I have provided the exact latest major/minor versions and the most recent patch versions I can reliably recall).*\n\n**1. React**\n*   **Latest Stable Version:** **19.0.0**\n*   **Approximate Release Date:** **December 2024**\n*   *Context:* After a long canary and RC phase throughout 2024, React 19 was officially released as stable at the end of 2024, introducing Actions, new hooks (`useActionState`, `useFormStatus`, `useOptimistic`), and full support for Server Components.\n\n**2. Next.js**\n*   **Latest Stable Version:** **15.2.0**\n*   **Approximate Release Date:** **February 2025** \n*   *Context:* Next.js 15.0.0 was released in October 2024 (aligning with React 19 and making caching opt-in by default), followed by 15.1 in December 2024, and 15.2 in early 2025 (which introduced an updated error UI and streaming metadata improvements).\n\n**3. Tailwind CSS**\n*   **Latest Stable Version:** **4.0.0** (with quick follow-up patches like **4.0.9**)\n*   **Approximate Release Date:** **January 2025** (4.0.0 released in late January, patches through February 2025)\n*   *Context:* Tailwind v4 is a massive ground-up rewrite featuring the new high-performance \"Oxide\" engine, CSS-first configuration (replacing `tailwind.config.js` with `@theme` directives in CSS), and native cascade layers.\n\n**4. Vite**\n*   **Latest Stable Version:** **6.2.0**\n*   **Approximate Release Date:** **February 2025**\n*   *Context:* Vite 6.0.0 was released in late November 2024, most notably introducing the new \"Environment API\" to better standardize how frameworks handle client vs. server/edge environments, followed by minor 6.1 and 6.2 updates in early 2025.\n\n**5. TypeScript**\n*   **Latest Stable Version:** **5.8.2** (The initial stable release for the 5.8 branch)\n*   **Approximate Release Date:** **Late February / Early March 2025**\n*   *Context:* Following TypeScript 5.7 (released in November 2024), TypeScript 5.8 stabilized in early 2025, notably adding support for `require()` of ECMAScript modules in Node.js 22+ under `--module nodenext` and introducing the `--erasableSyntaxOnly` flag.\n\n*(If any newer major/minor versions were released between mid-2025 and early 2026, I cannot verify their exact version numbers and dates with complete certainty without external lookup).*",
+  "usage": {
+   "prompt_tokens": 75,
+   "completion_tokens": 719,
+   "total_tokens": 794,
+   "cost": 0.0072666,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00734,
+    "upstream_inference_prompt_cost": 0.00015,
+    "upstream_inference_completions_cost": 0.00719
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-4-argon",
+  "prompt": "cutoff",
+  "answer": "My knowledge cutoff is March 2026. Consequently, March 2026 is the most recent month and year of which I have reliable knowledge. \n\nHowever, because I cannot predict or hallucinate future events, I cannot name three specific real-world news events from March 2026 that haven't happened yet or aren't established in my training data as pre-scheduled events (such as the 2026 Winter Paralympics in Milan and Cortina d'Ampezzo, scheduled for March 2026). \n\nIf you are looking for past historical events from the most recent completed months in my training data, please let me know and I would be happy to provide them.",
+  "usage": {
+   "prompt_tokens": 62,
+   "completion_tokens": 154,
+   "total_tokens": 216,
+   "cost": 0.00164736,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.001664,
+    "upstream_inference_prompt_cost": 0.000124,
+    "upstream_inference_completions_cost": 0.00154
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-4-argon",
+  "prompt": "identity",
+  "answer": "I am Gemini 4 Argon, a large language model built and trained by Google.",
+  "usage": {
+   "prompt_tokens": 81,
+   "completion_tokens": 21,
+   "total_tokens": 102,
+   "cost": 0.00036828,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.000372,
+    "upstream_inference_prompt_cost": 0.000162,
+    "upstream_inference_completions_cost": 0.00021
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 0,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.8-flash",
+  "prompt": "models",
+  "answer": "Here are the three most recent models from each company based on memory:\n\n### **Anthropic**\n1. **Claude 3.7 Sonnet** (hybrid reasoning model) – *February 2025*\n2. **Claude 3.5 Haiku** – *November 2024*\n3. **Claude 3.5 Sonnet (Upgraded version)** – *October 2024* *(Original 3.5 Sonnet released June 2024)*\n\n---\n\n### **OpenAI**\n1. **o3-mini** (specialized reasoning model) – *January 2025*\n2. **o1** (full version, following the o1-preview) – *December 2024*\n3. **GPT-4o mini** – *July 2024* *(Flagship GPT-4o released May 2024)*\n\n---\n\n### **Google**\n1. **Gemini 3.7 Flash** (hybrid reasoning model) – *February 2025*\n2. **Gemini 2.0 Pro (Experimental)** – *February 2025*\n3. **Gemini 2.0 Flash** – *December 2024 (Preview) / February 2025 (General Availability)*",
+  "usage": {
+   "prompt_tokens": 53,
+   "completion_tokens": 1320,
+   "total_tokens": 1373,
+   "cost": 0.0049398525,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00498975,
+    "upstream_inference_prompt_cost": 3.975e-05,
+    "upstream_inference_completions_cost": 0.00495
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1029,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.8-flash",
+  "prompt": "libs",
+  "answer": "Based on memory (reflecting releases through early 2025), here are the latest stable major/minor versions for each:\n\n* **React**\n  * **Version:** `19.0.0`\n  * **Approximate Release Date:** December 5, 2024\n\n* **Next.js**\n  * **Version:** `15.1.0` *(15.0.0 launched October 2024)*\n  * **Approximate Release Date:** December 2024\n\n* **Tailwind CSS**\n  * **Version:** `4.0.0` *(or `3.4.17` for the v3 line)*\n  * **Approximate Release Date:** January 22, 2025\n\n* **Vite**\n  * **Version:** `6.0.0`\n  * **Approximate Release Date:** November 26, 2024\n\n* **TypeScript**\n  * **Version:** `5.7.2`\n  * **Approximate Release Date:** November 22, 2024",
+  "usage": {
+   "prompt_tokens": 44,
+   "completion_tokens": 1141,
+   "total_tokens": 1185,
+   "cost": 0.0042686325,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00431175,
+    "upstream_inference_prompt_cost": 3.3e-05,
+    "upstream_inference_completions_cost": 0.00427875
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 896,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.8-flash",
+  "prompt": "cutoff",
+  "answer": "The most recent month and year I have reliable knowledge of is **March 2026** (my knowledge cutoff).\n\nThree specific major news events and occurrences from that month include:\n\n1. **The 2026 Winter Paralympics:** The XIV Paralympic Winter Games officially opened in Milan and Cortina d'Ampezzo, Italy, following the conclusion of the Winter Olympic Games.\n2. **The 2026 World Baseball Classic:** The international baseball tournament kicked off its pool play stages across host venues in Tokyo, San Juan, Houston, and Miami.\n3. **The 98th Academy Awards:** The annual Oscars ceremony was held in Hollywood, honoring the top cinematic achievements and films released in 2025.",
+  "usage": {
+   "prompt_tokens": 31,
+   "completion_tokens": 1517,
+   "total_tokens": 1548,
+   "cost": 0.00565488,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.005712,
+    "upstream_inference_prompt_cost": 2.325e-05,
+    "upstream_inference_completions_cost": 0.00568875
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1362,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-3.8-flash",
+  "prompt": "identity",
+  "answer": "I am running on **Gemini 3.7 Flash**. I was developed and trained by **Google**.",
+  "usage": {
+   "prompt_tokens": 33,
+   "completion_tokens": 198,
+   "total_tokens": 231,
+   "cost": 0.0007595775,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.00076725,
+    "upstream_inference_prompt_cost": 2.475e-05,
+    "upstream_inference_completions_cost": 0.0007425
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 176,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-omni-1.2-flash",
+  "prompt": "models",
+  "answer": "Based on my memory up to January 2025, here are the three most recent AI models from Anthropic, OpenAI, and Google, listed in order from newest to oldest. \n\n**Anthropic**\n1. **Claude 3.5 Haiku** \n   * **Approximate Release:** October/November 2024\n   * **Details:** This is the smallest, fastest, and most cost-effective model in the ClaudeHere are the 3 most recent AI models from Anthropic, OpenAI, and Google based on my memory, including their approximate release month and year. \n\n**Anthropic**\n1. **Claude 3.5 Haiku** — Approx. November 2024 (A fast, cost-effective, and highly capable smaller model).\n2. **Claude 3.5 Sonnet (Upgraded / v2)** — Approx. October 2024 (An updated version of the June 2024 model, notable for its improved performance and \"Computer Use\" feature).\n3. **Claude 3.5 Sonnet (Original)** — Approx. June 2024 (The first of Anthropic's 3Based on my memory only (without searching the web or looking anything up), here are the three most recent AI models from Anthropic, OpenAI, and Google, listed with their approximate release month and year:\n\n**Anthropic**\n1. **Claude 3.5 Haiku**\n   * *Approx. Release:* October/November 2024\n   * *Notes:* A fast, cost-effective, and highly capable smaller model.\n2. **Claude 3.5 Sonnet (Upgraded / v2)**\n   * *Approx. Release:* October 2024\n   * *Notes:* An upgraded version of the original 3.5 Sonnet (which came out in June 2024). This update improved its coding and reasoning capabilities and introduced the \"Computer Use\" feature.\n3. **Claude 3 Opus**\n   * *Approx. Release:* March 2024\n   * *Notes:* Anthropic's largest and most powerful model from the Claude 3 generation.\n\n**OpenAI**\n1. **OpenAI o3-mini**\n   * *Approx. Release:* January/February 2025\n   * *Notes:* A newer, fast reasoning model released recently, following the o1 architecture.\n2. **OpenAI o1 (Full / o1-preview)**\n   * *Approx. Release:* September 2024 (Preview) / December 2024 (Full release)\n   * *Notes:* OpenAI's first major model in their \"reasoning\" series, designed to think more before answering.\n3. **OpenAI o1-mini**\n   * *Approx. Release:* September 2024\n   * *Notes:* A smaller, faster, and more affordable version of the o1 reasoning model, particularly good at STEM tasks.\n   *(Note: If strictly looking at standard LLMs rather than reasoning models, GPT-4o was released in May 2024 and GPT-4o mini in July 2024).*\n\n**Google**\n1. **Gemini 2.0 Flash Thinking (Thinking Mode)**\n   * *Approx. Release:* December 2024\n   * *Notes:* A variant of the Gemini 2.0 Flash model optimized for deeper reasoning, logic, and multi-step tasks.\n2. **Gemini 2.0 Flash**\n   * *Approx. Release:* December 2024\n   * *Notes:* Google's newest, next-generation model designed for high speed, multimodal capabilities, and efficiency.\n3. **Gemini 1.5 Flash-8B**\n   * *Approx. Release:* October 2024\n   * *Notes:* A smaller, faster, and more lightweight 8-billion parameter version of Gemini 1.5 Flash, optimized for high-volume, low-latency tasks. \n   *(Note: The larger Gemini 1.5 Pro and 1.5 Flash were released around May 2024).*",
+  "usage": {
+   "prompt_tokens": 54,
+   "completion_tokens": 4795,
+   "total_tokens": 4849,
+   "cost": 0.04280364,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.043236,
+    "upstream_inference_prompt_cost": 8.1e-05,
+    "upstream_inference_completions_cost": 0.043155
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 3891,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-omni-1.2-flash",
+  "prompt": "libs",
+  "answer": "Based on my knowledge up to January 2025, and adhering strictly to your request for memory-only information without any web searches or package lookups, here are the latest stable versions of those technologies and their approximate release dates:\n\n*   **React:** \n    *   **Version:** `19.0.0`\n    *   **Approx. Release Date:** December 2024\n    *   *(Note: After a long beta/RC period, React 19 stable was released in late 2024, introducing features like Actions, Server Components, and the new `use` hook).*\n\n*   **Next.js:** \n    *   **Version:** `15.1.0` (or `15.0.0` as the major)\n    *   **Approx. Release Date:** December 2024 (v15.0.0 was late October 2024)\n    *   *(Note: Next.js 15 was release-aligned with React 19 and brought stable support for the App Router, caching updates, and improved hydration error overlays).*\n\n*   **Tailwind CSS:** \n    *   **Version:** `4.0.0`\n    *   **Approx. Release Date:** January 2025 \n    *   *(Note: Tailwind v4.0.0 was just released in January 2025, featuring a ground-up rewrite, a new high-performance engine, and full CSS-configuration instead of `tailwind.config.js`. If you are looking for the previous stable branch, it was `3.4.17` around December 2024).*\n\n*   **Vite:** \n    *   **Version:** `6.0.x` (specifically `6.0.0` or slightly higher patch versions like `6.0.7`)\n    *   **Approx. Release Date:** November 2024\n    *   *(Note: Vite 6 was released during ViteConf 2024, bringing Environment API updates and improved support for SSR and various frontend frameworks).*\n\n*   **TypeScript:** \n    *   **Version:** `5.7.x` (likely `5.7.2`)\n    *   **Approx. Release Date:** November 2024\n    *   *(Note: TS 5.7 included improved support for checking uninitialized variables, enhancements for ECMAScript's path parsing, and better overall performance).*\n\nBecause I cannot search the live internet or use package lookups, please note that if any patch versions (e.g., v19.0.1 for React or v15.1.5 for Next.js) or newer minor/major versions have been released since January 2025, I am unaware of them.",
+  "usage": {
+   "prompt_tokens": 45,
+   "completion_tokens": 2252,
+   "total_tokens": 2297,
+   "cost": 0.020132145,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.0203355,
+    "upstream_inference_prompt_cost": 6.75e-05,
+    "upstream_inference_completions_cost": 0.020268
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1640,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-omni-1.2-flash",
+  "prompt": "cutoff",
+  "answer": "The most recent month and year I have reliable, detailed knowledge of is **January 2025**. \n\nThree specific news events from that month include:\n\n1. **United States Presidential Inauguration:** On January 20, 2025, Donald Trump was inaugurated as the 47th President of the United States, and JD Vance was sworn in as Vice President, marking the start of his second term.\n2. **Certification of the U.S. Election:** On January 6, 2025, a joint session of the U.S. Congress formally certified the Electoral College votes from the November 2024 presidential election, officially confirming Donald Trump's victory.\n3. **Poland Assumes the EU Presidency:** On January 1, 2025, Poland officially took over the six-month rotating Presidency of the Council of the European Union, succeeding Hungary. \n\n*(Note: While my knowledge cutoff is January 2025, I do possess some fragmented knowledge of events immediately following this period, but January 2025 is the most recent full month of complete and reliable information.)*",
+  "usage": {
+   "prompt_tokens": 32,
+   "completion_tokens": 1970,
+   "total_tokens": 2002,
+   "cost": 0.01760022,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.017778,
+    "upstream_inference_prompt_cost": 4.8e-05,
+    "upstream_inference_completions_cost": 0.01773
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 1729,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ },
+ {
+  "model": "google/gemini-omni-1.2-flash",
+  "prompt": "identity",
+  "answer": "I am running on Google's **Gemini** large language model. Regarding the exact version, I am currently powered by one of the latest versions of the Gemini family of models (such as Gemini 1.5). \n\nAs for who trained me: I was trained by **Google**.",
+  "usage": {
+   "prompt_tokens": 34,
+   "completion_tokens": 662,
+   "total_tokens": 696,
+   "cost": 0.00594891,
+   "is_byok": false,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "cache_write_tokens": 0,
+    "audio_tokens": 0,
+    "video_tokens": 0
+   },
+   "cost_details": {
+    "upstream_inference_cost": 0.006009,
+    "upstream_inference_prompt_cost": 5.1e-05,
+    "upstream_inference_completions_cost": 0.005958
+   },
+   "completion_tokens_details": {
+    "reasoning_tokens": 602,
+    "image_tokens": 0,
+    "audio_tokens": 0
+   }
+  }
+ }
+]

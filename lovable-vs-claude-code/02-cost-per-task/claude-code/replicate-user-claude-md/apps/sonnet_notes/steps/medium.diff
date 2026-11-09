@@ -1,0 +1,594 @@
+diff --git a/e2e/tags.spec.ts b/e2e/tags.spec.ts
+new file mode 100644
+index 0000000..e34c1bf
+--- /dev/null
++++ b/e2e/tags.spec.ts
+@@ -0,0 +1,139 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 800 },
++  { name: 'mobile', width: 375, height: 700 },
++]
++
++for (const size of sizes) {
++  test.describe(`tags ${size.name}`, () => {
++    const mobile = size.width < 768
++    test.use({ viewport: { width: size.width, height: size.height } })
++
++    const editor = (p: Page) => p.getByLabel('Markdown editor')
++    const items = (p: Page) => p.getByTestId('note-item')
++    const chips = (p: Page) => p.getByTestId('tag-chip')
++
++    async function back(p: Page) {
++      if (mobile) await p.getByRole('button', { name: '← Notes' }).click()
++    }
++    async function create(p: Page, name: string, body: string) {
++      await p.getByRole('button', { name: '+ New' }).click()
++      await p.getByLabel('Note title').fill(name)
++      await editor(p).fill(body)
++      await back(p)
++    }
++
++    test.beforeEach(async ({ page }) => {
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++      await create(page, 'A', 'plan #work and #ideas')
++      await create(page, 'B', 'ship it #work')
++      await create(page, 'C', 'no tags here, only `#code` and # heading')
++    })
++
++    test('sidebar shows tags with note counts', async ({ page }) => {
++      await expect(chips(page)).toHaveCount(2)
++      await expect(chips(page).nth(0)).toContainText('#ideas')
++      await expect(chips(page).nth(0)).toContainText('1')
++      await expect(chips(page).nth(1)).toContainText('#work')
++      await expect(chips(page).nth(1)).toContainText('2')
++      await page.screenshot({ path: `shots/${size.name}-tags.png` })
++    })
++
++    test('click filters, click again clears; combines with search', async ({ page }) => {
++      await expect(items(page)).toHaveCount(4) // welcome + A + B + C
++      await page.getByRole('button', { name: /Filter by tag #work/ }).click()
++      await expect(items(page)).toHaveCount(2)
++      await expect(page.getByRole('button', { name: /Filter by tag #work/ })).toHaveAttribute('aria-pressed', 'true')
++      await page.getByLabel('Search notes').fill('ship')
++      await expect(items(page)).toHaveCount(1)
++      await page.getByLabel('Search notes').fill('')
++      await page.screenshot({ path: `shots/${size.name}-tag-filter.png` })
++      await page.getByRole('button', { name: /Filter by tag #work/ }).click()
++      await expect(items(page)).toHaveCount(4)
++      await expect(page.getByRole('button', { name: /Filter by tag #work/ })).toHaveAttribute('aria-pressed', 'false')
++    })
++
++    test('typing # suggests existing tags; Enter and click insert', async ({ page }) => {
++      await page.getByRole('button', { name: '+ New' }).click()
++      const ed = editor(page)
++      await ed.pressSequentially('hello #')
++      const box = page.getByTestId('tag-suggestions')
++      await expect(box).toBeVisible()
++      await expect(box.getByRole('option')).toHaveText(['#work', '#ideas'])
++      await page.screenshot({ path: `shots/${size.name}-suggest.png` })
++      await ed.press('ArrowDown')
++      await expect(box.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true')
++      await ed.press('ArrowUp')
++      await ed.press('Enter')
++      await expect(ed).toHaveValue('hello #work ')
++      await expect(box).toHaveCount(0)
++      // typing a prefix narrows; click inserts
++      await ed.pressSequentially('and #id')
++      await expect(box.getByRole('option')).toHaveText(['#ideas'])
++      await box.getByRole('option').click()
++      await expect(ed).toHaveValue('hello #work and #ideas ')
++      // own half-typed tag is not suggested; Escape dismisses
++      await ed.pressSequentially('#zz')
++      await expect(box).toHaveCount(0)
++      await ed.press('Backspace')
++      await ed.press('Backspace')
++      await expect(box).toBeVisible()
++      await ed.press('Escape')
++      await expect(box).toHaveCount(0)
++      // Enter without suggestions is a normal newline
++      await ed.pressSequentially(' x')
++      await ed.press('Enter')
++      await expect(ed).toHaveValue(/x\n$/)
++    })
++
++    test('renaming a tag renames it in every note', async ({ page }) => {
++      await page.getByRole('button', { name: 'Rename tag #work' }).click()
++      const input = page.getByLabel('New name for tag #work')
++      await input.fill('bad name')
++      await input.press('Enter')
++      await expect(page.getByText('Use letters, numbers')).toBeVisible()
++      await input.fill('job')
++      await input.press('Enter')
++      await expect(chips(page)).toHaveCount(2)
++      await expect(chips(page).nth(1)).toContainText('#job')
++      await expect(chips(page).nth(1)).toContainText('2')
++      await expect(page.getByRole('button', { name: /Filter by tag #work/ })).toHaveCount(0)
++      for (const [name, text] of [['A', 'plan #job and #ideas'], ['B', 'ship it #job']]) {
++        await items(page).filter({ hasText: name }).first().locator('button').first().click()
++        await expect(editor(page)).toHaveValue(text)
++        await back(page)
++      }
++      // code occurrence in C untouched, and rename persists across reload
++      await page.reload()
++      await expect(chips(page).nth(1)).toContainText('#job')
++      // renaming the active filter keeps the filter on the new name
++      await page.getByRole('button', { name: /Filter by tag #job/ }).click()
++      await page.getByRole('button', { name: 'Rename tag #job' }).click()
++      await page.getByLabel('New name for tag #job').fill('Work2')
++      await page.getByLabel('New name for tag #job').press('Enter')
++      await expect(page.getByRole('button', { name: /Filter by tag #work2/ })).toHaveAttribute('aria-pressed', 'true')
++      await expect(items(page)).toHaveCount(2)
++      // Escape cancels
++      await page.getByRole('button', { name: 'Rename tag #ideas' }).click()
++      await page.getByLabel('New name for tag #ideas').press('Escape')
++      await expect(page.getByRole('button', { name: 'Rename tag #ideas' })).toBeVisible()
++    })
++
++    test('removing the last use of the filtered tag clears the filter', async ({ page }) => {
++      await page.getByRole('button', { name: /Filter by tag #ideas/ }).click()
++      await expect(items(page)).toHaveCount(1)
++      await items(page).first().locator('button').first().click()
++      await editor(page).fill('nothing')
++      await back(page)
++      await expect(chips(page)).toHaveCount(1)
++      await expect(items(page)).toHaveCount(4)
++    })
++
++    test('no horizontal overflow with tags', async ({ page }) => {
++      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width)
++    })
++  })
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index 497c3d3..566bd2a 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -4,6 +4,9 @@ import {
+   snippet, sortNotes, toggleCheckbox, wordCount, type Note,
+ } from './lib/notes'
+ import { renderMarkdown } from './lib/markdown'
++import {
++  activeTagToken, applySuggestion, filterByTag, normalizeTagName, renameTagInText, suggestTags, tagCounts,
++} from './lib/tags'
+ 
+ type Theme = 'light' | 'dark'
+ 
+@@ -42,7 +45,43 @@ export default function App() {
+ 
+   // Keep selection valid on first render when it was derived from a different initialNotes() call.
+   const sorted = useMemo(() => sortNotes(notes), [notes])
+-  const visible = useMemo(() => filterNotes(sorted, query), [sorted, query])
++  const tags = useMemo(() => tagCounts(notes), [notes])
++  const [activeTag, setActiveTag] = useState<string | null>(null)
++  const [renaming, setRenaming] = useState<{ tag: string; value: string; error: string } | null>(null)
++  const [caret, setCaret] = useState(0)
++  const [acIndex, setAcIndex] = useState(0)
++  const [acDismissed, setAcDismissed] = useState<number | null>(null)
++  const editorRef = useRef<HTMLTextAreaElement>(null)
++  const visible = useMemo(() => filterNotes(filterByTag(sorted, activeTag), query), [sorted, activeTag, query])
++
++  useEffect(() => setCaret(0), [selectedId])
++
++  // Clear the filter if its tag no longer exists anywhere.
++  useEffect(() => {
++    if (activeTag && !tags.some((t) => t.tag === activeTag)) setActiveTag(null)
++  }, [tags, activeTag])
++
++  function renameTag() {
++    if (!renaming) return
++    const to = normalizeTagName(renaming.value)
++    if (!to) {
++      setRenaming({ ...renaming, error: 'Use letters, numbers, _ or -' })
++      return
++    }
++    const from = renaming.tag
++    if (to !== from) {
++      const now = Date.now()
++      dirty.current = true
++      setNotes((ns) =>
++        ns.map((n) => {
++          const content = renameTagInText(n.content, from, to)
++          return content === n.content ? n : { ...n, content, updatedAt: now }
++        }),
++      )
++      if (activeTag === from) setActiveTag(to)
++    }
++    setRenaming(null)
++  }
+   const selected = notes.find((n) => n.id === selectedId) ?? null
+   const confirmNote = notes.find((n) => n.id === confirmId) ?? null
+ 
+@@ -117,6 +156,46 @@ export default function App() {
+     setMobileView('list')
+   }
+ 
++  // Tag autocomplete: the token being typed before the caret, matched against tags used elsewhere.
++  const token = selected ? activeTagToken(selected.content, caret) : null
++  const suggestions = useMemo(() => {
++    if (!selected || !token) return []
++    const others = notes.map((n) =>
++      n.id === selected.id ? { content: selected.content.slice(0, token.start) + selected.content.slice(caret) } : n,
++    )
++    return suggestTags(token.prefix, tagCounts(others))
++    // eslint-disable-next-line
++  }, [notes, selectedId, caret, token?.start, token?.prefix])
++  const acOpen = !!token && suggestions.length > 0 && acDismissed !== token.start
++  const acSel = Math.min(acIndex, Math.max(0, suggestions.length - 1))
++
++  function insertSuggestion(tag: string) {
++    if (!selected || !token) return
++    const r = applySuggestion(selected.content, caret, token, tag)
++    edit(selected.id, { content: r.text })
++    setCaret(r.caret)
++    setAcIndex(0)
++    requestAnimationFrame(() => {
++      editorRef.current?.focus()
++      editorRef.current?.setSelectionRange(r.caret, r.caret)
++    })
++  }
++
++  function onEditorKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
++    if (!acOpen || !token) return
++    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
++      e.preventDefault()
++      const d = e.key === 'ArrowDown' ? 1 : -1
++      setAcIndex((acSel + d + suggestions.length) % suggestions.length)
++    } else if (e.key === 'Enter' || e.key === 'Tab') {
++      e.preventDefault()
++      insertSuggestion(suggestions[acSel])
++    } else if (e.key === 'Escape') {
++      e.preventDefault()
++      setAcDismissed(token.start)
++    }
++  }
++
+   const html = useMemo(() => (selected ? renderMarkdown(selected.content) : ''), [selected?.content])
+ 
+   function onPreviewClick(e: React.MouseEvent<HTMLDivElement>) {
+@@ -169,6 +248,62 @@ export default function App() {
+               + New
+             </button>
+           </div>
++          {tags.length > 0 && (
++            <div className="max-h-32 overflow-y-auto border-y border-slate-200 px-3 py-2 dark:border-slate-700" data-testid="tag-list" aria-label="Tags">
++              <div className="flex flex-wrap gap-1.5">
++                {tags.map(({ tag, count }) =>
++                  renaming?.tag === tag ? (
++                    <form
++                      key={tag}
++                      className="flex items-center gap-1"
++                      onSubmit={(e) => {
++                        e.preventDefault()
++                        renameTag()
++                      }}
++                    >
++                      <input
++                        autoFocus
++                        value={renaming.value}
++                        aria-label={`New name for tag #${tag}`}
++                        onChange={(e) => setRenaming({ ...renaming, value: e.target.value, error: '' })}
++                        onKeyDown={(e) => e.key === 'Escape' && setRenaming(null)}
++                        className="w-28 rounded-md border border-indigo-500 bg-transparent px-2 py-0.5 text-sm"
++                      />
++                      <button type="submit" className={`${btn} py-0.5`}>OK</button>
++                      <button type="button" className={`${btn} py-0.5`} onClick={() => setRenaming(null)}>✕</button>
++                    </form>
++                  ) : (
++                    <span
++                      key={tag}
++                      data-testid="tag-chip"
++                      className={`inline-flex items-center rounded-full border text-sm ${
++                        activeTag === tag
++                          ? 'border-indigo-600 bg-indigo-600 text-white'
++                          : 'border-slate-300 dark:border-slate-600'
++                      }`}
++                    >
++                      <button
++                        className="rounded-l-full py-0.5 pl-2.5 pr-1"
++                        aria-pressed={activeTag === tag}
++                        aria-label={`Filter by tag #${tag}, ${count} ${count === 1 ? 'note' : 'notes'}`}
++                        onClick={() => setActiveTag(activeTag === tag ? null : tag)}
++                      >
++                        #{tag} <span className="opacity-70">{count}</span>
++                      </button>
++                      <button
++                        className="rounded-r-full py-0.5 pl-1 pr-2 opacity-70 hover:opacity-100"
++                        aria-label={`Rename tag #${tag}`}
++                        onClick={() => setRenaming({ tag, value: tag, error: '' })}
++                      >
++                        ✎
++                      </button>
++                    </span>
++                  ),
++                )}
++              </div>
++              {renaming?.error && <p className="mt-1 text-xs text-red-600">{renaming.error}</p>}
++            </div>
++          )}
+           <ul className="min-h-0 flex-1 overflow-y-auto" data-testid="note-list">
+             {visible.map((n) => (
+               <li key={n.id}>
+@@ -239,14 +374,47 @@ export default function App() {
+                 </button>
+               </div>
+               <div className="grid min-h-0 flex-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
+-                <textarea
+-                  value={selected.content}
+-                  onChange={(e) => edit(selected.id, { content: e.target.value })}
+-                  aria-label="Markdown editor"
+-                  spellCheck={false}
+-                  placeholder="Write Markdown here…"
+-                  className="min-h-0 resize-none border-b border-slate-200 bg-white p-4 font-mono text-sm outline-none dark:border-slate-700 dark:bg-slate-900 lg:border-b-0 lg:border-r"
+-                />
++                <div className="relative min-h-0">
++                  <textarea
++                    ref={editorRef}
++                    value={selected.content}
++                    onChange={(e) => {
++                      edit(selected.id, { content: e.target.value })
++                      setCaret(e.target.selectionStart)
++                      setAcIndex(0)
++                    }}
++                    onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
++                    onKeyDown={onEditorKeyDown}
++                    onBlur={() => setAcDismissed(token ? token.start : null)}
++                    aria-label="Markdown editor"
++                    spellCheck={false}
++                    placeholder="Write Markdown here…"
++                    className="h-full w-full resize-none border-b border-slate-200 bg-white p-4 font-mono text-sm outline-none dark:border-slate-700 dark:bg-slate-900 lg:border-b-0 lg:border-r"
++                  />
++                  {acOpen && (
++                    <ul
++                      role="listbox"
++                      aria-label="Tag suggestions"
++                      data-testid="tag-suggestions"
++                      className="absolute bottom-3 left-3 z-10 max-h-40 min-w-40 overflow-y-auto rounded-md border border-slate-300 bg-white py-1 text-sm shadow-lg dark:border-slate-600 dark:bg-slate-800"
++                    >
++                      {suggestions.map((t, i) => (
++                        <li
++                          key={t}
++                          role="option"
++                          aria-selected={i === acSel}
++                          className={`cursor-pointer px-3 py-1 ${i === acSel ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}
++                          onMouseDown={(e) => {
++                            e.preventDefault()
++                            insertSuggestion(t)
++                          }}
++                        >
++                          #{t}
++                        </li>
++                      ))}
++                    </ul>
++                  )}
++                </div>
+                 <div
+                   className="md min-h-0 overflow-y-auto p-4"
+                   data-testid="preview"
+diff --git a/src/lib/tags.test.ts b/src/lib/tags.test.ts
+new file mode 100644
+index 0000000..8369568
+--- /dev/null
++++ b/src/lib/tags.test.ts
+@@ -0,0 +1,90 @@
++import { describe, expect, it } from 'vitest'
++import {
++  activeTagToken, applySuggestion, extractTags, filterByTag, normalizeTagName,
++  renameTagInText, suggestTags, tagCounts,
++} from './tags'
++
++describe('extractTags', () => {
++  it('finds tags, lower-cased and unique', () => {
++    expect(extractTags('Hello #Work and #home, again #work.\n#idea')).toEqual(['work', 'home', 'idea'])
++  })
++  it('supports unicode, digits, underscores and hyphens', () => {
++    expect(extractTags('#żółć #todo_1 #my-tag')).toEqual(['żółć', 'todo_1', 'my-tag'])
++  })
++  it('ignores headings, urls, anchors, numbers and mid-word hashes', () => {
++    expect(extractTags('# Heading\n## Sub\nhttp://x.com/#frag a#b #123 [l](#anchor-less) x&#39;')).toEqual(['anchor-less'])
++  })
++  it('ignores code', () => {
++    expect(extractTags('`#inline` and\n```\n#fenced\n```\n~~~\n#tilde\n~~~\n#real')).toEqual(['real'])
++  })
++})
++
++describe('tagCounts / filterByTag', () => {
++  const notes = [{ content: '#a #b #a' }, { content: '#b' }, { content: 'none' }]
++  it('counts notes, not occurrences', () => {
++    expect(tagCounts(notes)).toEqual([{ tag: 'a', count: 1 }, { tag: 'b', count: 2 }])
++  })
++  it('filters', () => {
++    expect(filterByTag(notes, 'b')).toHaveLength(2)
++    expect(filterByTag(notes, 'a')).toHaveLength(1)
++    expect(filterByTag(notes, null)).toHaveLength(3)
++    expect(filterByTag(notes, 'zzz')).toHaveLength(0)
++  })
++})
++
++describe('normalizeTagName', () => {
++  it('accepts and normalizes', () => {
++    expect(normalizeTagName(' #Foo ')).toBe('foo')
++    expect(normalizeTagName('a-b_c')).toBe('a-b_c')
++  })
++  it('rejects invalid', () => {
++    for (const bad of ['', '#', 'a b', '123', 'a.b', 'a#b']) expect(normalizeTagName(bad)).toBeNull()
++  })
++})
++
++describe('renameTagInText', () => {
++  it('renames every occurrence, case-insensitively, only whole tags', () => {
++    const src = '#Work and #work, #workshop, `#work`, #work\n```\n#work\n```'
++    expect(renameTagInText(src, 'work', 'job')).toBe('#job and #job, #workshop, `#work`, #job\n```\n#work\n```')
++  })
++  it('handles different lengths and unicode', () => {
++    expect(renameTagInText('x #a y #a', 'a', 'longer')).toBe('x #longer y #longer')
++    expect(renameTagInText('#żółć #b', 'żółć', 'z')).toBe('#z #b')
++  })
++  it('leaves text without the tag untouched', () => {
++    expect(renameTagInText('#a', 'b', 'c')).toBe('#a')
++  })
++})
++
++describe('autocomplete', () => {
++  it('detects the token before the caret', () => {
++    expect(activeTagToken('hi #wo', 6)).toEqual({ start: 3, prefix: 'wo' })
++    expect(activeTagToken('#', 1)).toEqual({ start: 0, prefix: '' })
++    expect(activeTagToken('hi #wo', 4)).toEqual({ start: 3, prefix: '' })
++  })
++  it('does not trigger for headings, words, urls or code', () => {
++    expect(activeTagToken('# ', 2)).toBeNull()
++    expect(activeTagToken('a#b', 3)).toBeNull()
++    expect(activeTagToken('http://x/#fr', 12)).toBeNull()
++    expect(activeTagToken('```\n#wo', 7)).toBeNull()
++    expect(activeTagToken('#wo ', 4)).toBeNull()
++  })
++  const counts = [{ tag: 'work', count: 1 }, { tag: 'web', count: 3 }, { tag: 'home', count: 2 }]
++  it('suggests by prefix, most used first', () => {
++    expect(suggestTags('w', counts)).toEqual(['web', 'work'])
++    expect(suggestTags('', counts)).toEqual(['web', 'home', 'work'])
++    expect(suggestTags('W', counts)).toEqual(['web', 'work'])
++    expect(suggestTags('x', counts)).toEqual([])
++  })
++  it('inserts the chosen tag', () => {
++    const t = 'a #wo'
++    const r = applySuggestion(t, 5, activeTagToken(t, 5)!, 'work')
++    expect(r).toEqual({ text: 'a #work ', caret: 8 })
++  })
++  it('replaces the rest of the word and does not double the space', () => {
++    const t = '#wo rk more'
++    expect(applySuggestion(t, 3, activeTagToken(t, 3)!, 'work')).toEqual({ text: '#work rk more', caret: 5 })
++    const t2 = '#wrk x'
++    expect(applySuggestion(t2, 2, activeTagToken(t2, 2)!, 'work')).toEqual({ text: '#work x', caret: 5 })
++  })
++})
+diff --git a/src/lib/tags.ts b/src/lib/tags.ts
+new file mode 100644
+index 0000000..e79dcf5
+--- /dev/null
++++ b/src/lib/tags.ts
+@@ -0,0 +1,122 @@
++import type { Note } from './notes'
++
++/** Characters allowed inside a tag name. */
++const TAG_CHARS = '[\\p{L}\\p{N}_-]'
++/** `#tag`, not preceded by a word char, `#`, `&` or `/` (so URLs, anchors and entities are ignored). */
++const TAG_RE = new RegExp(`(^|[^\\p{L}\\p{N}_#&/])#(${TAG_CHARS}+)`, 'gu')
++const TOKEN_RE = new RegExp(`(^|[^\\p{L}\\p{N}_#&/])#(${TAG_CHARS}*)$`, 'u')
++const NAME_RE = new RegExp(`^${TAG_CHARS}+$`, 'u')
++const HAS_LETTER = /\p{L}/u
++
++/** Replace code (fenced blocks and inline spans) with spaces, keeping offsets and newlines. */
++export function maskCode(text: string): string {
++  const blank = (s: string) => s.replace(/[^\n]/g, ' ')
++  let fence: string | null = null
++  const lines = text.split('\n').map((line) => {
++    const f = /^\s{0,3}(`{3,}|~{3,})/.exec(line)
++    if (fence) {
++      if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null
++      return blank(line)
++    }
++    if (f) {
++      fence = f[1]
++      return blank(line)
++    }
++    return line.replace(/`[^`\n]*`/g, blank)
++  })
++  return lines.join('\n')
++}
++
++interface Occurrence {
++  /** offset of the name (after the #) */
++  start: number
++  name: string
++}
++
++function occurrences(text: string): Occurrence[] {
++  const masked = maskCode(text)
++  const out: Occurrence[] = []
++  for (const m of masked.matchAll(TAG_RE)) {
++    const name = m[2]
++    if (!HAS_LETTER.test(name)) continue // "#123" is not a tag
++    out.push({ start: m.index! + m[1].length + 1, name })
++  }
++  return out
++}
++
++/** Unique tags (lower-case, no #) in a text, in order of first appearance. */
++export function extractTags(text: string): string[] {
++  const seen = new Set<string>()
++  for (const o of occurrences(text)) seen.add(o.name.toLowerCase())
++  return [...seen]
++}
++
++export interface TagCount {
++  tag: string
++  count: number
++}
++
++/** All tags across notes with the number of notes each appears in, sorted by name. */
++export function tagCounts(notes: Pick<Note, 'content'>[]): TagCount[] {
++  const map = new Map<string, number>()
++  for (const n of notes) for (const t of extractTags(n.content)) map.set(t, (map.get(t) ?? 0) + 1)
++  return [...map.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => a.tag.localeCompare(b.tag))
++}
++
++export function filterByTag<T extends Pick<Note, 'content'>>(notes: T[], tag: string | null): T[] {
++  if (!tag) return notes
++  return notes.filter((n) => extractTags(n.content).includes(tag))
++}
++
++/** A valid tag name (without #), lower-cased, or null. */
++export function normalizeTagName(raw: string): string | null {
++  const s = raw.trim().replace(/^#/, '')
++  if (!NAME_RE.test(s) || !HAS_LETTER.test(s)) return null
++  return s.toLowerCase()
++}
++
++/** Rename every occurrence of tag `from` (case-insensitive) to `to` in the text. */
++export function renameTagInText(text: string, from: string, to: string): string {
++  const f = from.toLowerCase()
++  let out = text
++  const hits = occurrences(text).filter((o) => o.name.toLowerCase() === f)
++  for (let i = hits.length - 1; i >= 0; i--) {
++    const h = hits[i]
++    out = out.slice(0, h.start) + to + out.slice(h.start + h.name.length)
++  }
++  return out
++}
++
++export interface TagToken {
++  /** offset of the `#` */
++  start: number
++  prefix: string
++}
++
++/** The `#prefix` being typed immediately before the caret, if any. */
++export function activeTagToken(text: string, caret: number): TagToken | null {
++  const before = maskCode(text.slice(0, caret))
++  const m = TOKEN_RE.exec(before)
++  if (!m) return null
++  return { start: caret - m[2].length - 1, prefix: m[2] }
++}
++
++/** Tags starting with the prefix (case-insensitive), most used first. */
++export function suggestTags(prefix: string, tags: TagCount[], limit = 8): string[] {
++  const p = prefix.toLowerCase()
++  return tags
++    .filter((t) => t.tag.startsWith(p))
++    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
++    .slice(0, limit)
++    .map((t) => t.tag)
++}
++
++/** Replace the `#prefix` token (and any tag characters directly after the caret) with `#tag`. */
++export function applySuggestion(text: string, caret: number, token: TagToken, tag: string): { text: string; caret: number } {
++  const rest = text.slice(caret)
++  const tail = new RegExp(`^${TAG_CHARS}*`, 'u').exec(rest)![0]
++  const after = rest.slice(tail.length)
++  const space = after === '' || !/^\s/.test(after) ? ' ' : ''
++  const head = text.slice(0, token.start) + '#' + tag + space
++  return { text: head + after, caret: head.length }
++}

@@ -1,0 +1,114 @@
+{
+  "A": {
+    "correctness": 9,
+    "completeness": 8,
+    "usefulness": 9,
+    "errors": [
+      {
+        "claim": "MCP calls are logged to agent_calls (agent_surface.sql:39-50, agent-transport.ts:84)",
+        "truth": "Both REST and MCP calls are logged: restRequest and mcpRequest both run through logged(), which inserts into agent_calls after the reply (lines 53-64). Line 84 is only the method-name allowlist.",
+        "evidence": "src/lib/agent-transport.ts:42-64,72,111",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "agent_write's second token check: for a tok_ actor it re-reads the api_tokens row FOR SHARE and requires revoked_at is null and scope = 'write' (PT401 otherwise), so the DB layer does not rely only on the app-supplied p_scope and a revocation racing admission is caught",
+      "assertAgentOrigin cross-origin check after authentication",
+      "Self-hosted plan sync also rewrites monitors' interval_sec, not just the stored plan"
+    ]
+  },
+  "B": {
+    "correctness": 9,
+    "completeness": 9,
+    "usefulness": 9,
+    "errors": [
+      {
+        "claim": "The write() scope check runs before any input parsing or database work",
+        "truth": "executeAgentTool parses the input with inputs[tool].parse(raw) at line 214 before calling write(); only the parse inside write() comes after the check. A read token sending malformed write arguments gets 400 invalid_arguments, not 403. The check does precede all database work and network tests.",
+        "evidence": "src/lib/agent-service.ts:213-216,150-152",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "agent_write's token-row re-check (revoked_at is null and scope = 'write', FOR SHARE, PT401), which is what actually makes the SQL layer independent of a TypeScript bug in p_scope",
+      "Self-hosted plan sync also rewrites monitors' interval_sec, not just the stored plan"
+    ]
+  },
+  "C": {
+    "correctness": 9,
+    "completeness": 7,
+    "usefulness": 7,
+    "errors": [
+      {
+        "claim": "A read token gets 403 insufficient_scope before any input is parsed",
+        "truth": "executeAgentTool parses the tool input at line 214 before write() runs its scope check, so malformed arguments yield 400 first. The check does precede all database work and network tests.",
+        "evidence": "src/lib/agent-service.ts:213-216,151",
+        "severity": "low"
+      },
+      {
+        "claim": "The most a write token can do is draft an incident update.",
+        "truth": "Read in context it is about incidents, but as written it understates write scope: a write token can also provision_app, create_monitor and pause.",
+        "evidence": "src/lib/agent-contract.ts:85",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "Names of the four write tools and that every call first requires monitors:read (agent-service.ts:213)",
+      "agent_calls usage-log row written for every REST/MCP call",
+      "scan_app is a read: a read token can make Staygreen fetch an arbitrary public URL, bounded by admit_scan",
+      "Self-hosted mode: any authenticated call, read token included, can sync the stored plan to builder and rewrite monitor intervals",
+      "Entry routes (src/app/mcp/route.ts, src/app/api/v1/...) and the oauth=true/false switch in agent-transport.ts",
+      "PT403 is mapped to HTTP 403 insufficient_scope at agent-service.ts:29; origin check"
+    ]
+  },
+  "D": {
+    "correctness": 5,
+    "completeness": 6,
+    "usefulness": 5,
+    "errors": [
+      {
+        "claim": "I found no caller of its requireAgentPermission() helper, so the SQL check is what actually enforces it.",
+        "truth": "requireAgentPermission is called on every tool call (monitors:read) and again in write() (monitors:write or incidents:draft) before any DB read, ownership check or network test. A unit test asserts a read credential is refused with 403 for all four write tools before any DB or network call. The app-layer check is real; the SQL check is the second layer.",
+        "evidence": "src/lib/agent-service.ts:151,213; tests/unit/mcp-tool-schemas.test.ts:107-109",
+        "severity": "high"
+      },
+      {
+        "claim": "Line citations in agent-auth.ts: lookup at :97, 401 at :99-100, principal at :101-104, token budget at :106, last_used_at at :107, OAuth at :110-127",
+        "truth": "At this commit they are :94, :97, :98-101, :103, :104 and :107-126 (requireAgent starts at :86). Every cited line is off by about three.",
+        "evidence": "src/lib/agent-auth.ts:86-126",
+        "severity": "low"
+      },
+      {
+        "claim": "A read-only token possibly causes activity and call logging (agent_activity and agent_calls tables set up for it in agent_surface.sql:58-59)",
+        "truth": "agent_calls is written for every REST/MCP call (best effort, after the reply), so that is definite. agent_activity is only inserted inside agent_write after a successful write, so a read token never writes it. Lines 58-59 are the revoke/grant statements, not the table definitions (30-50).",
+        "evidence": "src/lib/agent-transport.ts:53-64; supabase/migrations/20261023150000_agent_surface.sql:211",
+        "severity": "medium"
+      }
+    ],
+    "omissions": [
+      "agent_write's token-row re-check (revoked_at is null and scope = 'write', FOR SHARE, PT401)",
+      "scan_app is a read: a read token can trigger outbound fetches of a supplied URL, bounded by admit_scan",
+      "Self-hosted mode: any authenticated call can sync the stored plan to builder and rewrite monitor intervals outside agent_write",
+      "assertAgentOrigin cross-origin check",
+      "How REST vs MCP select the auth path (oauth flag passed from agent-transport.ts:73/112)"
+    ]
+  },
+  "E": {
+    "correctness": 9,
+    "completeness": 8,
+    "usefulness": 8,
+    "errors": [
+      {
+        "claim": "An OAuth connection can write if the member's role allows it",
+        "truth": "The OAuth path checks the member role only for monitors:read and then always assigns scope 'write'; no write permission is checked on the role. In V1 there is one admin role with every permission, so in practice every member's OAuth grant can write.",
+        "evidence": "src/lib/agent-auth.ts:120,125-126; src/lib/authz.ts:30-32",
+        "severity": "low"
+      }
+    ],
+    "omissions": [
+      "agent_calls usage-log row written for every call, read tokens included",
+      "scan_app is a read: a read token can trigger outbound fetches of a supplied URL, bounded by admit_scan",
+      "Self-hosted mode: any authenticated call can sync the stored plan to builder and rewrite monitor intervals"
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+Summarize this planning note in one sentence for my team, nothing else:
+
+"Kickoff is on Tuesday 12 November 2026 at 10:00 in Room B. Bring the Q4 numbers. The design review follows on Friday 20 November at 14:00, same room."
+
+Don't change any files.

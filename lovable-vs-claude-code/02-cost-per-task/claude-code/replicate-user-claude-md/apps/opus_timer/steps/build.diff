@@ -1,0 +1,1242 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+new file mode 100644
+index 0000000..7c1bfdb
+--- /dev/null
++++ b/e2e/app.spec.ts
+@@ -0,0 +1,194 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const countdown = (p: Page) => p.getByTestId('countdown')
++const startBtn = (p: Page) => p.getByRole('button', { name: /^(Start|Pause|Resume)$/ })
++
++async function setDurations(page: Page, focus: string, short: string, long: string) {
++  await page.getByRole('button', { name: 'Settings' }).click()
++  const d = page.getByRole('dialog')
++  await d.getByLabel('Focus', { exact: true }).fill(focus)
++  await d.getByLabel('Short break').fill(short)
++  await d.getByLabel('Long break').fill(long)
++  await d.getByRole('button', { name: 'Save' }).click()
++  await expect(page.getByRole('dialog')).toHaveCount(0)
++}
++
++test.beforeEach(async ({ page }) => {
++  await page.clock.install({ time: new Date('2026-11-09T09:00:00') })
++  await page.goto('/')
++  await expect(page).toHaveTitle(/ - /) // effects have run, listeners are attached
++})
++
++test('defaults, big countdown, tab title, no horizontal scroll', async ({ page }, info) => {
++  await expect(countdown(page)).toHaveText('25:00')
++  await expect(page.getByTestId('phase')).toHaveText('Focus')
++  await expect(page).toHaveTitle('25:00 - Focus')
++  const box = await countdown(page).boundingBox()
++  expect(box!.height).toBeGreaterThan(50)
++  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++  expect(overflow).toBeLessThanOrEqual(0)
++  await page.screenshot({ path: `shots/${info.project.name}-home.png`, fullPage: true })
++})
++
++test('start, pause, resume, reset; title tracks remaining time', async ({ page }) => {
++  await startBtn(page).click()
++  await expect(startBtn(page)).toHaveText('Pause')
++  await page.clock.runFor(12 * 60_000 + 56_000)
++  await expect(countdown(page)).toHaveText('12:04')
++  await expect(page).toHaveTitle('12:04 - Focus')
++  await startBtn(page).click()
++  await expect(startBtn(page)).toHaveText('Resume')
++  await page.clock.runFor(5 * 60_000)
++  await expect(countdown(page)).toHaveText('12:04') // paused stays put
++  await startBtn(page).click()
++  await page.clock.runFor(4_000)
++  await expect(countdown(page)).toHaveText('12:00')
++  await page.getByRole('button', { name: 'Reset' }).click()
++  await expect(countdown(page)).toHaveText('25:00')
++  await expect(startBtn(page)).toHaveText('Start')
++})
++
++test('space bar starts and pauses, also with a button focused, but not while typing', async ({ page }) => {
++  await page.keyboard.press('Space')
++  await expect(startBtn(page)).toHaveText('Pause')
++  await page.keyboard.press('Space')
++  await expect(startBtn(page)).toHaveText('Resume')
++  // A focused button must not be "clicked" by the same keypress (that would toggle twice).
++  await page.getByRole('button', { name: 'Reset' }).focus()
++  await page.keyboard.press('Space')
++  await expect(startBtn(page)).toHaveText('Pause')
++  await expect(countdown(page)).not.toHaveText('25:00')
++  await page.getByLabel('Working on').fill('Write report')
++  await page.getByLabel('Working on').press('Space')
++  await expect(startBtn(page)).toHaveText('Pause')
++  await expect(page.getByLabel('Working on')).toHaveValue('Write report ')
++})
++
++test('skip moves through phases without logging', async ({ page }) => {
++  await page.getByRole('button', { name: 'Skip' }).click()
++  await expect(page.getByTestId('phase')).toHaveText('Short break')
++  await expect(countdown(page)).toHaveText('05:00')
++  await expect(page).toHaveTitle('05:00 - Short break')
++  await page.getByRole('button', { name: 'Skip' }).click()
++  await expect(page.getByTestId('phase')).toHaveText('Focus')
++  await expect(page.getByTestId('log-summary')).toHaveText('0 sessions · 0 min')
++})
++
++test('full cycle: 4 focus sessions → long break, dots, log with labels and finish times, chime', async ({ page }, info) => {
++  await setDurations(page, '1', '1', '2')
++  await expect(countdown(page)).toHaveText('01:00')
++  const dots = page.getByTestId('dots')
++  for (let i = 1; i <= 4; i++) {
++    await page.getByLabel('Working on').fill(`Task ${i}`)
++    await startBtn(page).click()
++    await page.clock.runFor(60_000)
++    await expect(dots).toHaveAttribute('aria-label', `${i} of 4 focus sessions before the long break`)
++    await expect(dots.locator('[data-filled="true"]')).toHaveCount(i)
++    if (i < 4) {
++      await expect(page.getByTestId('phase')).toHaveText('Short break')
++      await expect(page).toHaveTitle('01:00 - Short break')
++      if (i === 2) await page.screenshot({ path: `shots/${info.project.name}-break.png`, fullPage: true })
++      await startBtn(page).click()
++      await page.clock.runFor(60_000)
++      await expect(page.getByTestId('phase')).toHaveText('Focus')
++    }
++  }
++  await expect(page.getByTestId('phase')).toHaveText('Long break')
++  await expect(countdown(page)).toHaveText('02:00')
++  const items = page.getByTestId('log').locator('li')
++  await expect(items).toHaveCount(4)
++  await expect(items.first()).toContainText('Task 4') // newest first
++  await expect(items.last()).toContainText('Task 1')
++  await expect(items.last()).toContainText('09:01') // finished one minute after 09:00
++  await expect(page.getByTestId('log-summary')).toHaveText('4 sessions · 4 min')
++  expect(await page.evaluate(() => (window as unknown as { __chimes: number }).__chimes)).toBe(7)
++  await page.screenshot({ path: `shots/${info.project.name}-long.png`, fullPage: true })
++
++  await startBtn(page).click()
++  await page.clock.runFor(2 * 60_000)
++  await expect(page.getByTestId('phase')).toHaveText('Focus')
++  await expect(dots.locator('[data-filled="true"]')).toHaveCount(0)
++})
++
++test('mute toggle silences the chime and persists', async ({ page }) => {
++  await setDurations(page, '1', '1', '1')
++  await page.getByRole('button', { name: 'Mute sound' }).click()
++  await expect(page.getByRole('button', { name: 'Unmute sound' })).toHaveAttribute('aria-pressed', 'true')
++  await startBtn(page).click()
++  await page.clock.runFor(60_000)
++  await expect(page.getByTestId('phase')).toHaveText('Short break')
++  expect(await page.evaluate(() => (window as unknown as { __chimes?: number }).__chimes ?? 0)).toBe(0)
++  await page.reload()
++  await expect(page.getByRole('button', { name: 'Unmute sound' })).toBeVisible()
++  await page.getByRole('button', { name: 'Unmute sound' }).click()
++  await expect(page.getByTestId('phase')).toHaveText('Short break')
++  await startBtn(page).click()
++  await page.clock.runFor(60_000)
++  await expect(page.getByTestId('phase')).toHaveText('Focus')
++  expect(await page.evaluate(() => (window as unknown as { __chimes?: number }).__chimes ?? 0)).toBe(1)
++})
++
++test('settings validate 1–90 and Escape cancels', async ({ page }, info) => {
++  await page.getByRole('button', { name: 'Settings' }).click()
++  const focus = page.getByRole('dialog').getByLabel('Focus', { exact: true })
++  const save = page.getByRole('button', { name: 'Save' })
++  for (const [v, msg] of [['0', 'between 1 and 90'], ['91', 'between 1 and 90'], ['', 'Enter a number'], ['2.5', 'whole minutes'], ['abc', 'whole minutes']]) {
++    await focus.fill(v)
++    await expect(page.getByRole('alert')).toContainText(msg)
++    await expect(save).toBeDisabled()
++  }
++  await page.screenshot({ path: `shots/${info.project.name}-settings-invalid.png` })
++  await focus.fill('90')
++  await expect(page.getByRole('alert')).toHaveCount(0)
++  await expect(save).toBeEnabled()
++  await page.keyboard.press('Escape')
++  await expect(page.getByRole('dialog')).toHaveCount(0)
++  await expect(countdown(page)).toHaveText('25:00') // cancelled
++  await setDurations(page, '90', '1', '30')
++  await expect(countdown(page)).toHaveText('90:00')
++})
++
++test('stays accurate when timers are throttled (background tab)', async ({ page }) => {
++  await startBtn(page).click()
++  await page.clock.runFor(1000)
++  // Simulate a background tab: wall-clock time jumps 10 minutes while no interval ticks run.
++  await page.clock.pauseAt(new Date('2026-11-09T09:10:01'))
++  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
++  await expect(countdown(page)).toHaveText('15:00')
++  await expect(page).toHaveTitle('15:00 - Focus')
++  // Jump far past the end: the session is logged at its real end time, 09:25.
++  await page.clock.pauseAt(new Date('2026-11-09T10:30:00'))
++  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
++  await expect(page.getByTestId('phase')).toHaveText('Short break')
++  await expect(page.getByTestId('log').locator('li')).toContainText('09:25')
++})
++
++test('settings, log, task and a running timer survive a reload', async ({ page }) => {
++  await setDurations(page, '2', '3', '4')
++  await page.getByLabel('Working on').fill('Inbox zero')
++  await startBtn(page).click()
++  await page.clock.runFor(2 * 60_000)
++  await expect(page.getByTestId('log').locator('li')).toHaveCount(1)
++  await startBtn(page).click() // start the 3 min break
++  await page.clock.runFor(30_000)
++  await page.reload()
++  await expect(page.getByTestId('phase')).toHaveText('Short break')
++  // Real time keeps passing during the reload, so allow a few seconds below 02:30 (never a reset to 03:00).
++  await expect(countdown(page)).toHaveText(/^02:(30|2\d)$/)
++  await expect(startBtn(page)).toHaveText('Pause')
++  await expect(page.getByLabel('Working on')).toHaveValue('Inbox zero')
++  await expect(page.getByTestId('log').locator('li')).toContainText('Inbox zero')
++  await page.getByRole('button', { name: 'Settings' }).click()
++  const d = page.getByRole('dialog')
++  await expect(d.getByLabel('Focus', { exact: true })).toHaveValue('2')
++  await expect(d.getByLabel('Short break')).toHaveValue('3')
++  await expect(d.getByLabel('Long break')).toHaveValue('4')
++})
++
++test('yesterday’s log is not shown today', async ({ page }) => {
++  await page.evaluate(() =>
++    localStorage.setItem('pomodoro.log', JSON.stringify([{ id: 'x', task: 'Old', finishedAt: new Date('2026-11-08T17:00:00').getTime(), minutes: 25 }])),
++  )
++  await page.reload()
++  await expect(page.getByTestId('log-summary')).toHaveText('0 sessions · 0 min')
++})
+diff --git a/e2e/look.spec.ts b/e2e/look.spec.ts
+new file mode 100644
+index 0000000..24020e9
+--- /dev/null
++++ b/e2e/look.spec.ts
+@@ -0,0 +1,14 @@
++import { expect, test } from '@playwright/test'
++
++// Visual check only: screenshots of a running focus session and a settled break for manual review.
++test('screenshots for visual review', async ({ page }, info) => {
++  await page.goto('/')
++  await expect(page).toHaveTitle(/ - /)
++  await page.getByLabel('Working on').fill('Draft the quarterly plan')
++  await page.getByRole('button', { name: 'Start' }).click()
++  await page.waitForTimeout(1200)
++  await page.screenshot({ path: `shots/${info.project.name}-running.png`, fullPage: true })
++  await page.getByRole('button', { name: 'Skip' }).click()
++  await page.waitForTimeout(1000) // let the background colour transition settle
++  await page.screenshot({ path: `shots/${info.project.name}-short-settled.png`, fullPage: true })
++})
+diff --git a/index.html b/index.html
+index 3d7efb3..343f87b 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,8 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <meta name="theme-color" content="#f6efe9" />
++    <title>Pomodoro</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..36647d1 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,8 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
++    "test": "vitest run --dir src",
++    "test:e2e": "playwright test",
+     "preview": "vite preview"
+   },
+   "dependencies": {
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/playwright.config.ts b/playwright.config.ts
+index 2ab061d..f9ef8ef 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -5,5 +5,9 @@ const PORT = 5210
+ export default defineConfig({
+   testDir: './e2e',
+   use: { baseURL: `http://localhost:${PORT}`, channel: 'chrome', headless: true },
++  projects: [
++    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
++    { name: 'mobile', use: { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } },
++  ],
+   webServer: { command: 'npm run dev', url: `http://localhost:${PORT}`, reuseExistingServer: true, timeout: 60_000 },
+ })
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..dc206bf 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,438 @@
++import { useCallback, useEffect, useRef, useState } from 'react'
++import {
++  DEFAULT_SETTINGS,
++  PHASE_LABEL,
++  SESSIONS_PER_CYCLE,
++  type LogEntry,
++  type Phase,
++  type Settings,
++  type TimerState,
++  applySettings,
++  formatTime,
++  loadLog,
++  loadMuted,
++  loadSettings,
++  loadTimer,
++  pause,
++  remaining,
++  reset,
++  saveLog,
++  saveMuted,
++  saveSettings,
++  saveTimer,
++  skip,
++  start,
++  tabTitle,
++  tick,
++  todaysLog,
++  validateMinutes,
++} from './timer'
++import { playChime, unlockAudio } from './sound'
++
++const TASK_KEY = 'pomodoro.task'
++
++const THEME: Record<Phase, { bg: string; accent: string; soft: string; ring: string }> = {
++  focus: { bg: 'bg-[#f6efe9]', accent: 'bg-[#b5654a] text-white hover:bg-[#9f5640]', soft: 'text-[#9f5640]', ring: 'stroke-[#b5654a]' },
++  short: { bg: 'bg-[#ecf2ec]', accent: 'bg-[#4f7a5e] text-white hover:bg-[#426852]', soft: 'text-[#426852]', ring: 'stroke-[#4f7a5e]' },
++  long: { bg: 'bg-[#e9eff5]', accent: 'bg-[#4b6a8a] text-white hover:bg-[#3e5a77]', soft: 'text-[#3e5a77]', ring: 'stroke-[#4b6a8a]' },
++}
++
++function readTask(): string {
++  try {
++    return localStorage.getItem(TASK_KEY) ?? ''
++  } catch {
++    return ''
++  }
++}
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [settings, setSettings] = useState<Settings>(() => loadSettings(localStorage))
++  const [timer, setTimer] = useState<TimerState>(() => loadTimer(localStorage, settings))
++  const [log, setLog] = useState<LogEntry[]>(() => loadLog(localStorage, Date.now()))
++  const [muted, setMuted] = useState(() => loadMuted(localStorage))
++  const [task, setTask] = useState(readTask)
++  const [showSettings, setShowSettings] = useState(false)
++  const [now, setNow] = useState(() => Date.now())
++
++  // Refs so the interval callback always sees the latest values without re-subscribing.
++  const latest = useRef({ timer, settings, muted, task })
++  latest.current = { timer, settings, muted, task }
++
++  // Persist.
++  useEffect(() => saveTimer(localStorage, timer), [timer])
++  useEffect(() => saveSettings(localStorage, settings), [settings])
++  useEffect(() => saveLog(localStorage, log), [log])
++  useEffect(() => saveMuted(localStorage, muted), [muted])
++  useEffect(() => {
++    try {
++      localStorage.setItem(TASK_KEY, task)
++    } catch {
++      /* ignore */
++    }
++  }, [task])
++
++  // Advance the clock from timestamps. Runs on an interval and whenever the tab becomes visible.
++  const advance = useCallback(() => {
++    const t = Date.now()
++    setNow(t)
++    const { timer: cur, settings: s, muted: m, task: label } = latest.current
++    const r = tick(cur, s, t)
++    if (!r.completed) return
++    latest.current.timer = r.state
++    setTimer(r.state)
++    if (r.completed.phase === 'focus') {
++      const entry: LogEntry = {
++        id: `${r.completed.endedAt}-${Math.random().toString(36).slice(2, 8)}`,
++        task: label.trim(),
++        finishedAt: r.completed.endedAt,
++        minutes: s.focus,
++      }
++      setLog((l) => [...todaysLog(l, t), entry])
++    }
++    if (!m) playChime()
++  }, [])
++
++  useEffect(() => {
++    advance()
++    const id = window.setInterval(advance, 250)
++    const onVis = () => advance()
++    document.addEventListener('visibilitychange', onVis)
++    window.addEventListener('focus', onVis)
++    return () => {
++      window.clearInterval(id)
++      document.removeEventListener('visibilitychange', onVis)
++      window.removeEventListener('focus', onVis)
++    }
++  }, [advance])
++
++  const title = tabTitle(timer, now)
++  useEffect(() => {
++    document.title = title
++  }, [title])
++
++  const onStartPause = useCallback(() => {
++    const t = Date.now()
++    setNow(t)
++    setTimer((cur) => {
++      if (cur.status === 'running') return pause(cur, t)
++      unlockAudio()
++      return start(cur, t)
++    })
++  }, [])
++  const onReset = () => setTimer((cur) => reset(cur, settings))
++  const onSkip = () => setTimer((cur) => skip(cur, settings))
++
++  // Space toggles start/pause, except while typing or in the settings panel.
++  useEffect(() => {
++    const onKey = (e: KeyboardEvent) => {
++      if (e.code !== 'Space' && e.key !== ' ') return
++      const el = e.target as HTMLElement | null
++      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
++      if (showSettings) return
++      e.preventDefault() // also stops a focused button from being "clicked" by the same keypress
++      if (!e.repeat) onStartPause()
++    }
++    const swallowKeyup = (e: KeyboardEvent) => {
++      const el = e.target as HTMLElement | null
++      if ((e.code === 'Space' || e.key === ' ') && el?.tagName === 'BUTTON' && !showSettings) e.preventDefault()
++    }
++    window.addEventListener('keydown', onKey)
++    window.addEventListener('keyup', swallowKeyup)
++    return () => {
++      window.removeEventListener('keydown', onKey)
++      window.removeEventListener('keyup', swallowKeyup)
++    }
++  }, [onStartPause, showSettings])
++
++  const saveNewSettings = (s: Settings) => {
++    setSettings(s)
++    setTimer((cur) => applySettings(cur, s))
++    setShowSettings(false)
++  }
++
++  const theme = THEME[timer.phase]
++  const rem = remaining(timer, now)
++  const total = settings[timer.phase] * 60_000
++  const progress = total > 0 ? Math.min(1, Math.max(0, 1 - rem / total)) : 0
++  const today = todaysLog(log, now)
++  const running = timer.status === 'running'
++
++  return (
++    <div className={`min-h-dvh ${theme.bg} text-stone-800 transition-colors duration-700`}>
++      <div className="mx-auto flex max-w-md flex-col gap-6 px-4 pb-10 pt-5 sm:pt-10">
++        <header className="flex items-center justify-between">
++          <h1 className="text-lg font-semibold tracking-tight">Pomodoro</h1>
++          <div className="flex gap-2">
++            <IconButton
++              label={muted ? 'Unmute sound' : 'Mute sound'}
++              pressed={muted}
++              onClick={() => setMuted((m) => !m)}
++            >
++              {muted ? <SpeakerOff /> : <SpeakerOn />}
++            </IconButton>
++            <IconButton label="Settings" onClick={() => setShowSettings(true)}>
++              <Gear />
++            </IconButton>
++          </div>
++        </header>
++
++        <main className="flex flex-col gap-6">
++          <section className="rounded-3xl bg-white/70 px-5 py-6 shadow-sm ring-1 ring-black/5 backdrop-blur">
++            <p data-testid="phase" className={`text-center text-sm font-medium uppercase tracking-[0.18em] ${theme.soft}`}>
++              {PHASE_LABEL[timer.phase]}
++            </p>
++
++            <div className="relative mx-auto my-4 aspect-square w-full max-w-[17rem]">
++              <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden="true">
++                <circle cx="50" cy="50" r="46" fill="none" className="stroke-black/[0.06]" strokeWidth="3" />
++                <circle
++                  key={timer.phase /* a new phase starts from an empty ring instead of animating back */}
++                  opacity={progress > 0 ? 1 : 0}
++                  cx="50"
++                  cy="50"
++                  r="46"
++                  fill="none"
++                  className={`${theme.ring} transition-[stroke-dashoffset] duration-300`}
++                  strokeWidth="3"
++                  strokeLinecap="round"
++                  pathLength={100}
++                  strokeDasharray="100"
++                  strokeDashoffset={100 - progress * 100}
++                />
++              </svg>
++              <div className="absolute inset-0 flex flex-col items-center justify-center">
++                <time
++                  data-testid="countdown"
++                  role="timer"
++                  aria-label={`${formatTime(rem)} remaining`}
++                  className="text-[4.5rem] font-extralight leading-none tabular-nums tracking-tight sm:text-[5rem]"
++                >
++                  {formatTime(rem)}
++                </time>
++                <p className="mt-2 text-xs text-stone-500">{running ? 'running' : timer.status === 'paused' ? 'paused' : 'ready'}</p>
++              </div>
++            </div>
++
++            <Dots done={timer.completedInCycle} phase={timer.phase} />
++
++            <div className="mt-6 grid grid-cols-[1fr_auto_auto] gap-2">
++              <button
++                type="button"
++                onClick={onStartPause}
++                className={`h-12 rounded-2xl text-base font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700 ${theme.accent}`}
++              >
++                {running ? 'Pause' : timer.status === 'paused' ? 'Resume' : 'Start'}
++              </button>
++              <button type="button" onClick={onReset} className="btn-secondary">
++                Reset
++              </button>
++              <button type="button" onClick={onSkip} className="btn-secondary">
++                Skip
++              </button>
++            </div>
++            <p className="mt-3 hidden text-center text-xs text-stone-500 sm:block">
++              Press <kbd className="rounded border border-stone-300 bg-white px-1.5 py-0.5 font-sans">Space</kbd> to start or pause
++            </p>
++          </section>
++
++          <section className="rounded-3xl bg-white/70 px-5 py-4 shadow-sm ring-1 ring-black/5">
++            <label htmlFor="task" className="text-sm font-medium text-stone-600">
++              Working on
++            </label>
++            <input
++              id="task"
++              value={task}
++              maxLength={80}
++              onChange={(e) => setTask(e.target.value)}
++              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
++              placeholder="Optional task for this focus session"
++              className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base outline-none placeholder:text-stone-400 focus:border-stone-400"
++            />
++          </section>
++
++          <section aria-labelledby="log-title" className="rounded-3xl bg-white/70 px-5 py-4 shadow-sm ring-1 ring-black/5">
++            <div className="flex items-baseline justify-between">
++              <h2 id="log-title" className="text-sm font-medium text-stone-600">
++                Today
++              </h2>
++              <p className="text-xs text-stone-500" data-testid="log-summary">
++                {today.length} {today.length === 1 ? 'session' : 'sessions'} · {today.reduce((a, e) => a + e.minutes, 0)} min
++              </p>
++            </div>
++            {today.length === 0 ? (
++              <p className="py-4 text-center text-sm text-stone-400">Completed focus sessions will show up here.</p>
++            ) : (
++              <ol data-testid="log" className="mt-2 divide-y divide-stone-200/70">
++                {[...today].reverse().map((e) => (
++                  <li key={e.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
++                    <span className={`min-w-0 truncate ${e.task ? '' : 'italic text-stone-400'}`}>{e.task || 'No task label'}</span>
++                    <span className="shrink-0 tabular-nums text-stone-500">
++                      {new Date(e.finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
++                    </span>
++                  </li>
++                ))}
++              </ol>
++            )}
++          </section>
++        </main>
++      </div>
++
++      {showSettings && <SettingsPanel initial={settings} onSave={saveNewSettings} onClose={() => setShowSettings(false)} />}
++    </div>
++  )
++}
++
++function Dots({ done, phase }: { done: number; phase: Phase }) {
++  const n = Math.min(done, SESSIONS_PER_CYCLE)
++  return (
++    <div className="flex flex-col items-center gap-1.5" data-testid="dots" aria-label={`${n} of ${SESSIONS_PER_CYCLE} focus sessions before the long break`}>
++      <div className="flex gap-2.5" aria-hidden="true">
++        {Array.from({ length: SESSIONS_PER_CYCLE }, (_, i) => (
++          <span
++            key={i}
++            data-filled={i < n}
++            className={`size-2.5 rounded-full transition-colors ${i < n ? 'bg-stone-700' : 'bg-stone-300'}`}
++          />
++        ))}
++      </div>
++      <p className="text-xs text-stone-500">
++        {phase === 'long' ? 'Long break earned' : `${n} of ${SESSIONS_PER_CYCLE} until long break`}
++      </p>
++    </div>
++  )
++}
++
++function SettingsPanel({ initial, onSave, onClose }: { initial: Settings; onSave: (s: Settings) => void; onClose: () => void }) {
++  const [values, setValues] = useState({ focus: String(initial.focus), short: String(initial.short), long: String(initial.long) })
++  const errors = {
++    focus: validateMinutes(values.focus),
++    short: validateMinutes(values.short),
++    long: validateMinutes(values.long),
++  }
++  const valid = !errors.focus && !errors.short && !errors.long
++  const firstRef = useRef<HTMLInputElement>(null)
++
++  useEffect(() => {
++    firstRef.current?.focus()
++    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
++    window.addEventListener('keydown', onKey)
++    return () => window.removeEventListener('keydown', onKey)
++  }, [onClose])
++
++  const submit = (e: React.FormEvent) => {
++    e.preventDefault()
++    if (!valid) return
++    onSave({ focus: Number(values.focus), short: Number(values.short), long: Number(values.long) })
++  }
++
++  const fields: { key: keyof Settings; label: string }[] = [
++    { key: 'focus', label: 'Focus' },
++    { key: 'short', label: 'Short break' },
++    { key: 'long', label: 'Long break' },
++  ]
++
++  return (
++    <div className="fixed inset-0 z-10 flex items-end justify-center bg-stone-900/30 p-0 sm:items-center sm:p-4" onClick={onClose}>
++      <form
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="settings-title"
++        onSubmit={submit}
++        onClick={(e) => e.stopPropagation()}
++        noValidate
++        className="w-full max-w-md rounded-t-3xl bg-white p-5 pb-7 shadow-xl sm:rounded-3xl"
++      >
++        <h2 id="settings-title" className="text-lg font-semibold">
++          Settings
++        </h2>
++        <p className="mt-1 text-sm text-stone-500">Durations in minutes, 1–90. A long break follows every 4 focus sessions.</p>
++        <div className="mt-4 flex flex-col gap-3">
++          {fields.map(({ key, label }, i) => (
++            <div key={key}>
++              <div className="flex items-center justify-between gap-3">
++                <label htmlFor={`set-${key}`} className="text-sm font-medium">
++                  {label}
++                </label>
++                <input
++                  id={`set-${key}`}
++                  ref={i === 0 ? firstRef : undefined}
++                  inputMode="numeric"
++                  value={values[key]}
++                  onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
++                  aria-invalid={!!errors[key]}
++                  aria-describedby={errors[key] ? `err-${key}` : undefined}
++                  className={`w-24 rounded-xl border bg-white px-3 py-2 text-right text-base tabular-nums outline-none ${
++                    errors[key] ? 'border-red-400 focus:border-red-500' : 'border-stone-200 focus:border-stone-400'
++                  }`}
++                />
++              </div>
++              {errors[key] && (
++                <p id={`err-${key}`} role="alert" className="mt-1 text-right text-xs text-red-600">
++                  {errors[key]}
++                </p>
++              )}
++            </div>
++          ))}
++        </div>
++        <div className="mt-6 flex items-center justify-between gap-2">
++          <button
++            type="button"
++            className="text-sm text-stone-500 underline-offset-2 hover:underline"
++            onClick={() =>
++              setValues({ focus: String(DEFAULT_SETTINGS.focus), short: String(DEFAULT_SETTINGS.short), long: String(DEFAULT_SETTINGS.long) })
++            }
++          >
++            Restore defaults
++          </button>
++          <div className="flex gap-2">
++            <button type="button" onClick={onClose} className="btn-secondary">
++              Cancel
++            </button>
++            <button
++              type="submit"
++              disabled={!valid}
++              className="h-12 rounded-2xl bg-stone-800 px-5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
++            >
++              Save
++            </button>
++          </div>
++        </div>
++      </form>
++    </div>
++  )
++}
++
++function IconButton({ label, onClick, pressed, children }: { label: string; onClick: () => void; pressed?: boolean; children: React.ReactNode }) {
++  return (
++    <button
++      type="button"
++      aria-label={label}
++      title={label}
++      aria-pressed={pressed}
++      onClick={onClick}
++      className="grid size-10 place-items-center rounded-full text-stone-600 transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-stone-700"
++    >
++      {children}
++    </button>
++  )
+ }
++
++const svg = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
++const SpeakerOn = () => (
++  <svg {...svg}>
++    <path d="M11 5 6 9H3v6h3l5 4V5Z" />
++    <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
++  </svg>
++)
++const SpeakerOff = () => (
++  <svg {...svg}>
++    <path d="M11 5 6 9H3v6h3l5 4V5Z" />
++    <path d="m22 9-6 6M16 9l6 6" />
++  </svg>
++)
++const Gear = () => (
++  <svg {...svg}>
++    <circle cx="12" cy="12" r="3" />
++    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
++  </svg>
++)
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..393e962 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,14 @@
+ @import "tailwindcss";
++
++@layer components {
++  .btn-secondary {
++    @apply h-12 rounded-2xl bg-white px-4 text-sm font-medium text-stone-700 ring-1 ring-stone-200 transition-colors hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-700;
++  }
++}
++
++html {
++  -webkit-tap-highlight-color: transparent;
++}
++body {
++  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
++}
+diff --git a/src/sound.ts b/src/sound.ts
+new file mode 100644
+index 0000000..570cf34
+--- /dev/null
++++ b/src/sound.ts
+@@ -0,0 +1,35 @@
++// A short, soft two-note chime made with Web Audio (no audio files).
++let ctx: AudioContext | null = null
++
++/** Create/resume the audio context. Call from a user gesture so later chimes are allowed to play. */
++export function unlockAudio() {
++  try {
++    ctx ??= new AudioContext()
++    if (ctx.state === 'suspended') void ctx.resume()
++  } catch {
++    // Web Audio unavailable: stay silent
++  }
++}
++
++export function playChime() {
++  unlockAudio()
++  if (!ctx) return
++  const t = ctx.currentTime
++  ;[
++    [659.25, 0],
++    [880, 0.18],
++  ].forEach(([freq, delay]) => {
++    const osc = ctx!.createOscillator()
++    const gain = ctx!.createGain()
++    osc.type = 'sine'
++    osc.frequency.value = freq
++    gain.gain.setValueAtTime(0.0001, t + delay)
++    gain.gain.exponentialRampToValueAtTime(0.25, t + delay + 0.02)
++    gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.6)
++    osc.connect(gain).connect(ctx!.destination)
++    osc.start(t + delay)
++    osc.stop(t + delay + 0.65)
++  })
++  // Hook for automated tests to observe that a chime was requested.
++  ;(window as unknown as { __chimes?: number }).__chimes = ((window as unknown as { __chimes?: number }).__chimes ?? 0) + 1
++}
+diff --git a/src/timer.test.ts b/src/timer.test.ts
+new file mode 100644
+index 0000000..6ec9340
+--- /dev/null
++++ b/src/timer.test.ts
+@@ -0,0 +1,228 @@
++import { describe, expect, it } from 'vitest'
++import {
++  DEFAULT_SETTINGS as S,
++  KEYS,
++  type LogEntry,
++  type TimerState,
++  applySettings,
++  formatTime,
++  initialState,
++  loadLog,
++  loadMuted,
++  loadSettings,
++  loadTimer,
++  pause,
++  remaining,
++  reset,
++  saveLog,
++  saveMuted,
++  saveSettings,
++  saveTimer,
++  skip,
++  start,
++  tabTitle,
++  tick,
++  toggle,
++  todaysLog,
++  validateMinutes,
++} from './timer'
++
++const MIN = 60_000
++const T0 = new Date(2026, 10, 9, 9, 0, 0).getTime()
++
++function fakeStore() {
++  const m = new Map<string, string>()
++  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m }
++}
++
++/** Run the current phase to completion and return the next state. */
++function finish(st: TimerState, now = T0): TimerState {
++  const running = start(st, now)
++  const r = tick(running, S, running.endsAt!)
++  expect(r.completed).not.toBeNull()
++  return r.state
++}
++
++describe('durations and cycle', () => {
++  it('starts as a 25 minute idle focus session', () => {
++    const st = initialState(S)
++    expect(st).toMatchObject({ phase: 'focus', status: 'idle', completedInCycle: 0 })
++    expect(remaining(st, T0)).toBe(25 * MIN)
++  })
++
++  it('goes focus → short ×3, then long after the 4th focus, then a fresh cycle', () => {
++    let st = initialState(S)
++    const seen: string[] = []
++    for (let i = 0; i < 9; i++) {
++      st = finish(st)
++      seen.push(`${st.phase}:${st.completedInCycle}:${remaining(st, T0) / MIN}`)
++    }
++    expect(seen).toEqual([
++      'short:1:5', 'focus:1:25',
++      'short:2:5', 'focus:2:25',
++      'short:3:5', 'focus:3:25',
++      'long:4:15', 'focus:0:25',
++      'short:1:5',
++    ])
++  })
++
++  it('does not auto-start the next phase', () => {
++    expect(finish(initialState(S)).status).toBe('idle')
++  })
++})
++
++describe('start / pause / reset / skip', () => {
++  it('counts down from timestamps and pause freezes the remaining time', () => {
++    let st = start(initialState(S), T0)
++    expect(remaining(st, T0 + 10_000)).toBe(25 * MIN - 10_000)
++    st = pause(st, T0 + 10_000)
++    expect(st.status).toBe('paused')
++    expect(remaining(st, T0 + 999_999)).toBe(25 * MIN - 10_000)
++    st = start(st, T0 + 60_000)
++    expect(remaining(st, T0 + 70_000)).toBe(25 * MIN - 20_000)
++  })
++
++  it('toggle alternates start and pause; start while running is a no-op', () => {
++    let st = toggle(initialState(S), T0)
++    expect(st.status).toBe('running')
++    expect(start(st, T0 + 5000)).toBe(st)
++    st = toggle(st, T0 + 5000)
++    expect(st.status).toBe('paused')
++  })
++
++  it('reset restores the full phase length and stops', () => {
++    const st = reset(pause(start(initialState(S), T0), T0 + 3 * MIN), S)
++    expect(st.status).toBe('idle')
++    expect(remaining(st, T0)).toBe(25 * MIN)
++  })
++
++  it('skipping focus goes to a break without counting the session', () => {
++    const st = skip(start(initialState(S), T0), S)
++    expect(st).toMatchObject({ phase: 'short', status: 'idle', completedInCycle: 0 })
++  })
++
++  it('skipping a short break goes to focus; skipping a long break starts a new cycle', () => {
++    let st = finish(initialState(S))
++    expect(skip(st, S)).toMatchObject({ phase: 'focus', completedInCycle: 1 })
++    st = { ...initialState(S), completedInCycle: 3 }
++    st = finish(st)
++    expect(st.phase).toBe('long')
++    expect(skip(st, S)).toMatchObject({ phase: 'focus', completedInCycle: 0 })
++  })
++})
++
++describe('background accuracy', () => {
++  it('a tick long after the end completes at the real end time, not at tick time', () => {
++    const st = start(initialState(S), T0)
++    const r = tick(st, S, T0 + 3 * 60 * MIN) // tab throttled/asleep for 3 hours
++    expect(r.completed).toEqual({ phase: 'focus', endedAt: T0 + 25 * MIN })
++    expect(r.state).toMatchObject({ phase: 'short', status: 'idle' })
++  })
++
++  it('a tick before the end changes nothing', () => {
++    const st = start(initialState(S), T0)
++    const r = tick(st, S, T0 + 25 * MIN - 1)
++    expect(r.completed).toBeNull()
++    expect(r.state).toBe(st)
++  })
++
++  it('remaining never goes below zero', () => {
++    expect(remaining(start(initialState(S), T0), T0 + 99 * MIN)).toBe(0)
++  })
++})
++
++describe('display', () => {
++  it('formats mm:ss, rounding partial seconds up', () => {
++    expect(formatTime(25 * MIN)).toBe('25:00')
++    expect(formatTime(12 * MIN + 4000)).toBe('12:04')
++    expect(formatTime(12 * MIN + 3001)).toBe('12:04')
++    expect(formatTime(1)).toBe('00:01')
++    expect(formatTime(0)).toBe('00:00')
++    expect(formatTime(90 * MIN)).toBe('90:00')
++  })
++
++  it('builds the tab title from remaining time and phase', () => {
++    const st = start(initialState(S), T0)
++    expect(tabTitle(st, T0 + 25 * MIN - (12 * MIN + 4000))).toBe('12:04 - Focus')
++    expect(tabTitle(finish(initialState(S)), T0)).toBe('05:00 - Short break')
++  })
++})
++
++describe('settings', () => {
++  it('validates 1–90 whole minutes', () => {
++    expect(validateMinutes('1')).toBeNull()
++    expect(validateMinutes('90')).toBeNull()
++    expect(validateMinutes(' 25 ')).toBeNull()
++    expect(validateMinutes('0')).toMatch(/between/)
++    expect(validateMinutes('91')).toMatch(/between/)
++    expect(validateMinutes('')).toMatch(/Enter/)
++    expect(validateMinutes('2.5')).toMatch(/whole/)
++    expect(validateMinutes('-3')).toMatch(/whole/)
++    expect(validateMinutes('abc')).toMatch(/whole/)
++  })
++
++  it('new durations apply to an idle phase but not to a running or paused one', () => {
++    const s2 = { focus: 50, short: 10, long: 30 }
++    expect(remaining(applySettings(initialState(S), s2), T0)).toBe(50 * MIN)
++    const running = start(initialState(S), T0)
++    expect(applySettings(running, s2)).toBe(running)
++    const paused = pause(running, T0 + MIN)
++    expect(applySettings(paused, s2)).toBe(paused)
++  })
++
++  it('custom durations drive the cycle', () => {
++    const s2 = { focus: 1, short: 2, long: 3 }
++    let st = initialState(s2)
++    const r = tick(start(st, T0), s2, T0 + MIN)
++    st = r.state
++    expect(remaining(st, T0)).toBe(2 * MIN)
++  })
++})
++
++describe('persistence', () => {
++  it('round-trips settings and falls back per field on bad data', () => {
++    const store = fakeStore()
++    expect(loadSettings(store)).toEqual(S)
++    saveSettings(store, { focus: 40, short: 7, long: 20 })
++    expect(loadSettings(store)).toEqual({ focus: 40, short: 7, long: 20 })
++    store.setItem(KEYS.settings, JSON.stringify({ focus: 0, short: 7, long: 'x' }))
++    expect(loadSettings(store)).toEqual({ focus: 25, short: 7, long: 15 })
++    store.setItem(KEYS.settings, '{not json')
++    expect(loadSettings(store)).toEqual(S)
++  })
++
++  it('keeps only today’s log entries', () => {
++    const store = fakeStore()
++    const yesterday: LogEntry = { id: 'a', task: 'old', finishedAt: T0 - 24 * 60 * MIN, minutes: 25 }
++    const today: LogEntry = { id: 'b', task: 'write', finishedAt: T0 + MIN, minutes: 25 }
++    saveLog(store, [yesterday, today])
++    expect(loadLog(store, T0 + 2 * MIN)).toEqual([today])
++    expect(todaysLog([yesterday, today], T0)).toEqual([today])
++    store.setItem(KEYS.log, '"nope"')
++    expect(loadLog(store, T0)).toEqual([])
++  })
++
++  it('restores a running timer so it keeps counting across a reload', () => {
++    const store = fakeStore()
++    const st = start(initialState(S), T0)
++    saveTimer(store, st)
++    const back = loadTimer(store, S)
++    expect(remaining(back, T0 + 5 * MIN)).toBe(20 * MIN)
++    expect(loadTimer(fakeStore(), S)).toEqual(initialState(S))
++    store.setItem(KEYS.timer, JSON.stringify({ phase: 'nap' }))
++    expect(loadTimer(store, S)).toEqual(initialState(S))
++  })
++
++  it('round-trips the mute flag', () => {
++    const store = fakeStore()
++    expect(loadMuted(store)).toBe(false)
++    saveMuted(store, true)
++    expect(loadMuted(store)).toBe(true)
++  })
++
++  it('survives a storage that throws', () => {
++    const bad = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('full') } }
++    expect(loadSettings(bad)).toEqual(S)
++    expect(() => saveSettings(bad, S)).not.toThrow()
++  })
++})
+diff --git a/src/timer.ts b/src/timer.ts
+new file mode 100644
+index 0000000..6a9e3a6
+--- /dev/null
++++ b/src/timer.ts
+@@ -0,0 +1,228 @@
++// Pure Pomodoro logic: no React, no DOM. Time is always passed in as `now` (ms since epoch)
++// so the countdown is derived from timestamps, never from counting ticks.
++
++export type Phase = 'focus' | 'short' | 'long'
++export type Status = 'idle' | 'running' | 'paused'
++
++export interface Settings {
++  focus: number // minutes
++  short: number
++  long: number
++}
++
++export const DEFAULT_SETTINGS: Settings = { focus: 25, short: 5, long: 15 }
++export const SESSIONS_PER_CYCLE = 4
++export const MIN_MINUTES = 1
++export const MAX_MINUTES = 90
++
++export interface TimerState {
++  phase: Phase
++  status: Status
++  /** Timestamp when the running phase ends. Only meaningful while running. */
++  endsAt: number | null
++  /** Remaining time while idle or paused. */
++  remainingMs: number
++  /** Focus sessions completed in the current cycle (0..4). */
++  completedInCycle: number
++}
++
++export interface LogEntry {
++  id: string
++  task: string
++  finishedAt: number
++  minutes: number
++}
++
++export const PHASE_LABEL: Record<Phase, string> = {
++  focus: 'Focus',
++  short: 'Short break',
++  long: 'Long break',
++}
++
++export function phaseMs(phase: Phase, s: Settings): number {
++  return s[phase] * 60_000
++}
++
++export function initialState(s: Settings): TimerState {
++  return { phase: 'focus', status: 'idle', endsAt: null, remainingMs: phaseMs('focus', s), completedInCycle: 0 }
++}
++
++export function remaining(state: TimerState, now: number): number {
++  if (state.status === 'running' && state.endsAt !== null) return Math.max(0, state.endsAt - now)
++  return state.remainingMs
++}
++
++export function start(state: TimerState, now: number): TimerState {
++  if (state.status === 'running') return state
++  return { ...state, status: 'running', endsAt: now + state.remainingMs }
++}
++
++export function pause(state: TimerState, now: number): TimerState {
++  if (state.status !== 'running') return state
++  return { ...state, status: 'paused', endsAt: null, remainingMs: remaining(state, now) }
++}
++
++export function toggle(state: TimerState, now: number): TimerState {
++  return state.status === 'running' ? pause(state, now) : start(state, now)
++}
++
++/** Reset the current phase back to its full length, stopped. */
++export function reset(state: TimerState, s: Settings): TimerState {
++  return { ...state, status: 'idle', endsAt: null, remainingMs: phaseMs(state.phase, s) }
++}
++
++function enter(phase: Phase, completedInCycle: number, s: Settings): TimerState {
++  return { phase, status: 'idle', endsAt: null, remainingMs: phaseMs(phase, s), completedInCycle }
++}
++
++/** The phase that follows a completed one. */
++export function afterComplete(state: TimerState, s: Settings): TimerState {
++  if (state.phase === 'focus') {
++    const done = state.completedInCycle + 1
++    return enter(done >= SESSIONS_PER_CYCLE ? 'long' : 'short', done, s)
++  }
++  return enter('focus', state.phase === 'long' ? 0 : state.completedInCycle, s)
++}
++
++/**
++ * Skip the current phase. A skipped focus session is not logged and does not count toward
++ * the long break; a skipped long break still starts a fresh cycle.
++ */
++export function skip(state: TimerState, s: Settings): TimerState {
++  if (state.phase === 'focus') {
++    return enter(state.completedInCycle >= SESSIONS_PER_CYCLE ? 'long' : 'short', state.completedInCycle, s)
++  }
++  return enter('focus', state.phase === 'long' ? 0 : state.completedInCycle, s)
++}
++
++export interface TickResult {
++  state: TimerState
++  /** Set when a phase just finished: which one and when it actually ended. */
++  completed: { phase: Phase; endedAt: number } | null
++}
++
++/**
++ * Advance the timer to `now`. If the running phase ran out (even long ago, e.g. while the tab
++ * was in the background or closed), it completes at its real end time and the next phase waits idle.
++ */
++export function tick(state: TimerState, s: Settings, now: number): TickResult {
++  if (state.status !== 'running' || state.endsAt === null || now < state.endsAt) return { state, completed: null }
++  return { state: afterComplete(state, s), completed: { phase: state.phase, endedAt: state.endsAt } }
++}
++
++/** When settings change, an untouched (idle) phase picks up its new length. */
++export function applySettings(state: TimerState, s: Settings): TimerState {
++  return state.status === 'idle' ? { ...state, remainingMs: phaseMs(state.phase, s) } : state
++}
++
++/** mm:ss, rounding up so a fresh 25-minute session shows 25:00 and it reads 00:00 only at the end. */
++export function formatTime(ms: number): string {
++  const total = Math.max(0, Math.ceil(ms / 1000))
++  const m = Math.floor(total / 60)
++  const sec = total % 60
++  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
++}
++
++export function tabTitle(state: TimerState, now: number): string {
++  return `${formatTime(remaining(state, now))} - ${PHASE_LABEL[state.phase]}`
++}
++
++/** Validate one duration field. Returns an error message, or null when valid. */
++export function validateMinutes(raw: string): string | null {
++  const t = raw.trim()
++  if (t === '') return 'Enter a number of minutes.'
++  if (!/^\d+$/.test(t)) return 'Use whole minutes.'
++  const n = Number(t)
++  if (n < MIN_MINUTES || n > MAX_MINUTES) return `Must be between ${MIN_MINUTES} and ${MAX_MINUTES}.`
++  return null
++}
++
++export function dayKey(ms: number): string {
++  const d = new Date(ms)
++  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
++}
++
++export function todaysLog(log: LogEntry[], now: number): LogEntry[] {
++  const today = dayKey(now)
++  return log.filter((e) => dayKey(e.finishedAt) === today)
++}
++
++// ---- localStorage persistence (storage is injected so tests can pass a fake) ----
++
++export const KEYS = { settings: 'pomodoro.settings', log: 'pomodoro.log', timer: 'pomodoro.timer', muted: 'pomodoro.muted' }
++
++type Store = Pick<Storage, 'getItem' | 'setItem'>
++
++function read(store: Store, key: string): unknown {
++  try {
++    const raw = store.getItem(key)
++    return raw === null ? null : JSON.parse(raw)
++  } catch {
++    return null
++  }
++}
++
++function write(store: Store, key: string, value: unknown) {
++  try {
++    store.setItem(key, JSON.stringify(value))
++  } catch {
++    // storage full or blocked: the app keeps working in memory
++  }
++}
++
++const validMin = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= MIN_MINUTES && v <= MAX_MINUTES
++
++export function loadSettings(store: Store): Settings {
++  const v = read(store, KEYS.settings) as Partial<Settings> | null
++  if (!v || typeof v !== 'object') return { ...DEFAULT_SETTINGS }
++  return {
++    focus: validMin(v.focus) ? v.focus! : DEFAULT_SETTINGS.focus,
++    short: validMin(v.short) ? v.short! : DEFAULT_SETTINGS.short,
++    long: validMin(v.long) ? v.long! : DEFAULT_SETTINGS.long,
++  }
++}
++
++export const saveSettings = (store: Store, s: Settings) => write(store, KEYS.settings, s)
++
++export function loadLog(store: Store, now: number): LogEntry[] {
++  const v = read(store, KEYS.log)
++  if (!Array.isArray(v)) return []
++  const entries = v.filter(
++    (e): e is LogEntry =>
++      e && typeof e.id === 'string' && typeof e.task === 'string' && typeof e.finishedAt === 'number' && typeof e.minutes === 'number',
++  )
++  return todaysLog(entries, now) // older days are dropped
++}
++
++export const saveLog = (store: Store, log: LogEntry[]) => write(store, KEYS.log, log)
++
++export function loadTimer(store: Store, s: Settings): TimerState {
++  const v = read(store, KEYS.timer) as TimerState | null
++  const phases: Phase[] = ['focus', 'short', 'long']
++  const statuses: Status[] = ['idle', 'running', 'paused']
++  if (
++    !v ||
++    !phases.includes(v.phase) ||
++    !statuses.includes(v.status) ||
++    typeof v.remainingMs !== 'number' ||
++    typeof v.completedInCycle !== 'number' ||
++    (v.status === 'running' && typeof v.endsAt !== 'number')
++  ) {
++    return initialState(s)
++  }
++  return {
++    phase: v.phase,
++    status: v.status,
++    endsAt: v.status === 'running' ? v.endsAt : null,
++    remainingMs: Math.max(0, Math.min(v.remainingMs, phaseMs(v.phase, s))),
++    completedInCycle: Math.max(0, Math.min(SESSIONS_PER_CYCLE, Math.floor(v.completedInCycle))),
++  }
++}
++
++export const saveTimer = (store: Store, t: TimerState) => write(store, KEYS.timer, t)
++
++export function loadMuted(store: Store): boolean {
++  return read(store, KEYS.muted) === true
++}
++
++export const saveMuted = (store: Store, m: boolean) => write(store, KEYS.muted, m)

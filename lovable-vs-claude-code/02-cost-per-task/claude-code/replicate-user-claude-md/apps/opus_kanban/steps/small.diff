@@ -1,0 +1,153 @@
+diff --git a/e2e/board.spec.ts b/e2e/board.spec.ts
+index fa96de2..f51e2dc 100644
+--- a/e2e/board.spec.ts
++++ b/e2e/board.spec.ts
+@@ -66,7 +66,7 @@ test.beforeEach(async ({ page }) => {
+ })
+ 
+ test('empty board shows three columns, counts and empty states', async ({ page }, info) => {
+-  for (const [id, name] of [['todo', 'To do'], ['doing', 'Doing'], ['done', 'Done']] as const) {
++  for (const [id, name] of [['todo', 'To do'], ['doing', 'In progress'], ['done', 'Done']] as const) {
+     await expect(column(page, id).getByRole('heading', { name, level: 2 })).toBeVisible()
+     await expect(page.getByTestId(`count-${id}`)).toContainText('0')
+     await expect(column(page, id).getByText('No cards yet')).toBeVisible()
+@@ -136,7 +136,7 @@ test('drag between columns and reorder within a column', async ({ page }, info)
+   await dragTo(page, card(page, 'C'), card(page, 'B'), 'bottom', mobile)
+   await expect.poll(() => titlesIn(page, 'todo')).toEqual(['A', 'B', 'C'])
+ 
+-  // Move to another column (empty Doing).
++  // Move to another column (empty In progress).
+   await dragTo(page, card(page, 'A'), column(page, 'doing'), 'bottom', mobile)
+   await expect.poll(() => titlesIn(page, 'doing')).toEqual(['A'])
+   await expect.poll(() => titlesIn(page, 'todo')).toEqual(['B', 'C'])
+@@ -181,7 +181,7 @@ test('keyboard moves a card between columns and reorders it', async ({ page }) =
+   await addCard(page, 'todo', 'K2')
+ 
+   // Visible move buttons work and keep focus on the card.
+-  await card(page, 'K1').getByRole('button', { name: 'Move to Doing' }).focus()
++  await card(page, 'K1').getByRole('button', { name: 'Move to In progress' }).focus()
+   await page.keyboard.press('Enter')
+   await expect.poll(() => titlesIn(page, 'doing')).toEqual(['K1'])
+   await expect(card(page, 'K1').getByRole('button', { name: 'Move to Done' })).toBeFocused()
+@@ -211,12 +211,12 @@ test('keyboard moves a card between columns and reorders it', async ({ page }) =
+   await expect(card(page, 'K1')).toBeVisible()
+ })
+ 
+-test('WIP limit warning on Doing above 3 cards', async ({ page }, info) => {
++test('WIP limit warning on In progress above 3 cards', async ({ page }, info) => {
+   for (const t of ['W1', 'W2', 'W3']) await addCard(page, 'doing', t)
+   await expect(page.getByTestId('count-doing')).toHaveText('3 / 3')
+   await expect(page.getByText(/WIP limit exceeded/)).toHaveCount(0)
+   await addCard(page, 'doing', 'W4')
+-  await expect(page.getByText(/WIP limit exceeded: 4 cards in Doing/)).toBeVisible()
++  await expect(page.getByText(/WIP limit exceeded: 4 cards in In progress/)).toBeVisible()
+   await expect(page.getByTestId('count-doing')).toHaveText('4 / 3')
+   await page.screenshot({ path: `shots/${info.project.name}-wip.png`, fullPage: true })
+   await card(page, 'W4').getByRole('button', { name: 'Move to Done' }).click()
+@@ -261,12 +261,30 @@ test('overdue cards are highlighted unless done', async ({ page }, info) => {
+   await expect(card(page, 'Future').locator('[data-overdue]')).toHaveCount(0)
+   await expect(card(page, 'Today').locator('[data-overdue]')).toHaveCount(0)
+   await page.screenshot({ path: `shots/${info.project.name}-overdue.png`, fullPage: true })
+-  await card(page, 'Late').getByRole('button', { name: 'Move to Doing' }).click()
++  await card(page, 'Late').getByRole('button', { name: 'Move to In progress' }).click()
+   await expect(card(page, 'Late')).toContainText('Overdue')
+   await card(page, 'Late').getByRole('button', { name: 'Move to Done' }).click()
+   await expect(card(page, 'Late')).not.toContainText('Overdue')
+ })
+ 
++test('Done card titles are struck through, others are not', async ({ page }, info) => {
++  await addCard(page, 'todo', 'Open task')
++  await addCard(page, 'doing', 'Busy task')
++  await addCard(page, 'done', 'Shipped task')
++  const deco = (title: string) => card(page, title).locator('h3').evaluate((el) => getComputedStyle(el).textDecorationLine)
++  expect(await deco('Shipped task')).toBe('line-through')
++  expect(await deco('Open task')).toBe('none')
++  expect(await deco('Busy task')).toBe('none')
++  // Moving out of Done removes it; moving in adds it.
++  await card(page, 'Shipped task').getByRole('button', { name: 'Move to In progress' }).click()
++  expect(await deco('Shipped task')).toBe('none')
++  await card(page, 'Busy task').getByRole('button', { name: 'Move to Done' }).click()
++  expect(await deco('Busy task')).toBe('line-through')
++  await page.reload()
++  expect(await deco('Busy task')).toBe('line-through')
++  await page.screenshot({ path: `shots/${info.project.name}-renamed.png`, fullPage: true })
++})
++
+ test('board survives reload, including all fields', async ({ page }, info) => {
+   await addCard(page, 'todo', 'Persist me', { description: 'details', due: '2099-12-31', priority: 'High' })
+   await addCard(page, 'doing', 'In progress')
+diff --git a/src/App.tsx b/src/App.tsx
+index f9a52d5..fb02b56 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -229,7 +229,7 @@ export default function App() {
+                   <p role="status" className="mb-3 flex gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">
+                     <span aria-hidden>⚠</span>
+                     <span>
+-                      WIP limit exceeded: {total} cards in Doing (limit {WIP_LIMIT}). Finish something before starting more.
++                      WIP limit exceeded: {total} cards in {title} (limit {WIP_LIMIT}). Finish something before starting more.
+                     </span>
+                   </p>
+                 )}
+@@ -274,7 +274,7 @@ export default function App() {
+           className="pointer-events-none fixed top-0 left-0 z-50"
+           style={{ width: drag.width, transform: `translate(${drag.x - drag.offsetX}px, ${drag.y - drag.offsetY}px) rotate(2deg)` }}
+         >
+-          <CardFace card={draggedCard} overdue={false} className="shadow-2xl ring-2 ring-blue-500" />
++          <CardFace card={draggedCard} overdue={false} done={findCard(board, drag.cardId)?.column === 'done'} className="shadow-2xl ring-2 ring-blue-500" />
+         </div>
+       )}
+ 
+@@ -376,6 +376,7 @@ function CardItem({ card, column, overdue, drag, onPointerDown, onEdit, onDelete
+         <CardFace
+           card={card}
+           overdue={overdue}
++          done={column === 'done'}
+           actions={
+             <div className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2 dark:border-slate-700/60">
+               {prev && (
+@@ -408,7 +409,7 @@ function CardItem({ card, column, overdue, drag, onPointerDown, onEdit, onDelete
+   )
+ }
+ 
+-function CardFace({ card, overdue, actions, className = '' }: { card: Card; overdue: boolean; actions?: React.ReactNode; className?: string }) {
++function CardFace({ card, overdue, done = false, actions, className = '' }: { card: Card; overdue: boolean; done?: boolean; actions?: React.ReactNode; className?: string }) {
+   return (
+     <article
+       className={`relative rounded-lg border bg-white p-3 pl-7 shadow-sm dark:bg-slate-800 ${
+@@ -432,7 +433,7 @@ function CardFace({ card, overdue, actions, className = '' }: { card: Card; over
+         <span className={`prio-${card.priority} rounded px-1.5 py-0.5 text-[11px] font-bold tracking-wide uppercase`}>{PRIORITY_LABEL[card.priority]}</span>
+         {overdue && <span className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white uppercase">Overdue</span>}
+       </div>
+-      <h3 className="font-medium break-words">{card.title}</h3>
++      <h3 className={`font-medium break-words ${done ? 'text-slate-500 line-through decoration-slate-400 dark:text-slate-400' : ''}`}>{card.title}</h3>
+       {card.description && <p className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-line text-slate-600 dark:text-slate-300">{card.description}</p>}
+       {card.due && (
+         <p className={`mt-2 flex items-center gap-1 text-xs ${overdue ? 'font-semibold text-red-700 dark:text-red-300' : 'text-slate-500 dark:text-slate-400'}`}>
+diff --git a/src/board.test.ts b/src/board.test.ts
+index 49cb11e..ea0bb74 100644
+--- a/src/board.test.ts
++++ b/src/board.test.ts
+@@ -168,7 +168,7 @@ describe('overdue and WIP', () => {
+   it('formats today as a local date', () => {
+     expect(todayString(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05')
+   })
+-  it('warns only when Doing has more than 3 cards', () => {
++  it('warns only when In progress has more than 3 cards', () => {
+     expect(isOverWip(board([], ['a', 'b', 'c']))).toBe(false)
+     expect(isOverWip(board([], ['a', 'b', 'c', 'd']))).toBe(true)
+   })
+diff --git a/src/board.ts b/src/board.ts
+index 5aa8f8b..6c91374 100644
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -2,7 +2,8 @@
+ 
+ export const COLUMNS = [
+   { id: 'todo', title: 'To do' },
+-  { id: 'doing', title: 'Doing' },
++  // The id stays 'doing' so boards already saved in localStorage keep loading.
++  { id: 'doing', title: 'In progress' },
+   { id: 'done', title: 'Done' },
+ ] as const
+ 

@@ -1,0 +1,1112 @@
+[
+ {
+  "kind": "q1",
+  "rc": 0,
+  "wall_s": 92,
+  "result": {
+   "duration_api_ms": 83416,
+   "stop_reason": "end_turn",
+   "session_id": "73ce6d2d-58bf-4357-a2b1-25221f246824",
+   "total_cost_usd": 1.2084619,
+   "usage": {
+    "input_tokens": 28,
+    "cache_creation_input_tokens": 108785,
+    "cache_read_input_tokens": 917657,
+    "output_tokens": 7720,
+    "output_tokens_details": {
+     "thinking_tokens": 489
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 108785,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2913,
+      "cache_read_input_tokens": 106566,
+      "cache_creation_input_tokens": 2219,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2219
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1290,
+     "outputTokens": 19,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001385,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 28,
+     "outputTokens": 7720,
+     "cacheReadInputTokens": 917657,
+     "cacheCreationInputTokens": 108785,
+     "webSearchRequests": 0,
+     "costUSD": 1.2083234,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 489,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 108785,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_015EomSQMLWU6Sv6HqfR7LKC",
+     "tool_input": {
+      "command": "cd \"<BENCH>\" && git clone -q https://github.com/phuryn/staygreen staygreen && cd staygreen && git log -1 --oneline && ls -a && find . -path ./.git -prune -o -type f -print | grep -v node_modules | head -300",
+      "description": "Clone staygreen into scratchpad and list files"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_013aUndmaWCTugfXaHt27iAX",
+     "tool_input": {
+      "command": "S=\"<BENCH>\"; git clone -q https://github.com/phuryn/staygreen \"$S/staygreen\" && git -C \"$S/staygreen\" log -1 --oneline && find \"$S/staygreen\" -path '*/.git' -prune -o -type f -print | sed \"s|$S/staygreen/||\" | head -400",
+      "description": "Clone staygreen into scratchpad and list files"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 23,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "Staygreen has six parts you deploy yourself, plus three hosted services (Supabase, Clerk, Postmark). A failed check does not send email directly. A second location has to confirm it, the result is written to Postgres, and a database trigger queues an alert that a Cloudflare Worker picks up and emails through Postmark once a minute.\n\nI cloned the repo to `<BENCH>\\staygreen` and made no changes to your project. Paths below are relative to that folder.\n\n## Separately deployed parts\n\n| Part | Code | Where it runs |\n|---|---|---|\n| **Dashboard / API / MCP** (Next.js) | `src/` | Netlify (`netlify.toml`, plus two rate-limit functions in `netlify/edge-functions/`), or any Node 22+ host (`docs/deploying.md:13`) |\n| **Probes** (check runners) | `probe/` \u2192 `probe/dist/main.js` | At least two Linux VMs in different regions, suggested DigitalOcean 1 GB droplets, run as a systemd service (`docs/deploying.md:16,66`; `examples/probe/staygreen-probe.service`). Probes talk to each other over signed HTTP on port 7070 (`probe/main.ts:13-15`) |\n| **Status edge** (public status pages, badges, widget) | `edge/main.ts`, `widget/client.ts` | Node renderer on loopback port 7080, with Caddy in front, sharing one probe droplet. Cloudflare proxies the status hostname (`docs/deploying.md:17,69`; `examples/edge/`) |\n| **Heartbeat ingest Worker** | `ingest/src/` | Cloudflare Worker on the heartbeat host, connecting through Hyperdrive with a restricted `ingest` login (`ingest/wrangler.toml`, `docs/deploying.md:67`) |\n| **Alert sender Worker** | `sender/worker.ts` | Cloudflare Worker with a cron every minute, plus Telegram's webhook at `/api/telegram/webhook` on its own domain (`examples/sender/wrangler.toml`) |\n| **Watchdog Worker** | `watchdog/worker.ts`, `watchdog/check.ts` | Cloudflare Worker with a cron every minute and a SQLite Durable Object. It sends a Telegram message to the operator when a probe stops writing data (`examples/watchdog/wrangler.toml`) |\n\n- **Hosted services:** Supabase Postgres holds all the state, and the migrations in `supabase/migrations/` define roles and grants as well as tables. Clerk handles sign-in, organizations and billing. Postmark sends email and Telegram carries chat alerts (`docs/deploying.md:14-21`).\n- **CLI and MCP package:** `packages/staygreen` is a CLI and stdio MCP bridge to the API, not another database client (`docs/architecture.md:44`).\n- **Separate database logins:** only the dashboard holds the Supabase secret key. Probes, edge and Workers each use their own restricted login: `probe`, `ingest`, `edge`, `alert_sender` and `watchdog` (`docs/architecture.md:48`, `docs/deploying.md:65`).\n\n## How one failed check becomes an email\n\n1. **Scheduling.** Each probe ranks the live probes for a given monitor (`probe/schedule.ts:4,51`). The top-ranked probe is the monitor's \"home\", and checks are spread across the ranked probes on a timer (`probe/runtime.ts:250-267`).\n\n2. **The check fails.** `runCheck` runs the HTTP, TCP, SSL, DNS, Stripe or Supabase check (`probe/runtime.ts:456-509`). If the probe's canary says its own network is cut off, the failure is thrown away (`probe/runtime.ts:499`).\n\n3. **A second location confirms it.** `needsConfirmation` decides whether a failure must be re-checked. DNS failures, heartbeats and invalid certificates skip this step (`probe/state.ts:70-75`).\n   - The probe asks other probes, preferring another continent, with an HMAC-signed `POST /confirm` (`probe/runtime.ts:569-590`, `probe/peer.ts:9,23-33,111`).\n   - The whole confirmation has a 30-second deadline (`probe/runtime.ts:110`).\n   - If no other probe is live, the same probe re-checks itself after 20 seconds (`probe/runtime.ts:572-576`).\n   - If peers are live but none answers in time, the failure stays unconfirmed and is ignored (`probe/runtime.ts:588`).\n\n4. **The result goes to the home probe.** If the checking probe is not the home, it batches the result and sends it once a second with a signed `POST /report` (`probe/runtime.ts:605-638`, `probe/peer.ts:16,122`).\n\n5. **The home probe updates the database in one transaction.** `PgStore.apply` locks the monitor row (`probe_lock_monitor`) and checks it against the monitor's version, pause state and duplicate reports (`probe/store.ts:303-329`). It then runs the state machine:\n   - A confirmed failure produces three effects: a change to `down`, an `open_incident` record and a `record_failure` record (`probe/state.ts:88-131`).\n   - These are committed through `probe_commit_monitor` (`probe/store.ts:402-407`).\n   - That function inserts the row into `public.incidents` (`supabase/migrations/20261023100000_service_monitors.sql:170-187`).\n\n6. **A trigger queues the alert.** In the same transaction, the `incidents_alert_events` trigger adds an `opened` row to the queue table `alert_events` (`supabase/migrations/20261022195510_alerts_email.sql:209-239`). An incident therefore never exists without its pending alert, and a rolled-back one never sends (`supabase/migrations/20261022195510_alerts_email.sql:4-6`).\n\n7. **The sender Worker wakes every minute.** `scheduled()` connects through Hyperdrive as `alert_sender` and calls `runSender` (`sender/worker.ts:14-22,67-77`). `runSender` then:\n   - reads pending events (`alert_pending_events`);\n   - reads the workspace's current members from Clerk, because member addresses are never stored (`src/lib/alerts/sender.ts:192-209`);\n   - calls `alert_expand`, which writes one delivery record per channel and recipient into `alert_deliveries`, skipping excluded apps and unsubscribed people (`supabase/migrations/20261022195510_alerts_email.sql:284-353`);\n   - claims records under a lease with `alert_claim` (`... FOR UPDATE SKIP LOCKED`, `:362-429`);\n   - sends through Postmark with `sendEmail` (`src/lib/alerts/sender.ts:302`) and marks each record with `alert_mark` (`:435-460`).\n\n   If a claim's lease ran out, it may already have reached Postmark, so the sender looks it up with `findSent` before retrying (`src/lib/alerts/sender.ts:344-347`). Recovery emails are held until the matching \"opened\" delivery has settled (`alerts_email.sql:381-384`).\n\n## Two discrepancies in the repo\n\n- **Old sender description.** The comment at the top of `supabase/migrations/20261022195510_alerts_email.sql:7-8,23-25` still says the sender is a Netlify scheduled function using the dashboard's own key. Migration `20261023110000_alert_sender.sql` later moved it to the restricted `alert_sender` role and the Worker. `netlify.toml` defines no scheduled function, so the comment is outdated.\n- **Channel list.** `docs/architecture.md:16` and `examples/sender/wrangler.toml:2` list Slack, Discord and webhook channels. `docs/deploying.md:26` describes those three as add-on integrations, and Slack needs your own OAuth app. Only email and Telegram are required for the sender to run (`docs/deploying.md:68`).\n\nThe watchdog sits outside the alert path above. It only notices when a probe stops writing data and messages the operator on Telegram; it never emails customers (`docs/architecture.md:36`, `examples/watchdog/wrangler.toml:1-4`).",
+   "ttft_ms": 2722,
+   "type": "result",
+   "duration_ms": 89855,
+   "uuid": "2e876266-8afd-4985-a66c-eaf3cc9c4030",
+   "ttft_stream_ms": 1067,
+   "time_to_request_ms": 166,
+   "time_to_request_phases_ms": {
+    "other": 4,
+    "system_prompt": 29,
+    "resume_other": 0,
+    "process_user_input": 2,
+    "input_attachments": 11,
+    "input_hooks": 2,
+    "conversation_append": 1,
+    "transcript_persist": 60,
+    "tool_pool_refresh": 4,
+    "init_message": 12,
+    "init_frame_send": 5,
+    "engine_pickup": 1,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 9,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 6,
+    "message_normalization": 2,
+    "client_creation": 1,
+    "request_build": 8
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 10,
+   "time_to_request_cpu_ms": 249,
+   "time_to_request_major_faults": 4458,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 4,
+    "cpu_ms": 16,
+    "major_faults": 152,
+    "setup_ms": 0,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 4,
+    "ambient_wait_ms": 3,
+    "render_ms": 1,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 4,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 1,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 2,
+    "plans_ms": 1,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 1,
+    "record_attempt_ms": 3,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 1067,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1290,
+     "outputTokens": 19,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001385,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 28,
+     "outputTokens": 7720,
+     "cacheReadInputTokens": 917657,
+     "cacheCreationInputTokens": 108785,
+     "webSearchRequests": 0,
+     "costUSD": 1.2083234,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 489,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 108785,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "q2",
+  "rc": 0,
+  "wall_s": 44,
+  "result": {
+   "duration_api_ms": 122199,
+   "stop_reason": "end_turn",
+   "session_id": "73ce6d2d-58bf-4357-a2b1-25221f246824",
+   "total_cost_usd": 1.4383873000000003,
+   "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 8413,
+    "cache_read_input_tokens": 451307,
+    "output_tokens": 3616,
+    "output_tokens_details": {
+     "thinking_tokens": 842
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8413,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2276,
+      "cache_read_input_tokens": 116077,
+      "cache_creation_input_tokens": 1121,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1121
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1290,
+     "outputTokens": 19,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001385,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 38,
+     "outputTokens": 11336,
+     "thinkingTokens": 1331,
+     "cacheReadInputTokens": 1368964,
+     "cacheCreationInputTokens": 117198,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 117198,
+     "webSearchRequests": 0,
+     "costUSD": 1.4382488000000002,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 4,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "A website (HTTP) monitor opens an incident on **one confirmed failure**: one failing check, re-checked straight away from a second location, and that re-check also fails. That makes 2 failed checks from 2 different locations. The incident closes after **2 passing checks in a row**. There is no setting to change either count; both are constants in the code.\n\n## What counts as a failed check\n\n`checkHttp` fails a check in these cases (`src/checks/http.ts`):\n- a connection, DNS, TLS, timeout or protocol error (`:85-96`);\n- a bot-protection page (`:230`);\n- a status code that doesn't match the expected one, `2xx` by default (`:231`, default at `probe/runtime.ts:474`);\n- a missing keyword (`:232`);\n- a JSON assertion that fails (`:246-249`).\n\nA slow response is not a failure. It passes with `slow: true` (`src/checks/http.ts:251-253`), and three slow passes in a row only make the monitor `degraded`, which opens no incident (`probe/state.ts:12-13,63,135-145`).\n\n## When the incident opens\n\n1. **First failure, one location.** For an HTTP check, `needsConfirmation` is true for any failure (`probe/state.ts:70-75`).\n   - If the probe's own network looks cut off, its canary discards the failure before it counts anywhere (`probe/runtime.ts:499`).\n2. **Second look, at once.** The probe asks the other live probes in ranked order, preferring another continent, with a signed `/confirm` request. The first one that answers runs the check itself (`probe/runtime.ts:569-590`, `probe/schedule.ts:72`).\n   - The whole attempt has a 30-second limit (`probe/runtime.ts:110,577`).\n   - The confirming probe skips the check if the monitor has changed since the failing check (`probe/runtime.ts:596-601`).\n   - Its own canary can also veto its failure.\n   - The second check does not need to fail for the same reason. Any failure confirms (`probe/state.ts:116`).\n3. **The verdict** (`probe/state.ts:114-131`):\n\n| First check | Second look | Verdict | Effect |\n|---|---|---|---|\n| pass | \u2014 | pass | none |\n| fail | pass | blip | nothing changes |\n| fail | no answer from any live peer within 30 s | unconfirmed | nothing changes |\n| fail | fail | **fail** | state goes to `down` and an incident opens, if the monitor wasn't already `down` |\n\n   - **Blip and unconfirmed results change nothing.** They don't count toward a failure and don't break a run of passes (`probe/state.ts:14-16,122`).\n   - **One probe running.** If no other location is live, the same probe re-checks itself after 20 seconds, so the incident opens on 2 failures from 1 location (`probe/runtime.ts:572-576`; `docs/deploying.md:32`). If other probes are live but none answers, the failure stays unconfirmed and no incident opens (`probe/runtime.ts:567-568,587-589`).\n   - **Already down.** A confirmed failure opens no second incident (`probe/state.ts:126`).\n   - **Starting state.** A monitor that is `up`, `degraded` or has never been checked (`null`) all go straight to `down`.\n4. **The database write.** The home probe locks the monitor row and runs the state machine (`probe/store.ts:303-353`). `probe_commit_monitor` then:\n   - closes any stale open incident for that monitor;\n   - inserts `\"<name> is down\"` with severity `down` and the evidence from the failing locations (`supabase/migrations/20261023100000_service_monitors.sql:170-183`).\n\n   The timeline reads \"Check failed in X\", then \"Confirmed from Y, incident opened\" (`probe/store.ts:386-392`). The insert fires the trigger that queues the \"opened\" alert (`supabase/migrations/20261022195510_alerts_email.sql:218-222`).\n\nSo the time to an incident is one check interval plus at most about 30 seconds for confirmation, or 20 seconds with a single probe.\n\n## What resolves it\n\n**Normal recovery: 2 passes in a row.** While the monitor is `down`, each pass adds one to a pass count. At `RECOVERED_AFTER = 2`, the monitor goes back to `up`, or to `degraded` if its last three passes were all slow (`probe/state.ts:17-19,64,136-141`).\n- A **confirmed failure** resets the count to zero (`probe/state.ts:130`).\n- A **blip or unconfirmed failure** leaves it as it is (`probe/state.ts:122`).\n- **Locations:** a pass needs no confirmation, so the two passes can come from the same location or from different ones. They are the monitor's next two checks in the order they reach the home probe.\n- **The close itself:** any transition away from `down` closes the open incident in the same transaction, with the timeline line \"Two checks passed, incident closed\" (`supabase/migrations/20261023100000_service_monitors.sql:157-168`).\n- **The recovery alert:** the trigger queues a \"resolved\" alert only if the monitor is now `up`, or `degraded` after a `down` incident, and the opening was alerted (`supabase/migrations/20261022195510_alerts_email.sql:224-231`).\n\n**Other ways an incident closes:**\n- **Changing the monitor's address.** `update_monitor` clears the monitor's state and closes the incident, so the new address starts fresh (`supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:1-7,105`). No recovery alert is sent, because the state is cleared rather than `up` (`alerts_email.sql:202-205`).\n- **A new outage while one is still open.** The old incident is closed with \"A new outage opened its own incident, this one closed\" and a new one opens (`supabase/migrations/20261023100000_service_monitors.sql:174-181`).\n\n**Pausing a monitor does not close its incident.** A paused monitor isn't checked and keeps its state (`probe/state.ts:22`, `probe/runtime.ts:251`). Results that arrive for it are dropped (`probe/store.ts:314-316`), so the incident stays open until checks resume and pass twice.",
+   "ttft_ms": 8055,
+   "type": "result",
+   "duration_ms": 42091,
+   "uuid": "312f5bf7-b19e-4098-9bdc-27c90cadb35f",
+   "ttft_stream_ms": 997,
+   "time_to_request_ms": 258,
+   "time_to_request_phases_ms": {
+    "other": 7,
+    "system_prompt": 60,
+    "resume_other": 0,
+    "process_user_input": 4,
+    "input_attachments": 13,
+    "input_hooks": 3,
+    "conversation_append": 0,
+    "transcript_persist": 98,
+    "tool_pool_refresh": 2,
+    "init_message": 14,
+    "init_frame_send": 4,
+    "engine_pickup": 2,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 1,
+    "request_announcements": 4,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 10,
+    "message_normalization": 9,
+    "client_creation": 4,
+    "request_build": 16
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 64,
+   "time_to_request_cpu_ms": 546,
+   "time_to_request_major_faults": 7716,
+   "input_attachments_detail": {
+    "slowest_producer": "environment",
+    "slowest_producer_ms": 2,
+    "cpu_ms": 15,
+    "major_faults": 414,
+    "changed_files_reread": 0,
+    "setup_ms": 2,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 7,
+    "ambient_wait_ms": 2,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 8,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 7,
+    "images_ms": 0,
+    "post_process_ms": 2,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 70,
+    "wire_messages": 32
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 1,
+    "plans_ms": 2,
+    "retry_setup_ms": 1,
+    "sent_build_ms": 3,
+    "record_attempt_ms": 6,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 998,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 10,
+     "outputTokens": 3616,
+     "cacheReadInputTokens": 451307,
+     "cacheCreationInputTokens": 8413,
+     "webSearchRequests": 0,
+     "costUSD": 0.2299254,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 842,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 8413,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "q3",
+  "rc": 0,
+  "wall_s": 96,
+  "result": {
+   "duration_api_ms": 210371,
+   "stop_reason": "end_turn",
+   "session_id": "73ce6d2d-58bf-4357-a2b1-25221f246824",
+   "total_cost_usd": 2.2929769,
+   "usage": {
+    "input_tokens": 22,
+    "cache_creation_input_tokens": 50604,
+    "cache_read_input_tokens": 1396548,
+    "output_tokens": 8518,
+    "output_tokens_details": {
+     "thinking_tokens": 1826
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 50604,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3942,
+      "cache_read_input_tokens": 166472,
+      "cache_creation_input_tokens": 1330,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1330
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1290,
+     "outputTokens": 19,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001385,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 60,
+     "outputTokens": 19854,
+     "thinkingTokens": 3157,
+     "cacheReadInputTokens": 2765512,
+     "cacheCreationInputTokens": 167802,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 167802,
+     "webSearchRequests": 0,
+     "costUSD": 2.2928384,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 14,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "Staygreen has two plans, Free and Builder, defined in one table in `src/lib/plans.ts:73-110`. A Builder workspace is one whose Clerk session holds the `scale_builder` feature; any other result, including an error reading Clerk, counts as Free (`src/lib/plans.ts:145-161`). Most count limits are enforced in Postgres functions, which receive the numbers from the app on every call. Two Free limits (MCP monitors and 10-minute MCP checks) are listed but nothing enforces them yet.\n\n## The limits\n\n| Limit | Free | Builder |\n|---|---|---|\n| Apps | 1 | 10 |\n| Status pages | 1 | 10 |\n| Monitors (the auto-added SSL monitor is not counted) | 50 | 100 |\n| Monitors per host (SSL monitors not counted) | 5 | \"fair use\", which means the monitor limit |\n| HTTP / TCP check interval | 3 min | 1 min |\n| Stripe poll interval | 10 min | 5 min |\n| Stripe monitors | 1 | 3 |\n| Supabase monitors | 1 | \"cap\", which means the monitor limit |\n| MCP monitors / MCP check interval | 2 / 10 min | cap / 5 min |\n| Heartbeat monitors | 5 | 50 |\n| Assertions per HTTP monitor | 3 | 10 |\n| Assertions per heartbeat | 1 | 5 |\n| Probe locations | Toronto, San Francisco | adds Frankfurt |\n| History | 30 days | 1 year |\n| API / MCP calls per minute | 30 | 120 |\n\nAll rows come from `src/lib/plans.ts:73-110`.\n\n- **Feature switches.** Each of these is its own Clerk feature, all included in Builder: `white_label`, `private_pages`, `subscribers`, `alert_rules`, `history_1y`, `notify_teammates` (`src/lib/plans.ts:11-19,166-174`).\n- **Demo plan.** There is also a private owner-only demo plan, `scale_demo`: Builder plus 100 apps, 1000 monitors, 500 heartbeats and 100 status pages (`src/lib/plans.ts:112-117`).\n- **Self-hosted.** `SELF_HOSTED_PLAN=builder` gives every workspace Builder's normal limits, never the demo counts (`src/lib/self-hosted-plan.ts:5-10`, `src/lib/session.ts:32`). The app refuses to start with it on Staygreen's own hosted domains (`src/lib/env-schema.ts:130-134`).\n\n## Where each limit is enforced\n\nThe app reads the session's limits and passes them as arguments to Postgres functions. The functions lock the workspace row, count, and refuse (`src/lib/plans.ts:6-7`). If a limit argument is missing they raise `limits_required`, so a call can't skip the check. Refusals become readable messages in `src/lib/db-errors.ts:56-67`.\n\n**Apps** \u2192 `create_app` counts the workspace's apps and raises `app_limit` (`supabase/migrations/20261022124400_apps_limit_and_logo.sql:55-68`). It's called from `src/app/(app)/app/actions.ts:109-115`. A workspace already over the limit keeps its apps; only the next one is refused (`:63-64`).\n\n**Status pages** \u2192 `create_status_page` raises `page_limit` (`supabase/migrations/20261021210216_phase1_dashboard.sql:410-422`), called from `src/app/(app)/app/actions.ts:827-834`.\n\n**HTTP, TCP, SSL, DNS and heartbeat monitors** \u2192 `create_monitor`, latest version in `supabase/migrations/20261022040000_heartbeat_url_sealed.sql:29-118`, called from `src/app/(app)/app/actions.ts:232-253`:\n- Monitor count: `monitor_limit`, counting `not auto` rows (`:82-85`).\n- Heartbeat count: `heartbeat_limit` (`:87-92`).\n- Assertions: `assertion_limit`, using the heartbeat or HTTP limit depending on type (`:94-99`).\n- Interval:\n  - HTTP and TCP must be at least the plan minimum.\n  - DNS must be at least 600 s.\n  - SSL is fixed at 21600 s.\n  - All three raise `interval_not_allowed` (`:101-105`).\n- Per host: `host_limit`, SSL excluded (`:107-113`).\n\n**Editing a monitor** \u2192 `update_monitor` repeats the assertion, interval and per-host checks but not the count (`supabase/migrations/20261022081211_monitor_edit_closes_incident.sql:39-82`; caller `src/app/(app)/app/actions.ts:346-365`).\n\n**Stripe and Supabase monitors** \u2192 `save_service_monitor`, called from `src/app/(app)/app/actions.ts:308-316`. On create it checks:\n- total monitors (`monitor_limit`);\n- monitors of that type (`service_monitor_limit`), using `stripeAccounts`, or for Supabase the cap turned into the monitor limit;\n- monitors per host.\n\nThe interval is limited to fixed values: 60 or 180 s for Supabase, 300 or 600 s for Stripe (`supabase/migrations/20261023100000_service_monitors.sql:15-60`).\n\n**Agent / REST / MCP writes** \u2192 `src/lib/agent-service.ts:197` sends the same limits as JSON. `agent_write` refuses if any limit is missing (`supabase/migrations/20261023150000_agent_surface.sql:130-131`), and `agent_create_monitor` calls the same `create_monitor` / `save_service_monitor` (`:91-118`).\n\n**Demo clone** passes app, page, monitor, assertion, per-host and interval limits to `clone_demo_page` (`src/app/(app)/app/clone/[slug]/actions.ts:44-46`, `supabase/migrations/20261028220000_demo_clone_branding.sql:45-58`).\n\n**Custom domain verification** passes the monitor and per-host limits to `verify_page_domain` (`src/app/(app)/app/actions.ts:982-985`, `supabase/migrations/20261023140000_status_edge.sql:175-187`).\n\n**API rate** \u2192 `src/lib/agent-auth.ts:130` charges a per-workspace budget of `apiPerMin`. `agent_budget` uses a one-minute window and rejects any limit above 120 (`supabase/migrations/20261023150000_agent_surface.sql:73-87`). Separately, a workspace may hold at most 100 unrevoked API tokens on any plan (`:66`).\n\n**Locations** are enforced by the probes, not the app:\n- A Frankfurt probe refuses to start without `PROBE_BUILDER_ONLY=true` (`probe/env.ts:18`).\n- `eligible` drops builder-only probes for non-Builder monitors (`probe/schedule.ts:46-47`).\n- Probes learn which workspaces are Builder from `probe_builder_workspaces` (`probe/store.ts:209-220`). That reads the `plan` column, which `syncWorkspacePlan` copies from the session (`src/lib/workspace-plan.ts:20`).\n\n**History** \u2192 the agent API caps history windows at 30 or 365 days by `history_1y` (`src/lib/agent-service.ts:52,276`; contract text at `src/lib/agent-contract.ts:28`). Old data is never deleted: the docs say retention cleanup isn't built (`docs/architecture.md:50`), and I found no deletion job in the migrations.\n\n**Feature switches** are checked in server actions and passed into SQL:\n- `white_label` and `private_pages`: `src/app/(app)/app/actions.ts:874-875,894-895`.\n- `notify_teammates`: `src/app/(app)/app/alerts/actions.ts:122,139`.\n- `alert_rules`: `src/app/(app)/app/alerts/actions.ts:317,322`.\n- `subscribers`: no server code checks it. The billing screen marks email subscribers as coming soon (`src/app/(app)/app/billing/BillingScreen.tsx:115`).\n\n## Gaps and quirks\n\n- **MCP limits are listed but not enforced.** `create_monitor` only accepts `http`, `ssl`, `dns`, `tcp` and `heartbeat` (`supabase/migrations/20261022040000_heartbeat_url_sealed.sql:70-74`). The plan table marks MCP as \"soon\" (`src/components/PlanTable.tsx:44`). `mcpMonitors` and `mcpIntervalMin` are only displayed.\n- **Upgrading speeds monitors up; downgrading doesn't slow them.**\n  - On upgrade, `syncWorkspacePlan` moves HTTP, TCP and Supabase monitors that are still at 180 s to 60 s.\n  - On downgrade it only changes the stored plan. Existing 1-minute monitors keep their interval and lose the Frankfurt probe (`src/lib/workspace-plan.ts:8-20`).\n  - An existing monitor is only re-checked against the Free 3-minute minimum when someone edits it (`update_monitor`).\n- **Apps over the limit stay.** The app count only refuses new apps, so a lapsed Builder keeps its extra apps (`supabase/migrations/20261022124400_apps_limit_and_logo.sql:63-64`). The status-page check counts the same way (`supabase/migrations/20261021210216_phase1_dashboard.sql:418-421`).\n- **The database trusts the numbers it receives.** The SQL functions check whatever limits the app passes in, so the actual limit is whatever the app server read from Clerk. This is by design: the functions can be executed only by `service_role`, never by browser roles (`docs/architecture.md:30`).",
+   "ttft_ms": 2457,
+   "type": "result",
+   "duration_ms": 94767,
+   "uuid": "a4b2d684-a54e-49dd-a458-34f5dbe48df5",
+   "ttft_stream_ms": 980,
+   "time_to_request_ms": 223,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 42,
+    "resume_other": 0,
+    "process_user_input": 3,
+    "input_attachments": 11,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 92,
+    "tool_pool_refresh": 3,
+    "init_message": 14,
+    "init_frame_send": 4,
+    "engine_pickup": 1,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 1,
+    "request_announcements": 4,
+    "query_setup": 1,
+    "model_gates": 0,
+    "tool_schema_build": 10,
+    "message_normalization": 8,
+    "client_creation": 3,
+    "request_build": 12
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 56,
+   "time_to_request_cpu_ms": 453,
+   "time_to_request_major_faults": 6989,
+   "input_attachments_detail": {
+    "slowest_producer": "environment",
+    "slowest_producer_ms": 2,
+    "cpu_ms": 0,
+    "major_faults": 396,
+    "changed_files_reread": 0,
+    "setup_ms": 1,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 1,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 1,
+    "render_ms": 7,
+    "after_ms": 0,
+    "other_ms": 1,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 7,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 82,
+    "wire_messages": 40
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 1,
+    "cache_break_record_ms": 1,
+    "plans_ms": 2,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 2,
+    "record_attempt_ms": 5,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 980,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 22,
+     "outputTokens": 8518,
+     "cacheReadInputTokens": 1396548,
+     "cacheCreationInputTokens": 50604,
+     "webSearchRequests": 0,
+     "costUSD": 0.8545896,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 1826,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 50604,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "q4",
+  "rc": 0,
+  "wall_s": 63,
+  "result": {
+   "duration_api_ms": 267147,
+   "stop_reason": "end_turn",
+   "session_id": "73ce6d2d-58bf-4357-a2b1-25221f246824",
+   "total_cost_usd": 2.8960795000000004,
+   "usage": {
+    "input_tokens": 18,
+    "cache_creation_input_tokens": 25901,
+    "cache_read_input_tokens": 1454613,
+    "output_tokens": 5245,
+    "output_tokens_details": {
+     "thinking_tokens": 515
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 25901,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2857,
+      "cache_read_input_tokens": 191382,
+      "cache_creation_input_tokens": 2321,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2321
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1290,
+     "outputTokens": 19,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001385,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 78,
+     "outputTokens": 25099,
+     "thinkingTokens": 3672,
+     "cacheReadInputTokens": 4220125,
+     "cacheCreationInputTokens": 193703,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 193703,
+     "webSearchRequests": 0,
+     "costUSD": 2.895941,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 10,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "A request with an API token sends `Authorization: Bearer sg_<kid>.<secret>`. The server finds the token row by the `kid` part, then compares an HMAC of the secret against the stored hash. The database keeps only that hash, never the secret. A read-only token cannot change anything in the workspace: the four write tools are refused in the app and again inside the database.\n\n## How a token request is authenticated\n\nEntry points: `POST /api/v1/<tool>` (`src/app/api/v1/[...operation]/route.ts`) and `POST /mcp` (`src/app/mcp/route.ts`). Both call `requireAgent` before doing anything else (`src/lib/agent-transport.ts:73,112`). REST accepts only API tokens. MCP also accepts Clerk OAuth access tokens (`src/lib/agent-auth.ts:107`).\n\nThe token path in `requireAgent` (`src/lib/agent-auth.ts:91-105`):\n\n1. **Format check.** The header must match `Bearer sg_<24 hex>.<43 base64url>` exactly, or the request is refused with `invalid_token` (`src/lib/api-token-crypto.ts:11-14`).\n2. **Lookup.** The row is fetched by `kid`, which is unique in the table (`src/lib/agent-auth.ts:94`).\n3. **Secret check.** The server computes `HMAC-SHA256(API_TOKEN_PEPPER, [\"staygreen/agent/v1\",\"token\",[workspace_id, secret]])` and compares it to the stored hash with `timingSafeEqual` (`src/lib/api-token-crypto.ts:3-5,15-18`).\n   - The hash is tied to the token's workspace id.\n   - An unknown `kid` is still compared against a dummy all-zero hash, so it takes the same code path.\n   - A missing row, a mismatch, or a revoked token all give the same 401 (`src/lib/agent-auth.ts:96-97`).\n4. **Principal.** The owning workspace is loaded. The request then acts as that workspace, with `actor` set to the token id, the token's name as the client label, and `scope` taken from the row (`src/lib/agent-auth.ts:98-101`).\n5. **Rate limits.** There are two:\n   - 120 requests a minute per workspace for token traffic (`src/lib/agent-auth.ts:103`);\n   - the plan's `apiPerMin`, 30 or 120 (`src/lib/agent-auth.ts:129-130`).\n6. **`last_used_at`** is updated at most once a minute (`src/lib/agent-auth.ts:104`).\n7. **Origin check.** After authentication, browser requests from another site are refused. Native clients send no `Origin` header and pass (`src/lib/agent-transport.ts:26-31`).\n\nThe JSON body is limited to 64 KiB, and unknown fields are refused (`src/lib/agent-transport.ts:13,32-40`; `src/lib/agent-contract.ts`, `.strict()` schemas).\n\n## How tokens are created and stored\n\n**Minting** (`src/lib/api-tokens.ts:26-40`, `src/lib/api-token-crypto.ts:6-10`):\n- Only a dashboard member with the `tokens:manage` permission can mint a token, at most 10 times a minute.\n- `kid` is 12 random bytes in hex. The secret is 32 random bytes in base64url.\n- The plaintext `sg_<kid>.<secret>` is returned once, to show in the dashboard, and never stored.\n- If you lose it, you revoke the token and create another (`src/lib/api-tokens.ts:34`).\n\n**Table** `public.api_tokens` (`supabase/migrations/20261023150000_agent_surface.sql:5-13`):\n- columns: `id`, `workspace_id`, `name`, `kid` (unique), `hash` (64 hex characters), `scope` (`'read'` or `'write'`), `created_at`, `last_used_at`, `revoked_at`.\n- `agent_token_create` writes the row and caps a workspace at 100 active tokens (`supabase/migrations/20261023150000_agent_surface.sql:60-69`).\n\n**Pepper.** `API_TOKEN_PEPPER` must be 32 random bytes (`src/lib/env-schema.ts:118`). It lives only on the app server. Because it is an HMAC key, a leaked database dump alone can't be used to check guesses. Changing it invalidates every token (`docs/environment.md:11`).\n\n**Revoking** sets `revoked_at` (`src/lib/api-tokens.ts:41-46`). A revoked token is refused at authentication (`src/lib/agent-auth.ts:97`). Write requests check again inside the database, so a revocation that lands mid-request still blocks the write (`supabase/migrations/20261023150000_agent_surface.sql:133-136`).\n\n**Not available over the API.** Minting and revoking happen only in the dashboard. The server tells MCP clients that tokens, deletion, alert channels, teammates, billing and publishing are unavailable (`src/lib/agent-transport.ts:14`).\n\n## Can a read-only token change anything?\n\nNot workspace data. Scope maps to permissions in `src/lib/agent-contract.ts:13-15`:\n- `read` \u2192 `monitors:read`\n- `write` \u2192 `monitors:read`, `monitors:write`, `incidents:draft`\n\nThe write tools are `provision_app`, `create_monitor`, `pause` and `draft_incident_update` (`src/lib/agent-contract.ts:85`). Two independent checks block them for a read token:\n\n1. **In the app.** `write()` calls `requireAgentPermission` as its first line and throws 403 `insufficient_scope` (`src/lib/agent-service.ts:150-151`, `src/lib/agent-contract.ts:16-18`).\n2. **In the database.** Every write goes through `agent_write`, which receives the scope and raises `insufficient_scope` unless it is `'write'`. For a token actor it also re-checks that the token is unrevoked and has `scope = 'write'` (`supabase/migrations/20261023150000_agent_surface.sql:127-136`). An app-side mistake therefore still can't produce a write.\n\nThe read tools only run queries: `list_monitors`, `get_status`, `get_uptime`, `get_response_times`, `get_incidents`, `get_ssl_and_domain_expiry` (`src/lib/agent-contract.ts:63-68`; `src/lib/agent-service.ts:216-290`).\n\nA read token does cause some writes that aren't workspace data:\n- its own `last_used_at` (`src/lib/agent-auth.ts:104`);\n- rate-limit counters in `agent_budgets`, keyed by HMACs (`src/lib/agent-auth.ts:57-61`);\n- a call log row in `agent_calls`, written after the reply (`src/lib/agent-transport.ts:50-64`).\n\n**`scan_app` is not a write tool.** It is allowed with a read token, and it makes the server send outbound requests to a URL the caller supplies. It is rate-limited by `admitScan` and creates no monitors (`src/lib/agent-service.ts:217-219`; `src/lib/agent-transport.ts:14`).\n\n**OAuth access always has write scope.** An OAuth grant through `/mcp` is always given `scope: \"write\"` (`src/lib/agent-auth.ts:126`). The workspace member's role is re-checked with Clerk on every request (`src/lib/agent-auth.ts:118-125`), so read-only access to an agent exists only through API tokens. The server says so to clients: \"OAuth grants read and write; API tokens can be read-only\" (`src/lib/agent-transport.ts:14`).",
+   "ttft_ms": 3673,
+   "type": "result",
+   "duration_ms": 61036,
+   "uuid": "5cd7e205-c253-4ffe-a782-2cb28ace348e",
+   "ttft_stream_ms": 1362,
+   "time_to_request_ms": 399,
+   "time_to_request_phases_ms": {
+    "other": 8,
+    "system_prompt": 56,
+    "resume_other": 0,
+    "process_user_input": 5,
+    "input_attachments": 16,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 170,
+    "tool_pool_refresh": 4,
+    "init_message": 19,
+    "init_frame_send": 5,
+    "engine_pickup": 3,
+    "loop_entry": 8,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 4,
+    "request_announcements": 10,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 20,
+    "message_normalization": 22,
+    "client_creation": 11,
+    "request_build": 30
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 104,
+   "time_to_request_cpu_ms": 672,
+   "time_to_request_major_faults": 6431,
+   "input_attachments_detail": {
+    "slowest_producer": "environment",
+    "slowest_producer_ms": 3,
+    "cpu_ms": 16,
+    "major_faults": 49,
+    "changed_files_reread": 0,
+    "setup_ms": 3,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 8,
+    "ambient_wait_ms": 2,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 5,
+    "render_ms": 13,
+    "after_ms": 1,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 1,
+    "normalize_ms": 18,
+    "images_ms": 0,
+    "post_process_ms": 3,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 120,
+    "wire_messages": 60
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 2,
+    "headers_ms": 2,
+    "cache_break_record_ms": 2,
+    "plans_ms": 5,
+    "retry_setup_ms": 1,
+    "sent_build_ms": 6,
+    "record_attempt_ms": 11,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1362,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 18,
+     "outputTokens": 5245,
+     "cacheReadInputTokens": 1454613,
+     "cacheCreationInputTokens": 25901,
+     "webSearchRequests": 0,
+     "costUSD": 0.6031026,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 515,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 25901,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "q5",
+  "rc": 0,
+  "wall_s": 79,
+  "result": {
+   "duration_api_ms": 338486,
+   "stop_reason": "end_turn",
+   "session_id": "73ce6d2d-58bf-4357-a2b1-25221f246824",
+   "total_cost_usd": 3.5382129,
+   "usage": {
+    "input_tokens": 14,
+    "cache_creation_input_tokens": 32298,
+    "cache_read_input_tokens": 1239567,
+    "output_tokens": 6789,
+    "output_tokens_details": {
+     "thinking_tokens": 1358
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 32298,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 4646,
+      "cache_read_input_tokens": 221362,
+      "cache_creation_input_tokens": 4639,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 4639
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1290,
+     "outputTokens": 19,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001385,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-opus-5-5": {
+     "inputTokens": 92,
+     "outputTokens": 31888,
+     "thinkingTokens": 5030,
+     "cacheReadInputTokens": 5459692,
+     "cacheCreationInputTokens": 226001,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 226001,
+     "webSearchRequests": 0,
+     "costUSD": 3.5380743999999997,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 9,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "I'd model Microsoft Teams on Discord, which is the closest existing channel: the user pastes an incoming-webhook URL, the server seals it, and the sender posts one message to it. That means changes in about 15 places across SQL, the sender, the dashboard and tests, plus copy. No new secret or environment variable is needed.\n\n## How a pasted-URL channel works today\n\n1. The user pastes a URL in `ChannelSettings`. `addWebhookChannel` validates it, encrypts it as `{url}` with `seal(..., channelContext(workspace, id))` using `CREDENTIALS_KEY`, and inserts an `alert_channels` row that is already confirmed (`src/app/(app)/app/alerts/actions.ts:275-295`).\n2. When an incident opens, `alert_expand` creates one delivery per matching channel, but only for kinds in its hard-coded list (`supabase/migrations/20261023120000_alert_channels.sql:185`).\n3. The sender Worker claims deliveries with `alert_claim_channels`, which returns the sealed credential (`supabase/migrations/20261023120000_alert_channels.sql:273-341`). `runSender` decrypts it and dispatches by `kind` (`src/lib/alerts/sender.ts:363-387`).\n4. A provider function returns a `SendResult`: `sent`, `rejected`, `retry` or `unknown` (`src/lib/alerts/providers.ts:58-78`). `settle` turns that into a final delivery state (`src/lib/alerts/sender.ts:254-276`).\n\n## Files to change or add\n\n### 1. Database: a new migration\nAdd `supabase/migrations/<timestamp>_teams_channel.sql`. Don't edit applied migrations; the repo's rule is that migrations are never changed once applied (`supabase/migrations/20261022195510_alerts_email.sql:27`, `docs/deploying.md:61`). Wrap it in `begin; \u2026 commit;` and:\n- **Kind constraint.** Drop and re-add `alert_channels_kind_check` with `'teams'` added, as `20261023120000_alert_channels.sql:4-5` did. The `alert_channels_built` constraint already requires `sealed`, `confirmed_at` and `label` for every kind except email and Telegram (`:6-8`), so it needs no change.\n- **`alert_expand`.** Re-create it whole with `'teams'` added to `c.kind in (...)` (`20261023120000_alert_channels.sql:132-201`, list at `:185`). **If you skip this, Teams channels never receive a delivery.**\n- **Nothing else.**\n  - `alert_claim_channels` doesn't filter by kind, so it already passes Teams deliveries and their `sealed` credential to the sender (`:286-314`).\n  - The old `alert_claim` deliberately serves only email and Telegram (`:219`), so it stays as it is.\n  - The `alert_sender` wrapper functions and grants stay as they are (`:356-368`).\n\n### 2. URL validation\n`src/lib/alerts/channel-input.ts`:\n- Add a `teamsUrl(value)` built on `webhookUrl()`, which already enforces HTTPS, port 443, no login, no fragment, and no private or local host (`:5-13`). Then check the host and path, as `discordUrl` does (`:15-21`).\n- Add `\"teams\"` to `channelInput.kind` (`:24`) and to the `superRefine` branch and error message (`:30-31`).\n- Teams needs no signing secret; only `webhook` requires one (`:32-33`).\n\n### 3. Provider\n`src/lib/alerts/providers.ts`: add `sendTeams(url, message, doFetch)` following `sendDiscord` (`:58-78`):\n- `redirect: \"manual\"` and a 10-second timeout;\n- one bounded JSON body built from `text(message)`, which is already masked (`:26`). Keep the links in the footer when shortening, as `discordText` does (`:29-35`);\n- read the reply with `smallJson`;\n- map 429 to `retry`, 2xx to `sent`, other 4xx to `rejected`, and everything else to `uncertain(\"Teams\")`;\n- in `catch`, `neverLeft(e,\"manual\")` means `retry`, otherwise `uncertain`.\n\n**Microsoft's reply may not include a message id.** A `sent` delivery must have a `provider_id`: the database enforces it (`alert_deliveries_sent`, `supabase/migrations/20261022195510_alerts_email.sql:152`), and `alert_mark` raises an error without one (`:447-448`). Discord returns an id (`providers.ts:72`). From what I know of Teams workflow webhooks, they answer 202 with no id; that is not in this repo, so check it against Microsoft's docs. If so, return a generated `messageId` that is up to 100 characters (`alerts_email.sql:141`), for example the delivery id. `sendTeams` doesn't currently receive it, so you'd add a parameter.\n\n### 4. Sender dispatch\n`src/lib/alerts/sender.ts`:\n- **`:12`**: import `sendTeams`.\n- **`:363`**: add `\"teams\"` to `[\"slack\",\"discord\",\"webhook\"]`. Otherwise the delivery falls through to \"This kind of channel can't send yet.\" (`:387`).\n- **After `:377`**: add `if (d.channel.kind === \"teams\") return settle(d, await sendTeams(credential.url ?? \"\", message, deps.channels.fetch));`. The credential schema already accepts `url` (`:366-368`).\n- **`:272`** (`unknown` result) and **`:339`** (an expired claim, where the previous send may have gone through): treat Teams like Slack and Discord, failing as \"may have arrived\" and never re-sending. The webhook kind retries only because it carries an idempotency id in its signed body (`:239`, `:380-385`); a Teams webhook has no equivalent.\n\n`sender/worker.ts` already passes `CREDENTIALS_KEY` and `fetch` as `deps.channels` (`sender/worker.ts:31`), so it needs no code change.\n\n### 5. Dashboard server code\n- **`src/app/(app)/app/alerts/actions.ts`**:\n  - `:289`: seal `{ url: teamsUrl(v.url)!.href }` for Teams, normalised the way Discord's URL is.\n  - `:223`: add `\"teams\"` so a test alert reports \"queued\" rather than trying to send inline.\n  - `:283-286`: decide whether to run the DNS check `checkTarget` for Teams. Today only `webhook` runs it, because Discord is limited to a fixed host. If your Teams host check is a suffix match rather than one exact host, run it.\n- **`src/lib/alerts/server.ts:33,81`**: add `\"teams\"` to `ChannelView.kind` and to the zod `kind` enum. Without the enum entry, the Alerts overview fails to parse as soon as a Teams row exists.\n- **`src/lib/model.ts:217`**: add `\"teams\"` to `ChannelKind`.\n\n### 6. Dashboard UI\n- **`src/app/(app)/app/alerts/ChannelSettings.tsx`**:\n  - widen the state type `\"discord\" | \"webhook\"` (`:18`);\n  - add a \"Microsoft Teams\" button next to Discord (`:47`);\n  - add the dialog title, the field label and a hint saying where to copy the URL (`:54-59`).\n- **`src/components/alerts/ChannelIcon.tsx:4,6`**: add an icon and `kindName.teams = \"Microsoft Teams\"`. Both are typed `Record<ChannelKind,\u2026>`, so the typecheck fails until you do.\n- **`src/app/(app)/app/alerts/AlertsScreen.tsx`**:\n  - `:98`: the channel description;\n  - `:361`: the provider-id label;\n  - `:33`: the comment.\n\n### 7. Copy that lists the channels\n- **Product pages:**\n  - landing page: `src/app/(public)/page.tsx:95`;\n  - plan table: `src/components/PlanTable.tsx:51`.\n- **Privacy policy:** `src/app/(public)/legal/privacy/page.tsx:168,270`. This is the page that names third parties receiving alert content, and Microsoft becomes one.\n- **Clerk plan features:** `scripts/clerk/billing.json:115`.\n- **Comments:**\n  - `src/lib/budgets.ts:37-39`, the channel-setup budget comment. The code already shares `alert_confirm` through `addWebhookChannel`, so only the comment changes;\n  - `src/lib/launch.ts:83-85`, only if you want Teams behind a launch flag.\n- **Deployment docs:**\n  - `docs/deploying.md:26`;\n  - `examples/sender/wrangler.toml:2,38`.\n\n### 8. Tests\nCopy each Discord case to Teams:\n- **`tests/unit/channels.test.ts`:**\n  - URL validation, including refused hosts, paths and query strings (`:50-51`);\n  - sending: success, 429 and 4xx (`:61-106`);\n  - \"never blindly resends an uncertain claim\" (`:111`).\n- **`tests/unit/channel-actions.test.ts:34-42`:** the add-channel action.\n- **`tests/integration/channels.test.ts:41-44`:** the full path through expand, claim and mark, which proves the new `alert_expand` list works.\n- **`tests/e2e/channels.auth.spec.ts:27-28`:** the dialog.\n\n## Rollout order\n\nThe parts are deployed separately, so the order matters:\n1. **Migration first**, applied with `supabase db push` (`docs/deploying.md:61`). It only adds things: the existing alert_channels migration was written so old dashboards and senders keep running alongside new ones (`supabase/migrations/20261023120000_alert_channels.sql:1-2`).\n2. **Sender Worker next.** It's a separate deploy (`docs/deploying.md:68,70`). If a Teams channel exists before the new sender is live, its deliveries are failed permanently with \"can't send yet\" (`src/lib/alerts/sender.ts:387`).\n3. **App last**, so the \"Microsoft Teams\" button only appears once the database and sender can handle the channel.\n\nTo verify, add a Teams channel, send a test alert from the Alerts screen, then trigger a real incident and its recovery.\n\nTwo things here are outside this repo and need checking against Microsoft's current documentation before you write `teamsUrl` and `sendTeams`:\n- **Which URL hosts and paths Teams uses.** Workflow webhook URLs differ by tenant and region, so a single exact host like Discord's may not work.\n- **What a successful post returns.** If there's no message id, you need the generated id described in step 3.",
+   "ttft_ms": 2555,
+   "type": "result",
+   "duration_ms": 77745,
+   "uuid": "d68fe716-6c1b-4c8f-8a76-368d52d31553",
+   "ttft_stream_ms": 1322,
+   "time_to_request_ms": 389,
+   "time_to_request_phases_ms": {
+    "other": 9,
+    "system_prompt": 54,
+    "resume_other": 0,
+    "process_user_input": 3,
+    "input_attachments": 11,
+    "input_hooks": 2,
+    "conversation_append": 2,
+    "transcript_persist": 154,
+    "tool_pool_refresh": 12,
+    "init_message": 36,
+    "init_frame_send": 7,
+    "engine_pickup": 3,
+    "loop_entry": 7,
+    "message_prep": 1,
+    "model_config_wait": 2,
+    "autocompact": 4,
+    "request_announcements": 6,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 16,
+    "message_normalization": 13,
+    "client_creation": 16,
+    "request_build": 29
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 71,
+   "time_to_request_cpu_ms": 687,
+   "time_to_request_major_faults": 7663,
+   "input_attachments_detail": {
+    "slowest_producer": "environment",
+    "slowest_producer_ms": 3,
+    "cpu_ms": 16,
+    "major_faults": 417,
+    "changed_files_reread": 0,
+    "setup_ms": 1,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 2,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 12,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 1,
+    "normalize_ms": 10,
+    "images_ms": 1,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 144,
+    "wire_messages": 76
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 2,
+    "headers_ms": 1,
+    "cache_break_record_ms": 3,
+    "plans_ms": 5,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 14,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 1322,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-opus-5-5": {
+     "inputTokens": 14,
+     "outputTokens": 6789,
+     "cacheReadInputTokens": 1239567,
+     "cacheCreationInputTokens": 32298,
+     "webSearchRequests": 0,
+     "costUSD": 0.6421334000000001,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 1358,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 32298,
+     "canonicalModel": "claude-opus-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

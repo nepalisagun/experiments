@@ -1,0 +1,68 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index bb648c9..97ec04e 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -118,7 +118,8 @@ for (const size of sizes) {
+       await page.getByLabel('Delete note').click()
+       await dialog.getByRole('button', { name: 'Delete' }).click()
+       await toList(page)
+-      await expect(list(page)).toContainText('No notes yet')
++      await expect(list(page)).toContainText('Nothing here yet. Create your first note.')
++      await shot(page, '02-empty')
+     })
+ 
+     test('3. live preview renders Markdown', async ({ page }) => {
+@@ -271,6 +272,15 @@ for (const size of sizes) {
+       await expect(wc).toHaveText('1 word')
+       await editor(page).fill('- [ ] buy milk\n- [x] call [Mom](https://example.com/x)')
+       await expect(wc).toHaveText('4 words')
++
++      // Positioned at the bottom right of the editor pane.
++      const e = (await editor(page).boundingBox())!
++      const w = (await wc.boundingBox())!
++      expect(w.y).toBeGreaterThanOrEqual(e.y + e.height - 1)
++      expect(w.y - (e.y + e.height)).toBeLessThan(20)
++      expect(Math.abs(e.x + e.width - (w.x + w.width))).toBeLessThan(24)
++      await expect(page.locator('header').getByTestId('word-count')).toHaveCount(0)
++      await shot(page, '09-wordcount')
+     })
+ 
+     test('10. theme toggle is remembered', async ({ page }) => {
+diff --git a/src/App.tsx b/src/App.tsx
+index 6df3664..7c1d717 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -276,7 +276,7 @@ export default function App() {
+           })}
+           {visible.length === 0 && (
+             <li className="px-3 py-6 text-center text-sm text-zinc-500">
+-              {notes.length === 0 ? 'No notes yet.' : `No notes match “${query.trim()}”.`}
++              {notes.length === 0 ? 'Nothing here yet. Create your first note.' : `No notes match “${query.trim()}”.`}
+             </li>
+           )}
+         </ul>
+@@ -329,9 +329,6 @@ export default function App() {
+                 <Icon name="trash" />
+               </button>
+               <div className="flex w-full items-center gap-3 px-1 text-xs text-zinc-500 md:w-auto md:order-none dark:text-zinc-400">
+-                <span data-testid="word-count">
+-                  {words} {words === 1 ? 'word' : 'words'}
+-                </span>
+                 <span
+                   data-testid="save-status"
+                   aria-live="polite"
+@@ -356,8 +353,13 @@ export default function App() {
+                   spellCheck
+                   placeholder="Start writing Markdown…"
+                   aria-label="Markdown editor"
+-                  className="h-[45vh] w-full resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed outline-none md:h-auto md:flex-1"
++                  className="h-[45vh] w-full resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed outline-none md:h-auto md:min-h-0 md:flex-1"
+                 />
++                <div className="flex justify-end px-4 py-1.5 text-xs text-zinc-500 dark:text-zinc-400">
++                  <span data-testid="word-count">
++                    {words} {words === 1 ? 'word' : 'words'}
++                  </span>
++                </div>
+               </section>
+               <section className="flex flex-col border-t border-zinc-200 md:min-h-0 md:border-t-0 dark:border-zinc-800" aria-label="Preview">
+                 <div className="pane-label">Preview</div>

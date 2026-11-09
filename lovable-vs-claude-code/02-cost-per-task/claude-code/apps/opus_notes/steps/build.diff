@@ -1,0 +1,1815 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+new file mode 100644
+index 0000000..bb648c9
+--- /dev/null
++++ b/e2e/app.spec.ts
+@@ -0,0 +1,355 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 800, mobile: false },
++  { name: 'mobile', width: 375, height: 740, mobile: true },
++] as const
++
++for (const size of sizes) {
++  test.describe(`${size.name} (${size.width}px)`, () => {
++    test.use({ viewport: { width: size.width, height: size.height } })
++
++    const list = (page: Page) => page.getByRole('list', { name: 'Note list' })
++    const items = (page: Page) => list(page).getByTestId('note-item')
++    const titles = (page: Page) => list(page).getByTestId('note-title')
++    const editor = (page: Page) => page.getByLabel('Markdown editor')
++    const preview = (page: Page) => page.getByTestId('preview')
++    const titleInput = (page: Page) => page.getByLabel('Note title')
++    const shot = (page: Page, name: string) => page.screenshot({ path: `shots/${size.name}-${name}.png` })
++
++    /** On mobile only one pane is visible at a time. */
++    async function toList(page: Page) {
++      if (size.mobile && !(await list(page).isVisible())) await page.getByLabel('Back to notes').click()
++      await expect(list(page)).toBeVisible()
++    }
++    async function newNote(page: Page, title: string, content = '') {
++      await toList(page)
++      await page.getByRole('button', { name: 'New', exact: true }).click()
++      await expect(titleInput(page)).toBeFocused()
++      await titleInput(page).fill(title)
++      if (content) await editor(page).fill(content)
++    }
++    async function open(page: Page, title: string) {
++      await toList(page)
++      await items(page)
++        .filter({ has: page.getByTestId('note-title').getByText(title, { exact: true }) })
++        .click()
++      await expect(titleInput(page)).toHaveValue(title)
++    }
++
++    test.beforeEach(async ({ page }) => {
++      await page.goto('/')
++    })
++
++    test('1. sidebar list and editor layout, welcome note seeded', async ({ page }) => {
++      await expect(titles(page)).toHaveText(['Welcome'])
++      if (size.mobile) {
++        // List first, editor after tapping a note.
++        await expect(editor(page)).toBeHidden()
++        await shot(page, '01-list')
++        await items(page).first().click()
++        await expect(list(page)).toBeHidden()
++        await expect(editor(page)).toBeVisible()
++        // Editor stacked above preview.
++        const e = (await editor(page).boundingBox())!
++        const p = (await preview(page).boundingBox())!
++        expect(p.y).toBeGreaterThanOrEqual(e.y + e.height - 1)
++        expect(Math.abs(p.x - e.x)).toBeLessThan(2)
++      } else {
++        await expect(list(page)).toBeVisible()
++        await expect(editor(page)).toBeVisible()
++        // Sidebar | editor | preview side by side.
++        const l = (await list(page).boundingBox())!
++        const e = (await editor(page).boundingBox())!
++        const p = (await preview(page).boundingBox())!
++        expect(e.x).toBeGreaterThanOrEqual(l.x + l.width - 1)
++        expect(p.x).toBeGreaterThanOrEqual(e.x + e.width - 1)
++        expect(Math.abs(p.y - e.y)).toBeLessThan(5)
++      }
++      // No horizontal page scroll.
++      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++      expect(overflow).toBeLessThanOrEqual(0)
++      // Nothing edited yet: indicator must not claim to be saving.
++      await page.waitForTimeout(600)
++      await expect(page.getByTestId('save-status')).toHaveText('Saved')
++      // List preview is plain text, not raw Markdown.
++      await toList(page)
++      await expect(list(page)).toContainText('Welcome to Notes Write Markdown in the editor')
++      if (size.mobile) await items(page).first().click()
++      await shot(page, '01-editor')
++    })
++
++    test('2. create, rename and delete with confirmation', async ({ page }) => {
++      await newNote(page, 'First draft', 'hello')
++      await toList(page)
++      await expect(titles(page).first()).toHaveText('First draft')
++
++      // Rename
++      await open(page, 'First draft')
++      await titleInput(page).fill('Final copy')
++      await toList(page)
++      await expect(titles(page)).toContainText(['Final copy'])
++      await expect(titles(page)).not.toContainText(['First draft'])
++
++      // Delete: cancel keeps the note
++      await open(page, 'Final copy')
++      await page.getByLabel('Delete note').click()
++      const dialog = page.getByRole('alertdialog')
++      await expect(dialog).toContainText('Final copy')
++      await shot(page, '02-confirm')
++      await dialog.getByRole('button', { name: 'Cancel' }).click()
++      await expect(dialog).toBeHidden()
++      await expect(titleInput(page)).toHaveValue('Final copy')
++
++      // Escape also cancels
++      await page.getByLabel('Delete note').click()
++      await page.keyboard.press('Escape')
++      await expect(dialog).toBeHidden()
++
++      // Confirm deletes
++      await page.getByLabel('Delete note').click()
++      await dialog.getByRole('button', { name: 'Delete' }).click()
++      await expect(dialog).toBeHidden()
++      await toList(page)
++      await expect(titles(page)).toHaveText(['Welcome'])
++
++      // Deleting the last note shows an empty state
++      await open(page, 'Welcome')
++      await page.getByLabel('Delete note').click()
++      await dialog.getByRole('button', { name: 'Delete' }).click()
++      await toList(page)
++      await expect(list(page)).toContainText('No notes yet')
++    })
++
++    test('3. live preview renders Markdown', async ({ page }) => {
++      await newNote(
++        page,
++        'Syntax',
++        [
++          '# Heading One',
++          '## Heading Two',
++          'Some **bold** and *italic* text.',
++          '',
++          '- bullet a',
++          '- bullet b',
++          '',
++          '1. first',
++          '2. second',
++          '',
++          '[Example](https://example.com)',
++          '',
++          '```',
++          'const x = 1',
++          '```',
++          '',
++          '- [ ] open task',
++          '- [x] done task',
++        ].join('\n'),
++      )
++      const p = preview(page)
++      await expect(p.locator('h1')).toHaveText('Heading One')
++      await expect(p.locator('h2')).toHaveText('Heading Two')
++      await expect(p.locator('strong')).toHaveText('bold')
++      await expect(p.locator('em')).toHaveText('italic')
++      await expect(p.locator('ul:not(.task-list) > li')).toHaveText(['bullet a', 'bullet b'])
++      await expect(p.locator('ol > li')).toHaveText(['first', 'second'])
++      await expect(p.locator('a')).toHaveAttribute('href', 'https://example.com')
++      await expect(p.locator('pre code')).toHaveText('const x = 1')
++      await expect(p.locator('input[type=checkbox]')).toHaveCount(2)
++      await expect(p.locator('input[type=checkbox]').nth(1)).toBeChecked()
++
++      // Live: typing updates the preview immediately
++      await editor(page).press('ControlOrMeta+End')
++      await editor(page).pressSequentially('\n\n### Live')
++      await expect(p.locator('h3')).toHaveText('Live')
++      await p.locator('pre').scrollIntoViewIfNeeded()
++      await shot(page, '03-preview')
++    })
++
++    test('4. clicking a preview checkbox toggles the source', async ({ page }) => {
++      await newNote(page, 'Tasks', 'Intro\n\n- [ ] alpha\n- [x] beta\n  - [ ] nested')
++      const boxes = preview(page).locator('input[type=checkbox]')
++      await boxes.nth(0).click()
++      await expect(editor(page)).toHaveValue('Intro\n\n- [x] alpha\n- [x] beta\n  - [ ] nested')
++      await expect(boxes.nth(0)).toBeChecked()
++      await boxes.nth(1).click()
++      await expect(editor(page)).toHaveValue('Intro\n\n- [x] alpha\n- [ ] beta\n  - [ ] nested')
++      await expect(boxes.nth(1)).not.toBeChecked()
++      // Clicking the label text works too
++      await preview(page).getByText('nested').click()
++      await expect(editor(page)).toHaveValue('Intro\n\n- [x] alpha\n- [ ] beta\n  - [x] nested')
++      await shot(page, '04-tasks')
++    })
++
++    test('5. search across titles and contents with highlighting', async ({ page }) => {
++      await newNote(page, 'Shopping', 'buy oat milk')
++      await newNote(page, 'Recipes', 'pancakes need Milk and eggs')
++      await newNote(page, 'Milkshake ideas', 'vanilla')
++      await toList(page)
++      await page.getByLabel('Search notes').fill('milk')
++      await expect(titles(page)).toHaveText(['Milkshake ideas', 'Recipes', 'Shopping'])
++      const marks = list(page).locator('mark')
++      await expect(marks.first()).toBeVisible()
++      // title match + 2 content matches
++      await expect(marks).toHaveText(['Milk', 'Milk', 'milk'])
++      await shot(page, '05-search')
++
++      await page.getByLabel('Search notes').fill('pancakes')
++      await expect(titles(page)).toHaveText(['Recipes'])
++      await expect(marks).toHaveText(['pancakes'])
++
++      await page.getByLabel('Search notes').fill('nothing-matches')
++      await expect(items(page)).toHaveCount(0)
++      await expect(list(page)).toContainText('No notes match')
++
++      await page.getByLabel('Search notes').fill('')
++      await expect(items(page)).toHaveCount(4)
++      await expect(marks).toHaveCount(0)
++    })
++
++    test('6 & 7. pinned notes first, then newest edited first', async ({ page }) => {
++      await newNote(page, 'A', 'a')
++      await newNote(page, 'B', 'b')
++      await newNote(page, 'C', 'c')
++      await toList(page)
++      await expect(titles(page)).toHaveText(['C', 'B', 'A', 'Welcome'])
++
++      // Editing A moves it to the top
++      await open(page, 'A')
++      await editor(page).fill('a edited')
++      await toList(page)
++      await expect(titles(page)).toHaveText(['A', 'C', 'B', 'Welcome'])
++
++      // Pin Welcome (oldest) from the list
++      await page.getByLabel('Pin Welcome').click()
++      await expect(titles(page)).toHaveText(['Welcome', 'A', 'C', 'B'])
++
++      // Pin B from the editor header
++      await open(page, 'B')
++      await page.getByLabel('Pin note').click()
++      await expect(page.getByLabel('Unpin note')).toBeVisible()
++      await toList(page)
++      // Pinning does not count as an edit: pinned group still sorted by last edit
++      // (B was created after Welcome, so it comes first among the pinned notes)
++      await expect(titles(page)).toHaveText(['B', 'Welcome', 'A', 'C'])
++      await shot(page, '06-pinned')
++
++      // Editing an unpinned note never jumps above pinned ones
++      await open(page, 'C')
++      await editor(page).fill('c edited')
++      await toList(page)
++      await expect(titles(page)).toHaveText(['B', 'Welcome', 'C', 'A'])
++
++      // Unpin
++      await page.getByLabel('Unpin Welcome').click()
++      await expect(titles(page)).toHaveText(['B', 'C', 'A', 'Welcome'])
++
++      // Pins survive reload
++      await page.reload()
++      await expect(titles(page)).toHaveText(['B', 'C', 'A', 'Welcome'])
++    })
++
++    test('8. autosave with Saved indicator', async ({ page }) => {
++      await newNote(page, 'Autosave')
++      const status = page.getByTestId('save-status')
++      await expect(status).toHaveText('Saved')
++      await editor(page).pressSequentially('typing quickly', { delay: 20 })
++      await expect(status).toHaveText('Saving…')
++      await expect(status).toHaveText('Saved')
++      const stored = await page.evaluate(() => localStorage.getItem('md-notes:v1'))
++      expect(stored).toContain('typing quickly')
++      await shot(page, '08-saved')
++    })
++
++    test('9. word count for the open note', async ({ page }) => {
++      await newNote(page, 'Count')
++      const wc = page.getByTestId('word-count')
++      await expect(wc).toHaveText('0 words')
++      await editor(page).fill('# Hello **world**')
++      await expect(wc).toHaveText('2 words')
++      await editor(page).fill('one')
++      await expect(wc).toHaveText('1 word')
++      await editor(page).fill('- [ ] buy milk\n- [x] call [Mom](https://example.com/x)')
++      await expect(wc).toHaveText('4 words')
++    })
++
++    test('10. theme toggle is remembered', async ({ page }) => {
++      const html = page.locator('html')
++      await toList(page)
++      await expect(html).not.toHaveClass(/dark/)
++      await page.getByLabel('Switch to dark theme').click()
++      await expect(html).toHaveClass(/dark/)
++      const bg = await page.evaluate(() => getComputedStyle(document.body.firstElementChild!.firstElementChild!).backgroundColor)
++      expect(bg).not.toBe('rgb(255, 255, 255)')
++      await page.reload()
++      await expect(html).toHaveClass(/dark/)
++      if (size.mobile) await items(page).first().click()
++      await shot(page, '10-dark')
++      await toList(page)
++      await page.getByLabel('Switch to light theme').click()
++      await expect(html).not.toHaveClass(/dark/)
++      await page.reload()
++      await expect(html).not.toHaveClass(/dark/)
++    })
++
++    test('11. raw HTML in a note cannot run scripts', async ({ page }) => {
++      const dialogs: string[] = []
++      page.on('dialog', (d) => {
++        dialogs.push(d.message())
++        void d.dismiss()
++      })
++      await newNote(
++        page,
++        'XSS',
++        [
++          '<script>window.__xss = 1</script>',
++          '<img src=x onerror="window.__xss = 2">',
++          '<svg onload="window.__xss = 3"></svg>',
++          '<iframe src="javascript:window.__xss=4"></iframe>',
++          '[click me](javascript:window.__xss=5)',
++          '- [ ] <img src=x onerror="window.__xss = 6">',
++          '<a href="#" onclick="window.__xss=7">raw link</a>',
++        ].join('\n\n'),
++      )
++      const p = preview(page)
++      await expect(p).toContainText('<script>window.__xss = 1</script>')
++      await expect(p.locator('script, img, svg, iframe, [onclick], [onerror], [onload]')).toHaveCount(0)
++      await p.getByText('click me').click()
++      await p.getByText('raw link', { exact: false }).click()
++      await page.waitForTimeout(300)
++      expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined()
++      expect(dialogs).toEqual([])
++      // Still safe after reload (rendered from storage)
++      await page.reload()
++      await open(page, 'XSS')
++      await expect(preview(page).locator('script, img, svg, iframe')).toHaveCount(0)
++      expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined()
++      await shot(page, '11-xss')
++    })
++
++    test('12. notes survive a page reload', async ({ page }) => {
++      await newNote(page, 'Persistent', '# Kept\n\n- [ ] item')
++      await preview(page).locator('input[type=checkbox]').click()
++      await expect(page.getByTestId('save-status')).toHaveText('Saved')
++      await page.reload()
++      await toList(page)
++      await expect(titles(page)).toHaveText(['Persistent', 'Welcome'])
++      await open(page, 'Persistent')
++      await expect(editor(page)).toHaveValue('# Kept\n\n- [x] item')
++
++      // Typing then reloading immediately (before the debounce fires) still saves
++      await editor(page).press('ControlOrMeta+End')
++      await editor(page).pressSequentially(' fast')
++      await page.reload()
++      await open(page, 'Persistent')
++      await expect(editor(page)).toHaveValue('# Kept\n\n- [x] item fast')
++
++      // Deleted notes stay deleted
++      await page.getByLabel('Delete note').click()
++      await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
++      await page.reload()
++      await toList(page)
++      await expect(titles(page)).toHaveText(['Welcome'])
++    })
++  })
++}
+diff --git a/index.html b/index.html
+index 3d7efb3..e938d19 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,16 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Notes</title>
++    <script>
++      // Apply the saved theme before first paint to avoid a flash.
++      try {
++        var t = localStorage.getItem('md-notes:theme')
++        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
++        if (t === 'dark') document.documentElement.classList.add('dark')
++        document.documentElement.style.colorScheme = t
++      } catch (e) {}
++    </script>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..3373ec1 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,9 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
+-    "preview": "vite preview"
++    "preview": "vite preview",
++    "test": "vitest run --dir src",
++    "test:e2e": "playwright test"
+   },
+   "dependencies": {
+     "react": "^19.3.1",
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..6df3664 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,405 @@
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
++import { renderMarkdown, toggleTask } from './lib/markdown'
++import {
++  type Note,
++  THEME_KEY,
++  WELCOME_NOTE,
++  createNote,
++  displayTitle,
++  highlight,
++  loadState,
++  relativeTime,
++  saveState,
++  searchNotes,
++  snippet,
++  sortNotes,
++  wordCount,
++} from './lib/notes'
++import { ConfirmDialog } from './components/ConfirmDialog'
++import { Icon } from './components/Icon'
++
++type Theme = 'light' | 'dark'
++type SaveStatus = 'saved' | 'saving' | 'error'
++
++const SAVE_DELAY = 400
++
++function initialState() {
++  const saved = loadState(localStorage)
++  if (saved) return saved
++  const welcome = createNote(Date.now(), 'Welcome', WELCOME_NOTE)
++  return { notes: [welcome], activeId: welcome.id }
++}
++
++function initialTheme(): Theme {
++  try {
++    const t = localStorage.getItem(THEME_KEY)
++    if (t === 'light' || t === 'dark') return t
++  } catch {
++    /* ignore */
++  }
++  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
++}
++
++function Highlighted({ text, query }: { text: string; query: string }) {
++  return (
++    <>
++      {highlight(text, query).map((s, i) =>
++        s.match ? (
++          <mark key={i} className="rounded-sm bg-amber-200 px-0.5 text-inherit dark:bg-amber-500/40">
++            {s.text}
++          </mark>
++        ) : (
++          <span key={i}>{s.text}</span>
++        ),
++      )}
++    </>
++  )
++}
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [init] = useState(initialState)
++  const [notes, setNotes] = useState<Note[]>(init.notes)
++  const [activeId, setActiveId] = useState<string | null>(init.activeId)
++  const [query, setQuery] = useState('')
++  const [theme, setTheme] = useState<Theme>(initialTheme)
++  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
++  const [pendingDelete, setPendingDelete] = useState<Note | null>(null)
++  const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
++  const [, setTick] = useState(0)
++  const titleRef = useRef<HTMLInputElement>(null)
++  const focusTitleNext = useRef(false)
++
++  // ---- persistence ---------------------------------------------------------
++  const latest = useRef({ notes, activeId })
++  latest.current = { notes, activeId }
++  const dirty = useRef(false)
++  const lastSaved = useRef<Note[] | null>(null)
++
++  const flush = useCallback(() => {
++    const ok = saveState(localStorage, latest.current)
++    lastSaved.current = latest.current.notes
++    dirty.current = false
++    setSaveStatus(ok ? 'saved' : 'error')
++  }, [])
++
++  useEffect(() => {
++    if (lastSaved.current === null) {
++      // First mount: persist (e.g. the seeded welcome note) without showing "Saving…".
++      saveState(localStorage, latest.current)
++      lastSaved.current = notes
++      return
++    }
++    if (lastSaved.current === notes) return
++    dirty.current = true
++    setSaveStatus('saving')
++    const t = setTimeout(flush, SAVE_DELAY)
++    return () => clearTimeout(t)
++  }, [notes, flush])
++
++  // The active note is a UI preference; save it straight away without the indicator.
++  useEffect(() => {
++    if (!dirty.current) saveState(localStorage, latest.current)
++  }, [activeId])
++
++  useEffect(() => {
++    const onHide = () => {
++      if (dirty.current) flush()
++    }
++    window.addEventListener('pagehide', onHide)
++    window.addEventListener('beforeunload', onHide)
++    return () => {
++      window.removeEventListener('pagehide', onHide)
++      window.removeEventListener('beforeunload', onHide)
++    }
++  }, [flush])
++
++  // Keep "edited 2m ago" labels fresh.
++  useEffect(() => {
++    const t = setInterval(() => setTick((x) => x + 1), 30_000)
++    return () => clearInterval(t)
++  }, [])
++
++  // ---- theme ----------------------------------------------------------------
++  useEffect(() => {
++    document.documentElement.classList.toggle('dark', theme === 'dark')
++    document.documentElement.style.colorScheme = theme
++    try {
++      localStorage.setItem(THEME_KEY, theme)
++    } catch {
++      /* ignore */
++    }
++  }, [theme])
++
++  // ---- derived --------------------------------------------------------------
++  const sorted = useMemo(() => sortNotes(notes), [notes])
++  const visible = useMemo(() => searchNotes(sorted, query), [sorted, query])
++  const active = notes.find((n) => n.id === activeId) ?? null
++  const previewHtml = useMemo(() => (active ? renderMarkdown(active.content) : ''), [active])
++  const words = useMemo(() => (active ? wordCount(active.content) : 0), [active])
++
++  useEffect(() => {
++    if (focusTitleNext.current && titleRef.current) {
++      focusTitleNext.current = false
++      titleRef.current.focus()
++      titleRef.current.select()
++    }
++  })
++
++  // ---- actions --------------------------------------------------------------
++  const updateNote = (id: string, patch: Partial<Note>, touch = true) =>
++    setNotes((ns) => ns.map((n) => (n.id === id ? { ...n, ...patch, ...(touch ? { updatedAt: Date.now() } : {}) } : n)))
++
++  const addNote = () => {
++    const note = createNote()
++    setNotes((ns) => [note, ...ns])
++    setActiveId(note.id)
++    setQuery('')
++    setMobileView('editor')
++    focusTitleNext.current = true
++  }
++
++  const openNote = (id: string) => {
++    setActiveId(id)
++    setMobileView('editor')
++  }
++
++  const confirmDelete = () => {
++    if (!pendingDelete) return
++    const id = pendingDelete.id
++    const idx = sorted.findIndex((n) => n.id === id)
++    const rest = sorted.filter((n) => n.id !== id)
++    setNotes((ns) => ns.filter((n) => n.id !== id))
++    if (activeId === id) {
++      const next = rest[Math.min(idx, rest.length - 1)]
++      setActiveId(next ? next.id : null)
++      setMobileView('list')
++    }
++    setPendingDelete(null)
++  }
++
++  const onPreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
++    const target = e.target as HTMLElement
++    if (target instanceof HTMLInputElement && target.type === 'checkbox' && target.dataset.line && active) {
++      e.preventDefault()
++      const line = Number(target.dataset.line)
++      updateNote(active.id, { content: toggleTask(active.content, line) })
++    }
++  }
++
++  // ---- render -----------------------------------------------------------------
++  return (
++    <div className="flex h-dvh overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
++      {/* Sidebar */}
++      <aside
++        className={`${mobileView === 'list' ? 'flex' : 'hidden'} w-full shrink-0 flex-col border-zinc-200 bg-zinc-50 md:flex md:w-72 md:border-r dark:border-zinc-800 dark:bg-zinc-900`}
++        aria-label="Notes"
++      >
++        <div className="flex items-center gap-2 px-4 pt-4 pb-3">
++          <h1 className="flex-1 text-lg font-semibold tracking-tight">Notes</h1>
++          <button
++            type="button"
++            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
++            className="icon-btn"
++            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
++            title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
++          >
++            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
++          </button>
++          <button
++            type="button"
++            onClick={addNote}
++            className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
++          >
++            <Icon name="plus" className="size-4" />
++            New
++          </button>
++        </div>
++        <div className="px-4 pb-3">
++          <div className="relative">
++            <Icon
++              name="search"
++              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-zinc-400"
++            />
++            <input
++              type="search"
++              value={query}
++              onChange={(e) => setQuery(e.target.value)}
++              placeholder="Search notes"
++              aria-label="Search notes"
++              className="w-full rounded-md border border-zinc-300 bg-white py-1.5 pr-2 pl-8 text-sm outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-700 dark:bg-zinc-950"
++            />
++          </div>
++        </div>
++        <ul className="flex-1 overflow-y-auto px-2 pb-4" aria-label="Note list">
++          {visible.map((n) => {
++            const isActive = n.id === activeId
++            return (
++              <li key={n.id} className="group relative">
++                <button
++                  type="button"
++                  onClick={() => openNote(n.id)}
++                  aria-current={isActive ? 'true' : undefined}
++                  data-testid="note-item"
++                  className={`block w-full rounded-md px-3 py-2 pr-9 text-left ${
++                    isActive
++                      ? 'bg-indigo-100 dark:bg-indigo-500/20'
++                      : 'hover:bg-zinc-200/70 dark:hover:bg-zinc-800'
++                  }`}
++                >
++                  <span className="flex items-center gap-1.5">
++                    {n.pinned && <Icon name="pin-filled" className="size-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />}
++                    <span className="truncate text-sm font-medium" data-testid="note-title">
++                      <Highlighted text={displayTitle(n)} query={query} />
++                    </span>
++                  </span>
++                  <span className="mt-0.5 block truncate text-xs text-zinc-500 dark:text-zinc-400">
++                    {snippet(n.content, query) ? <Highlighted text={snippet(n.content, query)} query={query} /> : 'Empty note'}
++                  </span>
++                  <span className="mt-0.5 block text-[11px] text-zinc-400 dark:text-zinc-500">
++                    {relativeTime(n.updatedAt)}
++                  </span>
++                </button>
++                <button
++                  type="button"
++                  onClick={() => updateNote(n.id, { pinned: !n.pinned }, false)}
++                  aria-label={n.pinned ? `Unpin ${displayTitle(n)}` : `Pin ${displayTitle(n)}`}
++                  aria-pressed={n.pinned}
++                  title={n.pinned ? 'Unpin' : 'Pin to top'}
++                  className={`icon-btn absolute top-1.5 right-1.5 ${
++                    n.pinned ? 'text-indigo-600 dark:text-indigo-400' : 'md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100'
++                  }`}
++                >
++                  <Icon name={n.pinned ? 'pin-filled' : 'pin'} className="size-4" />
++                </button>
++              </li>
++            )
++          })}
++          {visible.length === 0 && (
++            <li className="px-3 py-6 text-center text-sm text-zinc-500">
++              {notes.length === 0 ? 'No notes yet.' : `No notes match “${query.trim()}”.`}
++            </li>
++          )}
++        </ul>
++      </aside>
++
++      {/* Editor */}
++      <main className={`${mobileView === 'editor' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col md:flex`}>
++        {active ? (
++          <>
++            <header className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-zinc-200 px-3 py-2 md:px-4 dark:border-zinc-800">
++              <button
++                type="button"
++                onClick={() => setMobileView('list')}
++                className="icon-btn md:hidden"
++                aria-label="Back to notes"
++              >
++                <Icon name="back" />
++              </button>
++              <input
++                ref={titleRef}
++                value={active.title}
++                onChange={(e) => updateNote(active.id, { title: e.target.value })}
++                onKeyDown={(e) => {
++                  if (e.key === 'Enter') {
++                    e.preventDefault()
++                    document.getElementById('editor')?.focus()
++                  }
++                }}
++                placeholder="Untitled"
++                aria-label="Note title"
++                className="min-w-0 flex-1 rounded-md bg-transparent px-1 py-1 text-lg font-semibold outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-indigo-500/30"
++              />
++              <button
++                type="button"
++                onClick={() => updateNote(active.id, { pinned: !active.pinned }, false)}
++                className={`icon-btn ${active.pinned ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
++                aria-label={active.pinned ? 'Unpin note' : 'Pin note'}
++                aria-pressed={active.pinned}
++                title={active.pinned ? 'Unpin' : 'Pin to top'}
++              >
++                <Icon name={active.pinned ? 'pin-filled' : 'pin'} />
++              </button>
++              <button
++                type="button"
++                onClick={() => setPendingDelete(active)}
++                className="icon-btn hover:text-red-600 dark:hover:text-red-400"
++                aria-label="Delete note"
++                title="Delete"
++              >
++                <Icon name="trash" />
++              </button>
++              <div className="flex w-full items-center gap-3 px-1 text-xs text-zinc-500 md:w-auto md:order-none dark:text-zinc-400">
++                <span data-testid="word-count">
++                  {words} {words === 1 ? 'word' : 'words'}
++                </span>
++                <span
++                  data-testid="save-status"
++                  aria-live="polite"
++                  className={saveStatus === 'error' ? 'text-red-600' : ''}
++                >
++                  {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved — storage full' : (
++                    <span className="inline-flex items-center gap-1">
++                      <Icon name="check" className="size-3.5 text-emerald-600 dark:text-emerald-400" />
++                      Saved
++                    </span>
++                  )}
++                </span>
++              </div>
++            </header>
++            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:grid md:grid-cols-2 md:overflow-hidden">
++              <section className="flex flex-col border-zinc-200 md:min-h-0 md:border-r dark:border-zinc-800" aria-label="Markdown source">
++                <div className="pane-label">Markdown</div>
++                <textarea
++                  id="editor"
++                  value={active.content}
++                  onChange={(e) => updateNote(active.id, { content: e.target.value })}
++                  spellCheck
++                  placeholder="Start writing Markdown…"
++                  aria-label="Markdown editor"
++                  className="h-[45vh] w-full resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed outline-none md:h-auto md:flex-1"
++                />
++              </section>
++              <section className="flex flex-col border-t border-zinc-200 md:min-h-0 md:border-t-0 dark:border-zinc-800" aria-label="Preview">
++                <div className="pane-label">Preview</div>
++                <div
++                  className="md-preview px-4 py-3 md:flex-1 md:overflow-y-auto"
++                  data-testid="preview"
++                  onClick={onPreviewClick}
++                  dangerouslySetInnerHTML={{ __html: previewHtml }}
++                />
++              </section>
++            </div>
++          </>
++        ) : (
++          <div className="grid flex-1 place-items-center p-6 text-center">
++            <div>
++              <p className="text-zinc-500 dark:text-zinc-400">
++                {notes.length === 0 ? 'You have no notes yet.' : 'Select a note to start editing.'}
++              </p>
++              <button
++                type="button"
++                onClick={addNote}
++                className="mt-3 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
++              >
++                Create a note
++              </button>
++              <button type="button" onClick={() => setMobileView('list')} className="mt-3 ml-2 text-sm underline md:hidden">
++                Back to list
++              </button>
++            </div>
++          </div>
++        )}
++      </main>
++
++      {pendingDelete && (
++        <ConfirmDialog
++          title="Delete note?"
++          message={`“${displayTitle(pendingDelete)}” will be permanently deleted. This can’t be undone.`}
++          confirmLabel="Delete"
++          onConfirm={confirmDelete}
++          onCancel={() => setPendingDelete(null)}
++        />
++      )}
++    </div>
++  )
+ }
+diff --git a/src/components/ConfirmDialog.tsx b/src/components/ConfirmDialog.tsx
+new file mode 100644
+index 0000000..059c167
+--- /dev/null
++++ b/src/components/ConfirmDialog.tsx
+@@ -0,0 +1,77 @@
++import { useEffect, useRef } from 'react'
++
++interface Props {
++  title: string
++  message: string
++  confirmLabel: string
++  onConfirm: () => void
++  onCancel: () => void
++}
++
++export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel }: Props) {
++  const cancelRef = useRef<HTMLButtonElement>(null)
++  const confirmRef = useRef<HTMLButtonElement>(null)
++  const cancelCb = useRef(onCancel)
++  cancelCb.current = onCancel
++
++  useEffect(() => {
++    const previous = document.activeElement as HTMLElement | null
++    cancelRef.current?.focus()
++    const onKey = (e: KeyboardEvent) => {
++      if (e.key === 'Escape') cancelCb.current()
++      if (e.key === 'Tab') {
++        // Keep focus inside the two buttons.
++        e.preventDefault()
++        const next = document.activeElement === cancelRef.current ? confirmRef.current : cancelRef.current
++        next?.focus()
++      }
++    }
++    document.addEventListener('keydown', onKey)
++    return () => {
++      document.removeEventListener('keydown', onKey)
++      if (previous?.isConnected) previous.focus()
++    }
++  }, [])
++
++  return (
++    <div
++      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
++      onMouseDown={(e) => {
++        if (e.target === e.currentTarget) onCancel()
++      }}
++    >
++      <div
++        role="alertdialog"
++        aria-modal="true"
++        aria-labelledby="confirm-title"
++        aria-describedby="confirm-message"
++        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-900 dark:ring-1 dark:ring-zinc-700"
++      >
++        <h2 id="confirm-title" className="text-base font-semibold">
++          {title}
++        </h2>
++        <p id="confirm-message" className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
++          {message}
++        </p>
++        <div className="mt-5 flex justify-end gap-2">
++          <button
++            ref={cancelRef}
++            type="button"
++            onClick={onCancel}
++            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-zinc-600 dark:hover:bg-zinc-800"
++          >
++            Cancel
++          </button>
++          <button
++            ref={confirmRef}
++            type="button"
++            onClick={onConfirm}
++            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
++          >
++            {confirmLabel}
++          </button>
++        </div>
++      </div>
++    </div>
++  )
++}
+diff --git a/src/components/Icon.tsx b/src/components/Icon.tsx
+new file mode 100644
+index 0000000..049ad63
+--- /dev/null
++++ b/src/components/Icon.tsx
+@@ -0,0 +1,28 @@
++const PATHS: Record<string, string> = {
++  plus: 'M12 5v14M5 12h14',
++  search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',
++  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
++  moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
++  pin: 'M12 17v5M9 10.76V4h6v6.76l2.5 2.74V16h-11v-2.5L9 10.76zM8 4h8',
++  'pin-filled': 'M12 17v5M9 10.76V4h6v6.76l2.5 2.74V16h-11v-2.5L9 10.76zM8 4h8',
++  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
++  back: 'M15 18l-6-6 6-6',
++  check: 'M20 6 9 17l-5-5',
++}
++
++export function Icon({ name, className = 'size-5' }: { name: keyof typeof PATHS; className?: string }) {
++  return (
++    <svg
++      viewBox="0 0 24 24"
++      fill={name === 'pin-filled' ? 'currentColor' : 'none'}
++      stroke="currentColor"
++      strokeWidth={2}
++      strokeLinecap="round"
++      strokeLinejoin="round"
++      className={className}
++      aria-hidden="true"
++    >
++      <path d={PATHS[name]} />
++    </svg>
++  )
++}
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..c3c394c 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,56 @@
+ @import "tailwindcss";
++
++@custom-variant dark (&:where(.dark, .dark *));
++
++@layer components {
++  .icon-btn {
++    @apply inline-grid size-8 shrink-0 place-items-center rounded-md text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
++  }
++  .pane-label {
++    @apply px-4 pt-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase dark:text-zinc-500;
++  }
++}
++
++.md-preview {
++  line-height: 1.65;
++  overflow-wrap: anywhere;
++}
++.md-preview > * + * { margin-top: 0.75em; }
++.md-preview h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.25; }
++.md-preview h2 { font-size: 1.375rem; font-weight: 700; line-height: 1.3; margin-top: 1.25em; }
++.md-preview h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.1em; }
++.md-preview h4, .md-preview h5, .md-preview h6 { font-weight: 600; margin-top: 1em; }
++.md-preview a { color: var(--color-indigo-600); text-decoration: underline; text-underline-offset: 2px; }
++.dark .md-preview a { color: var(--color-indigo-400); }
++.md-preview ul { list-style: disc; padding-left: 1.5rem; }
++.md-preview ol { list-style: decimal; padding-left: 1.5rem; }
++.md-preview li > ul, .md-preview li > ol { margin-top: 0.25em; }
++.md-preview ul.task-list { list-style: none; padding-left: 0.25rem; }
++.md-preview li.task-item ul.task-list { padding-left: 1.5rem; }
++.md-preview li.task-item > label { display: inline-flex; align-items: baseline; gap: 0.5rem; cursor: pointer; }
++.md-preview li.task-item input { accent-color: var(--color-indigo-600); width: 1rem; height: 1rem; transform: translateY(2px); cursor: pointer; }
++.md-preview li.task-item.done > label > span { color: var(--color-zinc-500); text-decoration: line-through; }
++.md-preview code {
++  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
++  font-size: 0.875em;
++  background: var(--color-zinc-100);
++  border-radius: 4px;
++  padding: 0.1em 0.35em;
++}
++.dark .md-preview code { background: var(--color-zinc-800); }
++.md-preview pre {
++  background: var(--color-zinc-100);
++  border-radius: 6px;
++  padding: 0.75rem 1rem;
++  overflow-x: auto;
++}
++.dark .md-preview pre { background: var(--color-zinc-900); }
++.md-preview pre code { background: none; padding: 0; font-size: 0.85rem; }
++.md-preview blockquote {
++  border-left: 3px solid var(--color-zinc-300);
++  padding-left: 1rem;
++  color: var(--color-zinc-600);
++}
++.dark .md-preview blockquote { border-color: var(--color-zinc-700); color: var(--color-zinc-400); }
++.md-preview hr { border-color: var(--color-zinc-200); }
++.dark .md-preview hr { border-color: var(--color-zinc-800); }
+diff --git a/src/lib/markdown.test.ts b/src/lib/markdown.test.ts
+new file mode 100644
+index 0000000..9d25705
+--- /dev/null
++++ b/src/lib/markdown.test.ts
+@@ -0,0 +1,147 @@
++import { describe, expect, it } from 'vitest'
++import { renderMarkdown, renderInline, safeUrl, toggleTask } from './markdown'
++
++describe('renderMarkdown', () => {
++  it('renders headings of every level', () => {
++    for (let l = 1; l <= 6; l++) {
++      expect(renderMarkdown(`${'#'.repeat(l)} Title`)).toBe(`<h${l}>Title</h${l}>`)
++    }
++    expect(renderMarkdown('#NoSpace')).toBe('<p>#NoSpace</p>')
++  })
++
++  it('renders bold, italic, bold-italic and strikethrough', () => {
++    expect(renderInline('**b** and __b__')).toBe('<strong>b</strong> and <strong>b</strong>')
++    expect(renderInline('*i* and _i_')).toBe('<em>i</em> and <em>i</em>')
++    expect(renderInline('***bi***')).toBe('<strong><em>bi</em></strong>')
++    expect(renderInline('**bold _and italic_**')).toBe('<strong>bold <em>and italic</em></strong>')
++    expect(renderInline('~~gone~~')).toBe('<del>gone</del>')
++  })
++
++  it('does not treat underscores inside words as emphasis', () => {
++    expect(renderInline('snake_case_name')).toBe('snake_case_name')
++    expect(renderInline('2 * 3 * 4')).toBe('2 * 3 * 4')
++  })
++
++  it('renders unordered, ordered and nested lists', () => {
++    expect(renderMarkdown('- a\n- b')).toBe('<ul><li>a</li><li>b</li></ul>')
++    expect(renderMarkdown('* a\n+ b')).toBe('<ul><li>a</li><li>b</li></ul>')
++    expect(renderMarkdown('1. a\n2. b')).toBe('<ol><li>a</li><li>b</li></ol>')
++    expect(renderMarkdown('3. a\n4. b')).toBe('<ol start="3"><li>a</li><li>b</li></ol>')
++    expect(renderMarkdown('- a\n  - b\n- c')).toBe('<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>')
++  })
++
++  it('renders links with safe attributes', () => {
++    expect(renderInline('[site](https://example.com)')).toBe(
++      '<a href="https://example.com" target="_blank" rel="noopener noreferrer">site</a>',
++    )
++    expect(renderInline('[t](https://a.com/x_y_z "Title")')).toContain('href="https://a.com/x_y_z" title="Title"')
++    expect(renderInline('see https://example.com/a_b.')).toBe(
++      'see <a href="https://example.com/a_b" target="_blank" rel="noopener noreferrer">https://example.com/a_b</a>.',
++    )
++  })
++
++  it('renders inline code and fenced code blocks literally', () => {
++    expect(renderInline('`**not bold** <b>`')).toBe('<code>**not bold** &lt;b&gt;</code>')
++    expect(renderMarkdown('```js\nconst a = 1 < 2\n# not heading\n```')).toBe(
++      '<pre><code class="language-js">const a = 1 &lt; 2\n# not heading</code></pre>',
++    )
++    // Unclosed fence runs to end of document.
++    expect(renderMarkdown('```\ncode')).toBe('<pre><code>code</code></pre>')
++    expect(renderMarkdown('~~~\n- [ ] x\n~~~')).toBe('<pre><code>- [ ] x</code></pre>')
++  })
++
++  it('renders task lists with source line numbers', () => {
++    const html = renderMarkdown('# T\n\n- [ ] todo\n- [x] done')
++    expect(html).toContain('<input type="checkbox" data-line="2">')
++    expect(html).toContain('<input type="checkbox" data-line="3" checked>')
++    expect(html).toContain('<ul class="task-list">')
++  })
++
++  it('renders paragraphs, line breaks, blockquotes and rules', () => {
++    expect(renderMarkdown('one\ntwo\n\nthree')).toBe('<p>one<br>two</p>\n<p>three</p>')
++    expect(renderMarkdown('> quoted')).toBe('<blockquote><p>quoted</p></blockquote>')
++    expect(renderMarkdown('a\n\n---\n\nb')).toBe('<p>a</p>\n<hr>\n<p>b</p>')
++  })
++
++  it('handles empty input and backslash escapes', () => {
++    expect(renderMarkdown('')).toBe('')
++    expect(renderInline('\\*not italic\\*')).toBe('*not italic*')
++  })
++})
++
++describe('safety', () => {
++  const xss = [
++    '<script>alert(1)</script>',
++    '<img src=x onerror=alert(1)>',
++    '<iframe src="javascript:alert(1)"></iframe>',
++    '<a href="javascript:alert(1)">x</a>',
++    '<svg onload=alert(1)>',
++    '"><script>alert(1)</script>',
++  ]
++
++  it.each(xss)('escapes raw HTML: %s', (src) => {
++    const html = renderMarkdown(src)
++    expect(html).not.toMatch(/<(script|img|iframe|svg|a)\b/i)
++    expect(html).toContain('&lt;')
++  })
++
++  it('escapes HTML inside every construct', () => {
++    const html = renderMarkdown(
++      '# <b>h</b>\n\n- <i>x</i>\n- [ ] <img src=x onerror=alert(1)>\n\n**<u>b</u>**\n\n[<s>t</s>](https://x.com)',
++    )
++    expect(html).not.toMatch(/<(b|i|u|s|img)\b/)
++  })
++
++  it('drops dangerous link schemes', () => {
++    for (const url of ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'java\tscript:alert(1)', 'data:text/html,x', 'vbscript:x']) {
++      expect(safeUrl(url)).toBeNull()
++    }
++    const html = renderInline('[click](javascript:alert(1))')
++    expect(html).not.toContain('href')
++    expect(html).not.toContain('javascript:alert(1)"')
++  })
++
++  it('allows safe link schemes and relative links', () => {
++    for (const url of ['https://a.com', 'http://a.com', 'mailto:a@b.c', '#top', '/path', 'page.html']) {
++      expect(safeUrl(url)).toBe(url)
++    }
++  })
++
++  it('cannot break out of the href attribute', () => {
++    const html = renderInline('[x](https://a.com/"onmouseover="alert(1))')
++    expect(html).not.toMatch(/"\s*onmouseover=/)
++  })
++
++  it('escapes code-block language names', () => {
++    expect(renderMarkdown('```"><script>\nx\n```')).not.toContain('<script>')
++  })
++})
++
++describe('toggleTask', () => {
++  it('toggles unchecked and checked items', () => {
++    const src = '- [ ] a\n- [x] b\n* [X] c'
++    expect(toggleTask(src, 0)).toBe('- [x] a\n- [x] b\n* [X] c')
++    expect(toggleTask(src, 1)).toBe('- [ ] a\n- [ ] b\n* [X] c')
++    expect(toggleTask(src, 2)).toBe('- [ ] a\n- [x] b\n* [ ] c')
++  })
++
++  it('handles nested, ordered and quoted items', () => {
++    expect(toggleTask('  - [ ] nested', 0)).toBe('  - [x] nested')
++    expect(toggleTask('1. [ ] first', 0)).toBe('1. [x] first')
++    expect(toggleTask('> - [ ] quoted', 0)).toBe('> - [x] quoted')
++  })
++
++  it('leaves non-task lines and out-of-range lines untouched', () => {
++    const src = 'text [ ] here\n- item'
++    expect(toggleTask(src, 0)).toBe(src)
++    expect(toggleTask(src, 1)).toBe(src)
++    expect(toggleTask(src, 9)).toBe(src)
++  })
++
++  it('round-trips with the rendered data-line', () => {
++    const src = 'Intro\n\n```\n- [ ] in code\n```\n\n- [ ] real\n  - [ ] child'
++    const lines = [...renderMarkdown(src).matchAll(/data-line="(\d+)"/g)].map((m) => +m[1])
++    expect(lines).toEqual([6, 7])
++    expect(toggleTask(src, 7).split('\n')[7]).toBe('  - [x] child')
++  })
++})
+diff --git a/src/lib/markdown.ts b/src/lib/markdown.ts
+new file mode 100644
+index 0000000..b03286c
+--- /dev/null
++++ b/src/lib/markdown.ts
+@@ -0,0 +1,298 @@
++/* oxlint-disable no-control-regex -- \u0000 is used deliberately as a placeholder delimiter */
++/**
++ * A small, dependency-free Markdown renderer.
++ *
++ * Safety model: every piece of user text is HTML-escaped before it reaches the
++ * output, and the only tags emitted are the ones this file writes itself. Raw
++ * HTML in a note is therefore shown as text and can never run scripts. Link
++ * URLs are restricted to safe schemes (http, https, mailto, tel) or relative
++ * paths, so `javascript:` links are dropped.
++ *
++ * Task-list checkboxes carry a `data-line` attribute with the zero-based source
++ * line they came from, so the UI can toggle them in the Markdown source.
++ */
++
++interface Line {
++  text: string
++  /** zero-based line index in the original source */
++  n: number
++}
++
++const ESCAPES: Record<string, string> = {
++  '&': '&amp;',
++  '<': '&lt;',
++  '>': '&gt;',
++  '"': '&quot;',
++  "'": '&#39;',
++}
++
++export function escapeHtml(s: string): string {
++  return s.replace(/[&<>"']/g, (c) => ESCAPES[c])
++}
++
++/** Returns the URL if it is safe to put in an href, otherwise null. */
++export function safeUrl(raw: string): string | null {
++  const url = raw.trim()
++  if (!url) return null
++  // Browsers ignore control characters and whitespace when parsing a scheme,
++  // so strip them before checking (e.g. "java\tscript:").
++  const probe = url.replace(/[\u0000- \u007f-\u009f]/g, '').toLowerCase()
++  const scheme = /^([a-z][a-z0-9+.-]*):/.exec(probe)
++  if (scheme && !['http', 'https', 'mailto', 'tel'].includes(scheme[1])) return null
++  return url
++}
++
++const TOKEN = /\u0000(\d+)\u0000/g
++
++/** Render inline Markdown (code, links, bold, italic, strikethrough) to HTML. */
++export function renderInline(input: string): string {
++  const tokens: { html: string; raw: string }[] = []
++  const stash = (html: string, raw: string) => `\u0000${tokens.push({ html, raw }) - 1}\u0000`
++  const unstashRaw = (s: string) => s.replace(TOKEN, (_, i) => tokens[+i].raw)
++
++  let text = input.replace(/\u0000/g, '')
++
++  // 1. Code spans: content is literal.
++  text = text.replace(/(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/g, (m, _ticks, code: string) => {
++    const body = code.length > 2 && code.startsWith(' ') && code.endsWith(' ') ? code.slice(1, -1) : code
++    return stash(`<code>${escapeHtml(body)}</code>`, m)
++  })
++
++  // 2. Backslash escapes.
++  text = text.replace(/\\([\\`*_{}[\]()#+\-.!~>|])/g, (_, ch: string) => stash(escapeHtml(ch), ch))
++
++  // 3. Links: [text](url "title")
++  text = text.replace(
++    /\[([^\]]*)\]\(\s*<?([^\s)>]*)>?(?:\s+"([^"]*)")?\s*\)/g,
++    (_m, label: string, href: string, title: string | undefined) => {
++      const url = safeUrl(unstashRaw(href))
++      const inner = renderEmphasis(escapeHtml(label))
++      if (!url) return stash(inner, inner)
++      const titleAttr = title ? ` title="${escapeHtml(unstashRaw(title))}"` : ''
++      return stash(
++        `<a href="${escapeHtml(url)}"${titleAttr} target="_blank" rel="noopener noreferrer">${inner}</a>`,
++        label,
++      )
++    },
++  )
++
++  // 4. Bare URLs.
++  text = text.replace(/\bhttps?:\/\/[^\s<>\u0000]*[^\s<>\u0000.,:;"')\]!?*_~]/g, (url) =>
++    stash(`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`, url),
++  )
++
++  // 5. Escape everything that is left, then apply emphasis.
++  let html = renderEmphasis(escapeHtml(text))
++
++  // 6. Restore stashed fragments (they may nest).
++  while (TOKEN.test(html)) {
++    TOKEN.lastIndex = 0
++    html = html.replace(TOKEN, (_, i) => tokens[+i].html)
++  }
++  TOKEN.lastIndex = 0
++  return html
++}
++
++/** Applies bold / italic / strikethrough to already-escaped text. */
++function renderEmphasis(s: string): string {
++  return s
++    .replace(/\*\*\*(?=\S)([\s\S]*?\S)\*\*\*/g, '<strong><em>$1</em></strong>')
++    .replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, '<strong>$1</strong>')
++    .replace(/(^|[^\w])__(?=\S)([\s\S]*?\S)__(?!\w)/g, '$1<strong>$2</strong>')
++    .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
++    .replace(/\*(?=[^\s*])([\s\S]*?[^\s*])\*/g, '<em>$1</em>')
++    .replace(/(^|[^\w])_(?=[^\s_])([\s\S]*?[^\s_])_(?!\w)/g, '$1<em>$2</em>')
++}
++
++const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)[^`]*$/
++const HEADING = /^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$/
++const HR = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/
++const QUOTE = /^ {0,3}> ?(.*)$/
++const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+(.*)|\s*$)/
++const TASK = /^\[([ xX])\](?:\s+([\s\S]*)|$)/
++
++const expandTabs = (s: string) => s.replace(/\t/g, '    ')
++const indentOf = (s: string) => /^ */.exec(s)![0].length
++const isBlank = (s: string) => /^\s*$/.test(s)
++
++function startsBlock(text: string): boolean {
++  return FENCE.test(text) || HEADING.test(text) || HR.test(text) || QUOTE.test(text) || LIST_ITEM.test(text)
++}
++
++function renderBlocks(lines: Line[]): string {
++  const out: string[] = []
++  let i = 0
++  while (i < lines.length) {
++    const { text } = lines[i]
++
++    if (isBlank(text)) {
++      i++
++      continue
++    }
++
++    const fence = FENCE.exec(text)
++    if (fence) {
++      const marker = fence[1]
++      const lang = fence[2]
++      const body: string[] = []
++      i++
++      while (i < lines.length) {
++        const t = lines[i].text
++        if (new RegExp(`^ {0,3}${marker[0] === '`' ? '`' : '~'}{${marker.length},}\\s*$`).test(t)) {
++          i++
++          break
++        }
++        body.push(t)
++        i++
++      }
++      const cls = lang ? ` class="language-${escapeHtml(lang)}"` : ''
++      out.push(`<pre><code${cls}>${escapeHtml(body.join('\n'))}</code></pre>`)
++      continue
++    }
++
++    const heading = HEADING.exec(text)
++    if (heading) {
++      const level = heading[1].length
++      out.push(`<h${level}>${renderInline(heading[2] ?? '')}</h${level}>`)
++      i++
++      continue
++    }
++
++    if (HR.test(text)) {
++      out.push('<hr>')
++      i++
++      continue
++    }
++
++    if (QUOTE.test(text)) {
++      const inner: Line[] = []
++      while (i < lines.length && !isBlank(lines[i].text)) {
++        const q = QUOTE.exec(lines[i].text)
++        inner.push({ text: q ? q[1] : lines[i].text, n: lines[i].n })
++        i++
++      }
++      out.push(`<blockquote>${renderBlocks(inner)}</blockquote>`)
++      continue
++    }
++
++    if (LIST_ITEM.test(text)) {
++      const [html, next] = renderList(lines, i, indentOf(text))
++      out.push(html)
++      i = next
++      continue
++    }
++
++    // Paragraph: consecutive lines until a blank line or another block.
++    const para: string[] = []
++    while (i < lines.length && !isBlank(lines[i].text) && (para.length === 0 || !startsBlock(lines[i].text))) {
++      para.push(lines[i].text.trim())
++      i++
++    }
++    out.push(`<p>${renderInline(para.join('\n')).replace(/\n/g, '<br>')}</p>`)
++  }
++  return out.join('\n')
++}
++
++interface Item {
++  line: number
++  text: string[]
++  children: string[]
++}
++
++function renderList(lines: Line[], start: number, baseIndent: number): [string, number] {
++  const first = LIST_ITEM.exec(lines[start].text)!
++  const ordered = /\d/.test(first[2])
++  const startNum = ordered ? parseInt(first[2], 10) : 1
++  const items: Item[] = []
++  let i = start
++
++  while (i < lines.length) {
++    const { text, n } = lines[i]
++
++    if (isBlank(text)) {
++      // A blank line only continues the list if the next content is part of it.
++      let j = i + 1
++      while (j < lines.length && isBlank(lines[j].text)) j++
++      if (j < lines.length && indentOf(lines[j].text) >= baseIndent && LIST_ITEM.test(lines[j].text)) {
++        i = j
++        continue
++      }
++      break
++    }
++
++    const indent = indentOf(text)
++    const m = LIST_ITEM.exec(text)
++
++    if (m && indent < baseIndent) break
++
++    if (m && indent < baseIndent + 2) {
++      if (/\d/.test(m[2]) !== ordered) break
++      items.push({ line: n, text: [m[3] ?? ''], children: [] })
++      i++
++      continue
++    }
++
++    const current = items[items.length - 1]
++    if (!current) break
++
++    if (m) {
++      const [html, next] = renderList(lines, i, indent)
++      current.children.push(html)
++      i = next
++      continue
++    }
++
++    if (indent > baseIndent || !startsBlock(text)) {
++      // Continuation of the current item's text.
++      current.text.push(text.trim())
++      i++
++      continue
++    }
++    break
++  }
++
++  const tag = ordered ? 'ol' : 'ul'
++  const isTaskList = items.some((it) => TASK.test(it.text[0]))
++  const startAttr = ordered && startNum !== 1 ? ` start="${startNum}"` : ''
++  const body = items
++    .map((it) => {
++      const task = TASK.exec(it.text[0])
++      const children = it.children.join('')
++      if (task) {
++        const checked = task[1] !== ' '
++        const rest = [task[2] ?? '', ...it.text.slice(1)].join('\n')
++        const label = renderInline(rest).replace(/\n/g, '<br>')
++        return (
++          `<li class="task-item${checked ? ' done' : ''}"><label>` +
++          `<input type="checkbox" data-line="${it.line}"${checked ? ' checked' : ''}> ` +
++          `<span>${label}</span></label>${children}</li>`
++        )
++      }
++      return `<li>${renderInline(it.text.join('\n')).replace(/\n/g, '<br>')}${children}</li>`
++    })
++    .join('')
++  const cls = isTaskList ? ' class="task-list"' : ''
++  return [`<${tag}${cls}${startAttr}>${body}</${tag}>`, i]
++}
++
++/** Render a Markdown document to a safe HTML string. */
++export function renderMarkdown(src: string): string {
++  const lines = src.replace(/\r\n?/g, '\n').split('\n').map((text, n) => ({ text: expandTabs(text), n }))
++  return renderBlocks(lines)
++}
++
++const TASK_SOURCE = /^(\s*(?:>\s*)*(?:[-*+]|\d{1,9}[.)])\s+\[)([ xX])(\])/
++
++/**
++ * Toggle the task-list checkbox on the given zero-based source line.
++ * Returns the source unchanged if that line is not a task item.
++ */
++export function toggleTask(src: string, line: number): string {
++  const lines = src.split('\n')
++  if (line < 0 || line >= lines.length) return src
++  const m = TASK_SOURCE.exec(lines[line])
++  if (!m) return src
++  const next = m[2] === ' ' ? 'x' : ' '
++  lines[line] = m[1] + next + m[3] + lines[line].slice(m[0].length)
++  return lines.join('\n')
++}
+diff --git a/src/lib/notes.test.ts b/src/lib/notes.test.ts
+new file mode 100644
+index 0000000..9d4b24d
+--- /dev/null
++++ b/src/lib/notes.test.ts
+@@ -0,0 +1,167 @@
++import { describe, expect, it } from 'vitest'
++import {
++  type Note,
++  STORAGE_KEY,
++  createNote,
++  displayTitle,
++  highlight,
++  loadState,
++  relativeTime,
++  saveState,
++  searchNotes,
++  snippet,
++  sortNotes,
++  wordCount,
++} from './notes'
++
++const note = (id: string, updatedAt: number, extra: Partial<Note> = {}): Note => ({
++  id,
++  title: id,
++  content: '',
++  pinned: false,
++  createdAt: 0,
++  updatedAt,
++  ...extra,
++})
++
++class MemoryStorage {
++  data = new Map<string, string>()
++  getItem(k: string) {
++    return this.data.get(k) ?? null
++  }
++  setItem(k: string, v: string) {
++    this.data.set(k, v)
++  }
++}
++
++describe('sortNotes', () => {
++  it('sorts by last edited, newest first', () => {
++    const out = sortNotes([note('a', 1), note('b', 3), note('c', 2)])
++    expect(out.map((n) => n.id)).toEqual(['b', 'c', 'a'])
++  })
++
++  it('puts pinned notes first, each group newest first', () => {
++    const out = sortNotes([
++      note('a', 5),
++      note('p1', 1, { pinned: true }),
++      note('b', 9),
++      note('p2', 3, { pinned: true }),
++    ])
++    expect(out.map((n) => n.id)).toEqual(['p2', 'p1', 'b', 'a'])
++  })
++
++  it('does not mutate the input', () => {
++    const input = [note('a', 1), note('b', 2)]
++    sortNotes(input)
++    expect(input.map((n) => n.id)).toEqual(['a', 'b'])
++  })
++})
++
++describe('searchNotes', () => {
++  const notes = [
++    note('Groceries', 1, { content: 'milk, eggs' }),
++    note('Work', 2, { content: 'Ship the MILKSHAKE feature' }),
++    note('Ideas', 3, { content: 'nothing' }),
++  ]
++  it('matches titles and contents case-insensitively', () => {
++    expect(searchNotes(notes, 'milk').map((n) => n.id)).toEqual(['Groceries', 'Work'])
++    expect(searchNotes(notes, 'IDEAS').map((n) => n.id)).toEqual(['Ideas'])
++  })
++  it('returns everything for an empty query and nothing for no match', () => {
++    expect(searchNotes(notes, '   ')).toHaveLength(3)
++    expect(searchNotes(notes, 'zzz')).toHaveLength(0)
++  })
++})
++
++describe('highlight', () => {
++  it('splits text around every case-insensitive match', () => {
++    expect(highlight('Milk and milk', 'milk')).toEqual([
++      { text: 'Milk', match: true },
++      { text: ' and ', match: false },
++      { text: 'milk', match: true },
++    ])
++  })
++  it('returns the whole text when there is no query or match', () => {
++    expect(highlight('abc', '')).toEqual([{ text: 'abc', match: false }])
++    expect(highlight('abc', 'x')).toEqual([{ text: 'abc', match: false }])
++  })
++  it('treats regex characters literally', () => {
++    expect(highlight('a.b*c', '.b*')).toEqual([
++      { text: 'a', match: false },
++      { text: '.b*', match: true },
++      { text: 'c', match: false },
++    ])
++  })
++})
++
++describe('snippet', () => {
++  it('shows the start of the note as plain text without a query', () => {
++    expect(snippet('# Hello\n\n**big** _world_ [link](https://x.com)\n- [ ] task\n`code`')).toBe(
++      'Hello big world link task code',
++    )
++    expect(snippet('snake_case_name')).toBe('snake_case_name')
++    expect(snippet('window.__xss = 1')).toBe('window.__xss = 1')
++  })
++  it('centres on the first match with ellipses', () => {
++    const text = 'x'.repeat(100) + 'needle' + 'y'.repeat(100)
++    const s = snippet(text, 'needle', 10)
++    expect(s).toBe('…' + 'x'.repeat(10) + 'needle' + 'y'.repeat(10) + '…')
++  })
++})
++
++describe('wordCount', () => {
++  it('counts words ignoring Markdown syntax', () => {
++    expect(wordCount('')).toBe(0)
++    expect(wordCount('   \n ')).toBe(0)
++    expect(wordCount('# Hello **world**')).toBe(2)
++    expect(wordCount('- [ ] buy milk\n- [x] done')).toBe(3)
++    expect(wordCount("It's a well-known [link](https://example.com/a/b)")).toBe(4)
++    expect(wordCount('```js\nconst x\n```')).toBe(2)
++    expect(wordCount('Zażółć gęślą jaźń')).toBe(3)
++  })
++})
++
++describe('persistence', () => {
++  it('round-trips state through storage', () => {
++    const s = new MemoryStorage()
++    const n = createNote(100, 'Title', 'Body')
++    expect(saveState(s, { notes: [n], activeId: n.id })).toBe(true)
++    expect(loadState(s)).toEqual({ notes: [n], activeId: n.id })
++  })
++
++  it('returns null when nothing is saved', () => {
++    expect(loadState(new MemoryStorage())).toBeNull()
++  })
++
++  it('survives corrupt data and drops invalid notes', () => {
++    const s = new MemoryStorage()
++    s.setItem(STORAGE_KEY, '{not json')
++    expect(loadState(s)).toEqual({ notes: [], activeId: null })
++    s.setItem(STORAGE_KEY, JSON.stringify({ notes: [{ id: 1 }, { id: 'ok', title: 't', content: '', updatedAt: 5 }], activeId: 'gone' }))
++    expect(loadState(s)).toEqual({
++      notes: [{ id: 'ok', title: 't', content: '', updatedAt: 5, createdAt: 5, pinned: false }],
++      activeId: null,
++    })
++  })
++
++  it('reports failure when storage throws (e.g. quota exceeded)', () => {
++    const s = { setItem: () => { throw new Error('QuotaExceeded') } }
++    expect(saveState(s, { notes: [], activeId: null })).toBe(false)
++  })
++})
++
++describe('misc', () => {
++  it('displayTitle falls back to Untitled', () => {
++    expect(displayTitle({ title: '  ' })).toBe('Untitled')
++    expect(displayTitle({ title: 'A' })).toBe('A')
++  })
++  it('createNote gives unique ids', () => {
++    expect(createNote().id).not.toBe(createNote().id)
++  })
++  it('relativeTime formats recent times', () => {
++    expect(relativeTime(1000, 1000)).toBe('just now')
++    expect(relativeTime(0, 5 * 60_000)).toBe('5m ago')
++    expect(relativeTime(0, 3 * 3600_000)).toBe('3h ago')
++    expect(relativeTime(0, 2 * 86400_000)).toBe('2d ago')
++  })
++})
+diff --git a/src/lib/notes.ts b/src/lib/notes.ts
+new file mode 100644
+index 0000000..0a1ecd2
+--- /dev/null
++++ b/src/lib/notes.ts
+@@ -0,0 +1,183 @@
++export interface Note {
++  id: string
++  title: string
++  content: string
++  pinned: boolean
++  createdAt: number
++  updatedAt: number
++}
++
++export interface AppState {
++  notes: Note[]
++  activeId: string | null
++}
++
++export const STORAGE_KEY = 'md-notes:v1'
++export const THEME_KEY = 'md-notes:theme'
++
++export function newId(): string {
++  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
++  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
++}
++
++export function createNote(now = Date.now(), title = '', content = ''): Note {
++  return { id: newId(), title, content, pinned: false, createdAt: now, updatedAt: now }
++}
++
++export function displayTitle(note: Pick<Note, 'title'>): string {
++  return note.title.trim() || 'Untitled'
++}
++
++/** Pinned notes first, then most recently edited first. */
++export function sortNotes(notes: Note[]): Note[] {
++  return [...notes].sort(
++    (a, b) =>
++      Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt || b.createdAt - a.createdAt,
++  )
++}
++
++/** Case-insensitive substring search over titles and contents. */
++export function searchNotes(notes: Note[], query: string): Note[] {
++  const q = query.trim().toLowerCase()
++  if (!q) return notes
++  return notes.filter((n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
++}
++
++export interface Segment {
++  text: string
++  match: boolean
++}
++
++/** Split text into matching / non-matching segments for highlighting. */
++export function highlight(text: string, query: string): Segment[] {
++  const q = query.trim().toLowerCase()
++  if (!q) return text ? [{ text, match: false }] : []
++  const lower = text.toLowerCase()
++  const out: Segment[] = []
++  let pos = 0
++  for (;;) {
++    const idx = lower.indexOf(q, pos)
++    if (idx === -1) break
++    if (idx > pos) out.push({ text: text.slice(pos, idx), match: false })
++    out.push({ text: text.slice(idx, idx + q.length), match: true })
++    pos = idx + q.length
++  }
++  if (pos < text.length) out.push({ text: text.slice(pos), match: false })
++  return out
++}
++
++/** Roughly strips Markdown syntax so list previews read as plain text. */
++export function plainText(md: string): string {
++  return md
++    .replace(/^\s*(```|~~~).*$/gm, '')
++    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
++    .replace(/^\s*>\s?/gm, '')
++    .replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/gm, '')
++    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
++    .replace(/(\*\*|__|~~|`)(?=\S)(.*?\S)\1/g, '$2')
++    .replace(/(^|\W)[*_](?=\S)([^*_]*?\S)[*_](?=\W|$)/g, '$1$2')
++}
++
++/**
++ * A one-line preview of the note body. With a query, it is centred on the
++ * first match so the highlight is visible; otherwise it is the opening text.
++ */
++export function snippet(content: string, query = '', radius = 40): string {
++  const flat = plainText(content).replace(/\s+/g, ' ').trim()
++  const q = query.trim().toLowerCase()
++  const idx = q ? flat.toLowerCase().indexOf(q) : -1
++  if (idx === -1) return flat.slice(0, radius * 2)
++  const start = Math.max(0, idx - radius)
++  const end = Math.min(flat.length, idx + q.length + radius)
++  return (start > 0 ? '…' : '') + flat.slice(start, end) + (end < flat.length ? '…' : '')
++}
++
++/** Counts words in the Markdown source, ignoring syntax and link URLs. */
++export function wordCount(md: string): number {
++  const text = md
++    .replace(/^\s*(```|~~~).*$/gm, ' ') // fence lines
++    .replace(/\]\([^)]*\)/g, ']') // link targets
++    .replace(/^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/gm, ' ') // task markers
++  const words = text.match(/[\p{L}\p{N}]+(?:['’.-][\p{L}\p{N}]+)*/gu)
++  return words ? words.length : 0
++}
++
++export function relativeTime(ts: number, now = Date.now()): string {
++  const s = Math.round((now - ts) / 1000)
++  if (s < 45) return 'just now'
++  const m = Math.round(s / 60)
++  if (m < 60) return `${m}m ago`
++  const h = Math.round(m / 60)
++  if (h < 24) return `${h}h ago`
++  const d = Math.round(h / 24)
++  if (d < 7) return `${d}d ago`
++  return new Date(ts).toLocaleDateString()
++}
++
++function isNote(v: unknown): v is Note {
++  if (!v || typeof v !== 'object') return false
++  const n = v as Record<string, unknown>
++  return (
++    typeof n.id === 'string' &&
++    typeof n.title === 'string' &&
++    typeof n.content === 'string' &&
++    typeof n.updatedAt === 'number'
++  )
++}
++
++/** Loads saved state. Returns null when nothing has been saved yet. */
++export function loadState(storage: Pick<Storage, 'getItem'>): AppState | null {
++  let raw: string | null
++  try {
++    raw = storage.getItem(STORAGE_KEY)
++  } catch {
++    return null
++  }
++  if (raw == null) return null
++  try {
++    const data = JSON.parse(raw) as { notes?: unknown; activeId?: unknown }
++    const notes = Array.isArray(data.notes)
++      ? data.notes.filter(isNote).map((n) => ({
++          ...n,
++          pinned: Boolean(n.pinned),
++          createdAt: typeof n.createdAt === 'number' ? n.createdAt : n.updatedAt,
++        }))
++      : []
++    const activeId =
++      typeof data.activeId === 'string' && notes.some((n) => n.id === data.activeId) ? data.activeId : null
++    return { notes, activeId }
++  } catch {
++    return { notes: [], activeId: null }
++  }
++}
++
++export function saveState(storage: Pick<Storage, 'setItem'>, state: AppState): boolean {
++  try {
++    storage.setItem(STORAGE_KEY, JSON.stringify(state))
++    return true
++  } catch {
++    return false
++  }
++}
++
++export const WELCOME_NOTE = `# Welcome to Notes
++
++Write **Markdown** in the editor and see the *live preview* update as you type.
++
++## Things to try
++
++- [x] Open this note
++- [ ] Click a checkbox in the preview
++- [ ] Pin a note with the pin button
++- [ ] Search with the box above the list
++
++1. Numbered lists
++2. [Links](https://example.com)
++3. \`inline code\`
++
++\`\`\`js
++console.log('code blocks too')
++\`\`\`
++
++Everything is saved in this browser automatically.
++`

@@ -1,0 +1,1 @@
+Add a history view. For each habit, show the last 7 days as a row of dots (filled when done). Also add a separate Stats page with the overall completion rate for each of the last 30 days as a simple bar chart, linked from the header.

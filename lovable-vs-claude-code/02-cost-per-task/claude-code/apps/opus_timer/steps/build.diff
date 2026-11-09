@@ -1,0 +1,1249 @@
+diff --git a/e2e/pomodoro.spec.ts b/e2e/pomodoro.spec.ts
+new file mode 100644
+index 0000000..4f8639f
+--- /dev/null
++++ b/e2e/pomodoro.spec.ts
+@@ -0,0 +1,208 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const MIN = 60_000
++const START = new Date(2026, 10, 9, 9, 0, 0)
++
++const time = (p: Page) => p.getByTestId('time')
++const startPause = (p: Page) => p.getByTestId('start-pause')
++const chimes = (p: Page) => p.evaluate(() => (window as unknown as { __chimeCount?: number }).__chimeCount ?? 0)
++
++test.beforeEach(async ({ page }, info) => {
++  await page.clock.install({ time: START })
++  await page.goto('/')
++  await expect(time(page)).toHaveText('25:00')
++  await page.screenshot({ path: `shots/${info.project.name}-home.png`, fullPage: true })
++})
++
++/** Finish the current running phase by advancing the fake clock. */
++async function finishPhase(page: Page, minutes: number) {
++  await page.clock.fastForward(minutes * MIN + 500)
++}
++
++test('start, pause, resume, reset, and the tab title', async ({ page }) => {
++  await expect(page).toHaveTitle('25:00 - Focus')
++  await startPause(page).click()
++  await expect(startPause(page)).toHaveText('Pause')
++  await page.clock.fastForward(12 * MIN + 56_000)
++  await expect(time(page)).toHaveText('12:04')
++  await expect(page).toHaveTitle('12:04 - Focus')
++  await page.screenshot({ path: `shots/${test.info().project.name}-running.png` })
++
++  await startPause(page).click()
++  await expect(startPause(page)).toHaveText('Resume')
++  await page.clock.fastForward(5 * MIN)
++  await expect(time(page)).toHaveText('12:04') // frozen while paused
++
++  await startPause(page).click()
++  await page.clock.runFor(4_000)
++  await expect(time(page)).toHaveText('12:00')
++
++  await page.getByTestId('reset').click()
++  await expect(time(page)).toHaveText('25:00')
++  await expect(startPause(page)).toHaveText('Start')
++})
++
++test('space bar starts and pauses, but not while typing a task', async ({ page }) => {
++  await page.keyboard.press('Space')
++  await expect(startPause(page)).toHaveText('Pause')
++  await page.keyboard.press('Space')
++  await expect(startPause(page)).toHaveText('Resume')
++
++  // With a button focused, Space must toggle once (not also click the button).
++  await page.getByTestId('skip').focus()
++  await page.keyboard.press('Space')
++  await expect(startPause(page)).toHaveText('Pause')
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'focus')
++
++  await page.getByTestId('task').click()
++  await page.keyboard.type('Write report')
++  await expect(page.getByTestId('task')).toHaveValue('Write report')
++  await expect(startPause(page)).toHaveText('Pause') // typing a space did not pause
++})
++
++test('full cycle: 4 focus sessions → long break, dots, log, and sound', async ({ page }) => {
++  await page.getByTestId('task').fill('Draft chapter')
++  const dots = page.getByTestId('cycle')
++  await expect(dots).toContainText('0 of 4')
++
++  for (let i = 1; i <= 4; i++) {
++    await startPause(page).click()
++    await finishPhase(page, 25)
++    await expect(dots).toHaveAttribute('data-count', String(i))
++    await expect(dots).toContainText(`${i} of 4`)
++    await expect(page.getByTestId('log-entry')).toHaveCount(i)
++    if (i < 4) {
++      await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'short')
++      await expect(time(page)).toHaveText('05:00')
++      await expect(page).toHaveTitle('05:00 - Short break')
++      await startPause(page).click()
++      await finishPhase(page, 5)
++      await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'focus')
++    }
++  }
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'long')
++  await expect(time(page)).toHaveText('15:00')
++  await expect(page.locator('[data-filled="true"]')).toHaveCount(4)
++  expect(await chimes(page)).toBe(7) // 4 focus + 3 short breaks ended
++
++  const first = page.getByTestId('log-entry').first()
++  await expect(first).toContainText('Draft chapter')
++  await expect(first).toContainText(/\d{1,2}:\d{2}/)
++  await expect(page.getByTestId('log-summary')).toHaveText('4 sessions · 100 min')
++
++  await page.screenshot({ path: `shots/${test.info().project.name}-long-break.png`, fullPage: true })
++  await startPause(page).click()
++  await finishPhase(page, 15)
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'focus')
++  await expect(dots).toContainText('0 of 4')
++})
++
++test('log records the finish time and untitled sessions', async ({ page }) => {
++  await startPause(page).click()
++  await finishPhase(page, 25)
++  const entry = page.getByTestId('log-entry')
++  await expect(entry).toHaveCount(1)
++  await expect(entry).toContainText('Untitled session')
++  const expected = await page.evaluate((t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), START.getTime() + 25 * MIN)
++  await expect(entry).toContainText(expected)
++})
++
++test('skip moves between phases without logging', async ({ page }) => {
++  await page.getByTestId('skip').click()
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'short')
++  await expect(time(page)).toHaveText('05:00')
++  await page.getByTestId('skip').click()
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'focus')
++  await expect(page.getByTestId('log-entry')).toHaveCount(0)
++  await expect(page.getByTestId('cycle')).toContainText('0 of 4')
++})
++
++test('mute toggle silences the end-of-phase sound', async ({ page }) => {
++  await page.getByTestId('mute').click()
++  await expect(page.getByTestId('mute')).toHaveAttribute('aria-pressed', 'true')
++  await startPause(page).click()
++  await finishPhase(page, 25)
++  await expect(page.getByTestId('log-entry')).toHaveCount(1)
++  expect(await chimes(page)).toBe(0)
++
++  await page.getByTestId('mute').click()
++  await startPause(page).click()
++  await finishPhase(page, 5)
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'focus')
++  expect(await chimes(page)).toBe(1)
++})
++
++test('settings: validation, applying durations, and persistence', async ({ page }, info) => {
++  await page.getByTestId('open-settings').click()
++  const dialog = page.getByTestId('settings')
++  await expect(dialog).toBeVisible()
++  const save = page.getByTestId('save-settings')
++
++  for (const bad of ['0', '91', '', '2.5', 'abc']) {
++    await page.getByTestId('setting-focus').fill(bad)
++    await expect(page.getByTestId('error-focus')).toBeVisible()
++    await expect(save).toBeDisabled()
++  }
++  await page.getByTestId('setting-focus').fill('90')
++  await page.getByTestId('setting-short').fill('1')
++  await page.getByTestId('setting-long').fill('20')
++  await expect(page.getByTestId('error-focus')).toHaveCount(0)
++  await page.screenshot({ path: `shots/${info.project.name}-settings.png` })
++  await save.click()
++  await expect(dialog).toBeHidden()
++  await expect(time(page)).toHaveText('90:00')
++
++  await page.reload()
++  await expect(time(page)).toHaveText('90:00')
++  await page.getByTestId('open-settings').click()
++  await expect(page.getByTestId('setting-short')).toHaveValue('1')
++  await expect(page.getByTestId('setting-long')).toHaveValue('20')
++  await page.keyboard.press('Escape')
++  await expect(dialog).toBeHidden()
++
++  await page.getByTestId('skip').click()
++  await expect(time(page)).toHaveText('01:00')
++})
++
++test("today's log and task label survive a reload", async ({ page }) => {
++  await page.getByTestId('task').fill('Read paper')
++  await startPause(page).click()
++  await finishPhase(page, 25)
++  await expect(page.getByTestId('log-entry')).toHaveCount(1)
++  await page.reload()
++  await expect(page.getByTestId('log-entry')).toHaveCount(1)
++  await expect(page.getByTestId('log-entry')).toContainText('Read paper')
++  await expect(page.getByTestId('task')).toHaveValue('Read paper')
++  await expect(page.getByTestId('cycle')).toContainText('1 of 4')
++})
++
++test('stays accurate when timers are throttled in a background tab', async ({ page }) => {
++  await startPause(page).click()
++  await page.clock.runFor(1000)
++  // Jump the wall clock 10 minutes forward WITHOUT running any timers,
++  // as if the tab was backgrounded and no ticks fired.
++  await page.clock.setSystemTime(START.getTime() + 1000 + 10 * MIN)
++  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
++  await expect(time(page)).toHaveText('14:59')
++
++  // And a phase that ended while in the background is completed on return.
++  await page.clock.setSystemTime(START.getTime() + 40 * MIN)
++  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
++  await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'short')
++  await expect(page.getByTestId('log-entry')).toHaveCount(1)
++})
++
++test('counts down in real time', async ({ page }) => {
++  await startPause(page).click()
++  await page.waitForTimeout(2300) // the installed clock still flows with real time
++  await expect(time(page)).toHaveText(/24:5[78]/)
++  await expect(page).toHaveTitle(/24:5[78] - Focus/)
++})
++
++test('layout fits the viewport without horizontal scroll', async ({ page }) => {
++  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++  expect(overflow).toBeLessThanOrEqual(0)
++  for (const id of ['start-pause', 'reset', 'skip', 'task', 'mute', 'open-settings']) {
++    await expect(page.getByTestId(id)).toBeInViewport()
++  }
++})
+diff --git a/index.html b/index.html
+index 3d7efb3..0ba5b1b 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,8 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Pomodoro</title>
++    <meta name="theme-color" content="#f6f2ec" />
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..9ad3b63 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,8 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
++    "test": "vitest run",
++    "test:e2e": "playwright test",
+     "preview": "vite preview"
+   },
+   "dependencies": {
+@@ -23,6 +25,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/playwright.config.ts b/playwright.config.ts
+index 2ab061d..f78be88 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -5,5 +5,9 @@ const PORT = 5210
+ export default defineConfig({
+   testDir: './e2e',
+   use: { baseURL: `http://localhost:${PORT}`, channel: 'chrome', headless: true },
++  projects: [
++    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
++    { name: 'mobile', use: { viewport: { width: 375, height: 812 }, hasTouch: true, deviceScaleFactor: 2 } },
++  ],
+   webServer: { command: 'npm run dev', url: `http://localhost:${PORT}`, reuseExistingServer: true, timeout: 60_000 },
+ })
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..79d0db4 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,325 @@
++import { useEffect, useRef, useState } from 'react'
++import { usePomodoro } from './usePomodoro'
++import { formatTime, PHASE_LABEL, SESSIONS_PER_CYCLE, validateMinutes, type Phase, type Settings } from './lib/timer'
++import { formatClock, todaysEntries, type LogEntry } from './lib/log'
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const p = usePomodoro()
++  const [settingsOpen, setSettingsOpen] = useState(false)
++  const { phase, status } = p.timer
++
++  // Space bar starts/pauses, unless the user is typing.
++  useEffect(() => {
++    const isTyping = (el: EventTarget | null) =>
++      el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
++    const onDown = (e: KeyboardEvent) => {
++      if (e.code !== 'Space' && e.key !== ' ') return
++      if (settingsOpen || isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
++      e.preventDefault() // also stops a focused button from being "clicked" by Space
++      if (!e.repeat) p.toggle()
++    }
++    const onUp = (e: KeyboardEvent) => {
++      if ((e.code === 'Space' || e.key === ' ') && !settingsOpen && !isTyping(e.target)) e.preventDefault()
++    }
++    window.addEventListener('keydown', onDown)
++    window.addEventListener('keyup', onUp)
++    return () => {
++      window.removeEventListener('keydown', onDown)
++      window.removeEventListener('keyup', onUp)
++    }
++  }, [p.toggle, settingsOpen])
++
++  const progress = p.totalMs > 0 ? 1 - p.remainingMs / p.totalMs : 0
++
++  return (
++    <div data-phase={phase} className="app min-h-dvh transition-colors duration-700">
++      <main className="mx-auto flex w-full max-w-md flex-col gap-7 px-4 pt-5 pb-12 sm:pt-10">
++        <header className="flex items-center justify-between">
++          <h1 className="text-base font-semibold tracking-tight text-ink">Pomodoro</h1>
++          <div className="flex items-center gap-1">
++            <IconButton
++              label={p.muted ? 'Unmute sound' : 'Mute sound'}
++              pressed={p.muted}
++              onClick={() => p.setMuted(!p.muted)}
++              testId="mute"
++            >
++              {p.muted ? <SpeakerOff /> : <SpeakerOn />}
++            </IconButton>
++            <IconButton label="Settings" onClick={() => setSettingsOpen(true)} testId="open-settings">
++              <Gear />
++            </IconButton>
++          </div>
++        </header>
++
++        <section aria-label="Timer" className="flex flex-col items-center gap-5">
++          <PhaseTabs phase={phase} />
++          <Ring progress={progress}>
++            <div
++              data-testid="time"
++              role="timer"
++              aria-live="off"
++              className="font-light tabular-nums tracking-tight text-ink text-[clamp(3.5rem,18vw,5.25rem)] leading-none"
++            >
++              {formatTime(p.remainingMs)}
++            </div>
++            <div className="mt-2 text-sm text-muted" data-testid="status">
++              {status === 'running' ? (phase === 'focus' ? 'Stay with it' : 'Breathe') : status === 'paused' ? 'Paused' : 'Ready'}
++            </div>
++          </Ring>
++          <CycleDots count={p.timer.cycleCount} />
++        </section>
++
++        <div className="flex items-center justify-center gap-3">
++          <SecondaryButton onClick={p.reset} testId="reset" label="Reset">
++            <ResetIcon /> <span>Reset</span>
++          </SecondaryButton>
++          <button
++            type="button"
++            data-testid="start-pause"
++            onClick={p.toggle}
++            className="h-14 min-w-36 rounded-full bg-accent px-8 text-lg font-medium text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
++          >
++            {status === 'running' ? 'Pause' : status === 'paused' ? 'Resume' : 'Start'}
++          </button>
++          <SecondaryButton onClick={p.skip} testId="skip" label="Skip">
++            <span>Skip</span> <SkipIcon />
++          </SecondaryButton>
++        </div>
++        <p className="-mt-4 hidden text-center text-xs text-muted sm:block">
++          Press <kbd className="rounded border border-line bg-card px-1.5 py-0.5 font-sans">Space</kbd> to start or pause
++        </p>
++
++        <label className="block">
++          <span className="mb-1.5 block text-sm font-medium text-ink">
++            {phase === 'focus' ? 'What are you focusing on?' : 'Next focus task'}
++          </span>
++          <input
++            data-testid="task"
++            type="text"
++            value={p.task}
++            maxLength={80}
++            onChange={(e) => p.setTask(e.target.value)}
++            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
++            placeholder="Optional task label"
++            className="w-full rounded-xl border border-line bg-card px-4 py-3 text-base text-ink placeholder:text-muted/70 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
++          />
++        </label>
++
++        <TodayLog entries={todaysEntries(p.log, Date.now())} />
++      </main>
++
++      {settingsOpen && (
++        <SettingsDialog
++          settings={p.settings}
++          onSave={(s) => {
++            p.setSettings(s)
++            setSettingsOpen(false)
++          }}
++          onClose={() => setSettingsOpen(false)}
++        />
++      )}
++    </div>
++  )
+ }
++
++function PhaseTabs({ phase }: { phase: Phase }) {
++  return (
++    <div className="flex rounded-full bg-card/70 p-1 text-sm ring-1 ring-line" data-testid="phase" data-value={phase}>
++      {(['focus', 'short', 'long'] as const).map((ph) => (
++        <span
++          key={ph}
++          aria-current={ph === phase ? 'step' : undefined}
++          className={`rounded-full px-3 py-1 transition ${ph === phase ? 'bg-accent text-white' : 'text-muted'}`}
++        >
++          {PHASE_LABEL[ph]}
++        </span>
++      ))}
++    </div>
++  )
++}
++
++function Ring({ progress, children }: { progress: number; children: React.ReactNode }) {
++  const r = 46
++  const c = 2 * Math.PI * r
++  return (
++    <div className="relative grid aspect-square w-[min(78vw,300px)] place-items-center">
++      <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden="true">
++        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--line)" strokeWidth="2" />
++        <circle
++          cx="50" cy="50" r={r} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round"
++          strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, Math.max(0, progress)))}
++          className="transition-[stroke-dashoffset] duration-300"
++        />
++      </svg>
++      <div className="relative flex flex-col items-center">{children}</div>
++    </div>
++  )
++}
++
++function CycleDots({ count }: { count: number }) {
++  const filled = Math.min(count, SESSIONS_PER_CYCLE)
++  return (
++    <div className="flex flex-col items-center gap-2" data-testid="cycle" data-count={filled}>
++      <div className="flex gap-2.5" aria-hidden="true">
++        {Array.from({ length: SESSIONS_PER_CYCLE }, (_, i) => (
++          <span
++            key={i}
++            data-filled={i < filled}
++            className={`size-3 rounded-full transition ${i < filled ? 'bg-accent' : 'bg-transparent ring-1 ring-inset ring-muted/50'}`}
++          />
++        ))}
++      </div>
++      <span className="text-xs text-muted">
++        {filled} of {SESSIONS_PER_CYCLE} {filled === SESSIONS_PER_CYCLE ? '· long break earned' : 'until long break'}
++      </span>
++    </div>
++  )
++}
++
++function TodayLog({ entries }: { entries: LogEntry[] }) {
++  const minutes = entries.reduce((sum, e) => sum + e.minutes, 0)
++  return (
++    <section aria-labelledby="log-heading" className="rounded-2xl bg-card p-4 ring-1 ring-line sm:p-5">
++      <div className="mb-3 flex items-baseline justify-between">
++        <h2 id="log-heading" className="text-sm font-semibold text-ink">Today</h2>
++        <span className="text-xs text-muted" data-testid="log-summary">
++          {entries.length} {entries.length === 1 ? 'session' : 'sessions'} · {minutes} min
++        </span>
++      </div>
++      {entries.length === 0 ? (
++        <p className="py-2 text-sm text-muted">Completed focus sessions will appear here.</p>
++      ) : (
++        <ul className="divide-y divide-line" data-testid="log">
++          {entries.map((e) => (
++            <li key={e.id} className="flex items-center justify-between gap-3 py-2.5 text-sm" data-testid="log-entry">
++              <span className={`min-w-0 truncate ${e.task ? 'text-ink' : 'italic text-muted'}`}>{e.task || 'Untitled session'}</span>
++              <span className="shrink-0 tabular-nums text-muted">{formatClock(e.finishedAt)}</span>
++            </li>
++          ))}
++        </ul>
++      )}
++    </section>
++  )
++}
++
++const FIELDS: { key: keyof Settings; label: string }[] = [
++  { key: 'focus', label: 'Focus' },
++  { key: 'short', label: 'Short break' },
++  { key: 'long', label: 'Long break' },
++]
++
++function SettingsDialog({ settings, onSave, onClose }: { settings: Settings; onSave: (s: Settings) => void; onClose: () => void }) {
++  const ref = useRef<HTMLDialogElement>(null)
++  const [values, setValues] = useState<Record<keyof Settings, string>>({
++    focus: String(settings.focus), short: String(settings.short), long: String(settings.long),
++  })
++  const errors = Object.fromEntries(FIELDS.map((f) => [f.key, validateMinutes(values[f.key])])) as Record<keyof Settings, string | null>
++  const valid = FIELDS.every((f) => !errors[f.key])
++
++  useEffect(() => {
++    const d = ref.current
++    if (d && !d.open) d.showModal()
++  }, [])
++
++  return (
++    <dialog
++      ref={ref}
++      onClose={onClose}
++      onClick={(e) => e.target === ref.current && onClose()}
++      aria-labelledby="settings-heading"
++      data-testid="settings"
++      className="m-auto w-[min(100vw-2rem,24rem)] rounded-2xl bg-card p-0 text-ink shadow-xl backdrop:bg-black/30 backdrop:backdrop-blur-[2px]"
++    >
++      <form
++        className="flex flex-col gap-4 p-5"
++        noValidate
++        onSubmit={(e) => {
++          e.preventDefault()
++          if (!valid) return
++          onSave({ focus: Number(values.focus), short: Number(values.short), long: Number(values.long) })
++        }}
++      >
++        <div className="flex items-center justify-between">
++          <h2 id="settings-heading" className="text-base font-semibold">Durations</h2>
++          <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-sm text-muted hover:text-ink" aria-label="Close settings">✕</button>
++        </div>
++        <p className="-mt-2 text-sm text-muted">Minutes, between 1 and 90. A long break follows every 4 focus sessions.</p>
++        {FIELDS.map(({ key, label }) => (
++          <label key={key} className="flex flex-col gap-1">
++            <span className="flex items-center justify-between gap-3">
++              <span className="text-sm font-medium">{label}</span>
++              <span className="flex items-center gap-2">
++                <input
++                  data-testid={`setting-${key}`}
++                  type="text"
++                  inputMode="numeric"
++                  value={values[key]}
++                  aria-invalid={!!errors[key]}
++                  aria-describedby={errors[key] ? `err-${key}` : undefined}
++                  onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
++                  className={`w-20 rounded-lg border bg-white px-3 py-2 text-right text-base tabular-nums outline-none focus:ring-2 ${errors[key] ? 'border-red-400 focus:ring-red-200' : 'border-line focus:border-accent focus:ring-accent/20'}`}
++                />
++                <span className="w-7 text-sm text-muted">min</span>
++              </span>
++            </span>
++            {errors[key] && <span id={`err-${key}`} data-testid={`error-${key}`} className="text-right text-xs text-red-600">{errors[key]}</span>}
++          </label>
++        ))}
++        <div className="mt-1 flex items-center justify-between gap-2">
++          <button
++            type="button"
++            onClick={() => setValues({ focus: '25', short: '5', long: '15' })}
++            className="rounded-full px-3 py-2 text-sm text-muted hover:text-ink"
++          >
++            Restore defaults
++          </button>
++          <button
++            type="submit"
++            data-testid="save-settings"
++            disabled={!valid}
++            className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40"
++          >
++            Save
++          </button>
++        </div>
++      </form>
++    </dialog>
++  )
++}
++
++function IconButton(props: { label: string; onClick: () => void; children: React.ReactNode; pressed?: boolean; testId: string }) {
++  return (
++    <button
++      type="button"
++      aria-label={props.label}
++      title={props.label}
++      aria-pressed={props.pressed}
++      data-testid={props.testId}
++      onClick={props.onClick}
++      className="grid size-10 place-items-center rounded-full text-muted transition hover:bg-card hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
++    >
++      {props.children}
++    </button>
++  )
++}
++
++function SecondaryButton(props: { label: string; onClick: () => void; children: React.ReactNode; testId: string }) {
++  return (
++    <button
++      type="button"
++      aria-label={props.label}
++      data-testid={props.testId}
++      onClick={props.onClick}
++      className="flex h-12 items-center gap-1.5 rounded-full bg-card px-4 text-sm font-medium text-ink ring-1 ring-line transition hover:ring-muted/50 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-accent"
++    >
++      {props.children}
++    </button>
++  )
++}
++
++const svg = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
++const SpeakerOn = () => <svg {...svg}><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /></svg>
++const SpeakerOff = () => <svg {...svg}><path d="M11 5 6 9H3v6h3l5 4z" /><path d="m16 9 6 6M22 9l-6 6" /></svg>
++const Gear = () => <svg {...svg}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
++const ResetIcon = () => <svg {...svg} width={16} height={16}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
++const SkipIcon = () => <svg {...svg} width={16} height={16}><path d="m5 4 10 8-10 8z" /><path d="M19 5v14" /></svg>
+diff --git a/src/index.css b/src/index.css
+index f1d8c73..da297ca 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1 +1,45 @@
+ @import "tailwindcss";
++
++@theme inline {
++  --color-ink: var(--ink);
++  --color-muted: var(--muted);
++  --color-line: var(--line);
++  --color-card: var(--card);
++  --color-accent: var(--accent);
++  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
++}
++
++:root {
++  --ink: #2b2d2f;
++  --muted: #6f7275;
++  --line: #e3ded6;
++  --card: #fffdf9;
++  --bg: #f6f2ec;
++  --accent: #a8553a;
++  color-scheme: light;
++  -webkit-tap-highlight-color: transparent;
++}
++
++body {
++  margin: 0;
++  background: var(--bg);
++  color: var(--ink);
++  font-family: var(--font-sans);
++  -webkit-font-smoothing: antialiased;
++}
++
++.app {
++  background: var(--bg);
++}
++.app[data-phase="short"] {
++  --bg: #eef3ef;
++  --line: #d9e3dc;
++  --card: #fbfdfb;
++  --accent: #4d7c62;
++}
++.app[data-phase="long"] {
++  --bg: #edf1f6;
++  --line: #d8e0ea;
++  --card: #fbfcfe;
++  --accent: #4b6a8c;
++}
+diff --git a/src/lib/log.ts b/src/lib/log.ts
+new file mode 100644
+index 0000000..7ba13e5
+--- /dev/null
++++ b/src/lib/log.ts
+@@ -0,0 +1,36 @@
++export interface LogEntry {
++  id: string
++  task: string
++  finishedAt: number
++  minutes: number
++}
++
++export function dayKey(ts: number): string {
++  const d = new Date(ts)
++  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
++}
++
++/** Keep only entries finished on the same local day as `now`, newest first. */
++export function todaysEntries(entries: LogEntry[], now: number): LogEntry[] {
++  const today = dayKey(now)
++  return entries.filter((e) => dayKey(e.finishedAt) === today).sort((a, b) => b.finishedAt - a.finishedAt)
++}
++
++export function addEntry(entries: LogEntry[], entry: Omit<LogEntry, 'id'>, now: number): LogEntry[] {
++  const id = `${entry.finishedAt}-${Math.random().toString(36).slice(2, 8)}`
++  return todaysEntries([...entries, { ...entry, id }], now)
++}
++
++export function sanitizeLog(value: unknown, now: number): LogEntry[] {
++  if (!Array.isArray(value)) return []
++  const valid = value.filter(
++    (e): e is LogEntry =>
++      !!e && typeof e === 'object' && typeof e.id === 'string' && typeof e.task === 'string' &&
++      typeof e.finishedAt === 'number' && typeof e.minutes === 'number',
++  )
++  return todaysEntries(valid, now)
++}
++
++export function formatClock(ts: number): string {
++  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
++}
+diff --git a/src/lib/sound.ts b/src/lib/sound.ts
+new file mode 100644
+index 0000000..4c54adc
+--- /dev/null
++++ b/src/lib/sound.ts
+@@ -0,0 +1,37 @@
++let ctx: AudioContext | null = null
++
++/** Create/resume the audio context. Call from a user gesture so later playback is allowed. */
++export function unlockAudio(): void {
++  try {
++    ctx ??= new AudioContext()
++    if (ctx.state === 'suspended') void ctx.resume()
++  } catch {
++    ctx = null
++  }
++}
++
++/** A soft two-note chime. */
++export function playChime(): void {
++  try {
++    ctx ??= new AudioContext()
++    if (ctx.state === 'suspended') void ctx.resume()
++    const t0 = ctx.currentTime
++    ;[660, 880].forEach((freq, i) => {
++      const osc = ctx!.createOscillator()
++      const gain = ctx!.createGain()
++      osc.type = 'sine'
++      osc.frequency.value = freq
++      const t = t0 + i * 0.22
++      gain.gain.setValueAtTime(0.0001, t)
++      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02)
++      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6)
++      osc.connect(gain).connect(ctx!.destination)
++      osc.start(t)
++      osc.stop(t + 0.65)
++    })
++    ;(window as unknown as { __chimeCount?: number }).__chimeCount =
++      ((window as unknown as { __chimeCount?: number }).__chimeCount ?? 0) + 1
++  } catch {
++    // Audio unavailable: fail silently.
++  }
++}
+diff --git a/src/lib/storage.ts b/src/lib/storage.ts
+new file mode 100644
+index 0000000..aecca6c
+--- /dev/null
++++ b/src/lib/storage.ts
+@@ -0,0 +1,24 @@
++export const KEYS = {
++  settings: 'pomodoro.settings',
++  log: 'pomodoro.log',
++  timer: 'pomodoro.timer',
++  muted: 'pomodoro.muted',
++  task: 'pomodoro.task',
++} as const
++
++export function load(key: string): unknown {
++  try {
++    const raw = localStorage.getItem(key)
++    return raw === null ? undefined : JSON.parse(raw)
++  } catch {
++    return undefined
++  }
++}
++
++export function save(key: string, value: unknown): void {
++  try {
++    localStorage.setItem(key, JSON.stringify(value))
++  } catch {
++    // Storage full or blocked: the app keeps working in memory.
++  }
++}
+diff --git a/src/lib/timer.test.ts b/src/lib/timer.test.ts
+new file mode 100644
+index 0000000..5db30ae
+--- /dev/null
++++ b/src/lib/timer.test.ts
+@@ -0,0 +1,178 @@
++import { describe, expect, it } from 'vitest'
++import {
++  applySettings, DEFAULT_SETTINGS as S, formatTime, formatTitle, getRemainingMs, initialState, pause,
++  reset, sanitizeSettings, sanitizeTimer, skip, start, tick, toggle, validateMinutes, type TimerState,
++} from './timer'
++import { addEntry, sanitizeLog, todaysEntries } from './log'
++
++const MIN = 60_000
++const T0 = new Date(2026, 10, 9, 9, 0, 0).getTime()
++
++/** Run a full phase to completion starting at `now`; returns state and end time. */
++function runOut(state: TimerState, now: number) {
++  const running = start(state, now)
++  const end = running.endsAt!
++  return { ...tick(running, S, end), now: end }
++}
++
++describe('durations and cycle', () => {
++  it('starts with a 25 minute focus session', () => {
++    const s = initialState(S)
++    expect(s.phase).toBe('focus')
++    expect(getRemainingMs(s, T0)).toBe(25 * MIN)
++  })
++
++  it('goes focus → short ×3, then long after the 4th focus, then back to focus with a fresh cycle', () => {
++    let s = initialState(S)
++    let now = T0
++    const phases: string[] = []
++    const counts: number[] = []
++    for (let i = 0; i < 8; i++) {
++      const r = runOut(s, now)
++      s = r.state
++      now = r.now
++      phases.push(s.phase)
++      counts.push(s.cycleCount)
++      expect(getRemainingMs(s, now)).toBe(S[s.phase] * MIN)
++    }
++    expect(phases).toEqual(['short', 'focus', 'short', 'focus', 'short', 'focus', 'long', 'focus'])
++    expect(counts).toEqual([1, 1, 2, 2, 3, 3, 4, 0])
++  })
++
++  it('reports the ended phase with its exact end timestamp', () => {
++    const running = start(initialState(S), T0)
++    expect(tick(running, S, T0 + 25 * MIN - 1).ended).toBeNull()
++    const r = tick(running, S, T0 + 25 * MIN + 5000)
++    expect(r.ended).toEqual({ phase: 'focus', at: T0 + 25 * MIN })
++    expect(r.state.status).toBe('idle')
++  })
++
++  it('the next phase waits for Start (does not auto-run)', () => {
++    const r = runOut(initialState(S), T0)
++    expect(r.state.status).toBe('idle')
++    expect(tick(r.state, S, r.now + 60 * MIN).ended).toBeNull()
++  })
++})
++
++describe('start / pause / reset / skip', () => {
++  it('is timestamp-based: remaining time follows the clock regardless of tick count', () => {
++    const s = start(initialState(S), T0)
++    // No ticks at all for 10 minutes (e.g. a throttled background tab).
++    expect(getRemainingMs(s, T0 + 10 * MIN + 30_000)).toBe(14 * MIN + 30_000)
++    expect(formatTime(getRemainingMs(s, T0 + 10 * MIN + 30_000))).toBe('14:30')
++  })
++
++  it('pause freezes the remaining time and resume continues from it', () => {
++    let s = start(initialState(S), T0)
++    s = pause(s, T0 + 5 * MIN)
++    expect(s.status).toBe('paused')
++    expect(getRemainingMs(s, T0 + 50 * MIN)).toBe(20 * MIN)
++    s = start(s, T0 + 50 * MIN)
++    expect(getRemainingMs(s, T0 + 51 * MIN)).toBe(19 * MIN)
++    expect(s.endsAt).toBe(T0 + 70 * MIN)
++  })
++
++  it('toggle alternates start and pause; start while running is a no-op', () => {
++    let s = toggle(initialState(S), T0)
++    expect(s.status).toBe('running')
++    expect(start(s, T0 + MIN)).toBe(s)
++    s = toggle(s, T0 + MIN)
++    expect(s.status).toBe('paused')
++    expect(pause(s, T0 + 2 * MIN)).toBe(s)
++  })
++
++  it('reset stops and restores the full duration of the current phase', () => {
++    let s = runOut(initialState(S), T0).state // short break
++    s = start(s, T0)
++    s = reset(s, S)
++    expect(s).toMatchObject({ phase: 'short', status: 'idle', endsAt: null, remainingMs: 5 * MIN, cycleCount: 1 })
++  })
++
++  it('skipping focus goes to a short break without counting the session', () => {
++    const s = skip(start(initialState(S), T0), S)
++    expect(s).toMatchObject({ phase: 'short', status: 'idle', cycleCount: 0, remainingMs: 5 * MIN })
++  })
++
++  it('skipping a break goes to focus; skipping a long break resets the cycle', () => {
++    const shortB: TimerState = { phase: 'short', status: 'running', endsAt: T0, remainingMs: 0, cycleCount: 2 }
++    expect(skip(shortB, S)).toMatchObject({ phase: 'focus', cycleCount: 2, remainingMs: 25 * MIN })
++    const longB: TimerState = { ...shortB, phase: 'long', cycleCount: 4 }
++    expect(skip(longB, S)).toMatchObject({ phase: 'focus', cycleCount: 0 })
++  })
++})
++
++describe('settings', () => {
++  it('validates 1–90 whole minutes', () => {
++    expect(validateMinutes('1')).toBeNull()
++    expect(validateMinutes('90')).toBeNull()
++    expect(validateMinutes(' 25 ')).toBeNull()
++    expect(validateMinutes('0')).not.toBeNull()
++    expect(validateMinutes('91')).not.toBeNull()
++    expect(validateMinutes('')).not.toBeNull()
++    expect(validateMinutes('2.5')).not.toBeNull()
++    expect(validateMinutes('-3')).not.toBeNull()
++    expect(validateMinutes('abc')).not.toBeNull()
++  })
++
++  it('custom durations drive the timer', () => {
++    const custom = { focus: 50, short: 10, long: 30 }
++    const s = initialState(custom)
++    expect(s.remainingMs).toBe(50 * MIN)
++    expect(tick(start(s, T0), custom, T0 + 50 * MIN).state.remainingMs).toBe(10 * MIN)
++  })
++
++  it('applies new durations to an idle timer but not a running or paused one', () => {
++    const custom = { ...S, focus: 40 }
++    expect(applySettings(initialState(S), custom).remainingMs).toBe(40 * MIN)
++    const paused = pause(start(initialState(S), T0), T0 + MIN)
++    expect(applySettings(paused, custom).remainingMs).toBe(24 * MIN)
++  })
++
++  it('sanitizes stored settings', () => {
++    expect(sanitizeSettings(undefined)).toEqual(S)
++    expect(sanitizeSettings({ focus: 45, short: 0, long: 'x' })).toEqual({ focus: 45, short: 5, long: 15 })
++  })
++
++  it('restores a stored running timer, rejecting garbage', () => {
++    const running = start(initialState(S), T0)
++    expect(sanitizeTimer(JSON.parse(JSON.stringify(running)), S)).toEqual(running)
++    expect(sanitizeTimer({ phase: 'nope' }, S)).toEqual(initialState(S))
++    expect(sanitizeTimer(null, S)).toEqual(initialState(S))
++  })
++})
++
++describe('display', () => {
++  it('formats mm:ss rounding up partial seconds', () => {
++    expect(formatTime(25 * MIN)).toBe('25:00')
++    expect(formatTime(724_000)).toBe('12:04')
++    expect(formatTime(723_001)).toBe('12:04')
++    expect(formatTime(500)).toBe('00:01')
++    expect(formatTime(0)).toBe('00:00')
++    expect(formatTime(90 * MIN)).toBe('90:00')
++  })
++
++  it('builds the tab title as "mm:ss - Phase"', () => {
++    const s = start(initialState(S), T0)
++    expect(formatTitle(s, T0 + 25 * MIN - 724_000)).toBe('12:04 - Focus')
++    expect(formatTitle({ ...initialState(S), phase: 'short', remainingMs: 5 * MIN }, T0)).toBe('05:00 - Short break')
++  })
++})
++
++describe("today's log", () => {
++  it('adds entries newest first and keeps only today', () => {
++    const yesterday = T0 - 24 * 60 * MIN
++    let log = sanitizeLog([{ id: 'old', task: 'old', finishedAt: yesterday, minutes: 25 }], T0)
++    expect(log).toEqual([])
++    log = addEntry(log, { task: 'Write', finishedAt: T0, minutes: 25 }, T0)
++    log = addEntry(log, { task: '', finishedAt: T0 + 30 * MIN, minutes: 25 }, T0 + 30 * MIN)
++    expect(log.map((e) => e.task)).toEqual(['', 'Write'])
++    expect(new Set(log.map((e) => e.id)).size).toBe(2)
++    // At midnight the list empties.
++    expect(todaysEntries(log, T0 + 24 * 60 * MIN)).toEqual([])
++  })
++
++  it('drops malformed stored entries', () => {
++    expect(sanitizeLog('x', T0)).toEqual([])
++    expect(sanitizeLog([{ id: 1 }, null, { id: 'a', task: 't', finishedAt: T0, minutes: 25 }], T0)).toHaveLength(1)
++  })
++})
+diff --git a/src/lib/timer.ts b/src/lib/timer.ts
+new file mode 100644
+index 0000000..6e06425
+--- /dev/null
++++ b/src/lib/timer.ts
+@@ -0,0 +1,155 @@
++// Pure Pomodoro timer logic. All time math is based on wall-clock timestamps
++// (`now` in ms), never on counting ticks, so the timer stays accurate when the
++// tab is throttled in the background.
++
++export type Phase = 'focus' | 'short' | 'long'
++export type Status = 'idle' | 'running' | 'paused'
++
++export interface Settings {
++  focus: number // minutes
++  short: number
++  long: number
++}
++
++export const DEFAULT_SETTINGS: Settings = { focus: 25, short: 5, long: 15 }
++export const SESSIONS_PER_CYCLE = 4
++export const MIN_MINUTES = 1
++export const MAX_MINUTES = 90
++
++export interface TimerState {
++  phase: Phase
++  status: Status
++  /** Timestamp the current phase ends at; only set while running. */
++  endsAt: number | null
++  /** Remaining ms while idle or paused. */
++  remainingMs: number
++  /** Focus sessions completed in the current cycle (0..4). */
++  cycleCount: number
++}
++
++export const PHASE_LABEL: Record<Phase, string> = {
++  focus: 'Focus',
++  short: 'Short break',
++  long: 'Long break',
++}
++
++export function durationMs(phase: Phase, settings: Settings): number {
++  return settings[phase] * 60_000
++}
++
++export function initialState(settings: Settings): TimerState {
++  return { phase: 'focus', status: 'idle', endsAt: null, remainingMs: durationMs('focus', settings), cycleCount: 0 }
++}
++
++export function getRemainingMs(state: TimerState, now: number): number {
++  if (state.status === 'running' && state.endsAt !== null) return Math.max(0, state.endsAt - now)
++  return Math.max(0, state.remainingMs)
++}
++
++export function start(state: TimerState, now: number): TimerState {
++  if (state.status === 'running') return state
++  return { ...state, status: 'running', endsAt: now + state.remainingMs }
++}
++
++export function pause(state: TimerState, now: number): TimerState {
++  if (state.status !== 'running') return state
++  return { ...state, status: 'paused', endsAt: null, remainingMs: getRemainingMs(state, now) }
++}
++
++export function toggle(state: TimerState, now: number): TimerState {
++  return state.status === 'running' ? pause(state, now) : start(state, now)
++}
++
++/** Stop and restore the full duration of the current phase. */
++export function reset(state: TimerState, settings: Settings): TimerState {
++  return { ...state, status: 'idle', endsAt: null, remainingMs: durationMs(state.phase, settings) }
++}
++
++/** Which phase follows the current one. `completed` = focus finished naturally. */
++export function nextPhase(state: TimerState, completed: boolean): { phase: Phase; cycleCount: number } {
++  if (state.phase === 'focus') {
++    if (!completed) return { phase: 'short', cycleCount: state.cycleCount }
++    const count = state.cycleCount + 1
++    return { phase: count >= SESSIONS_PER_CYCLE ? 'long' : 'short', cycleCount: count }
++  }
++  // After a long break a new cycle begins.
++  return { phase: 'focus', cycleCount: state.phase === 'long' ? 0 : state.cycleCount }
++}
++
++function moveTo(state: TimerState, settings: Settings, completed: boolean): TimerState {
++  const { phase, cycleCount } = nextPhase(state, completed)
++  return { phase, cycleCount, status: 'idle', endsAt: null, remainingMs: durationMs(phase, settings) }
++}
++
++/** Skip to the next phase. A skipped focus session does not count toward the long break. */
++export function skip(state: TimerState, settings: Settings): TimerState {
++  return moveTo(state, settings, false)
++}
++
++export interface TickResult {
++  state: TimerState
++  /** Set when the running phase just finished. */
++  ended: { phase: Phase; at: number } | null
++}
++
++/** Advance the state to `now`. If the running phase has ended, move to the next (idle) phase. */
++export function tick(state: TimerState, settings: Settings, now: number): TickResult {
++  if (state.status !== 'running' || state.endsAt === null || now < state.endsAt) return { state, ended: null }
++  return { state: moveTo(state, settings, true), ended: { phase: state.phase, at: state.endsAt } }
++}
++
++/** When settings change, an idle timer picks up the new duration immediately. */
++export function applySettings(state: TimerState, settings: Settings): TimerState {
++  if (state.status !== 'idle') return state
++  return { ...state, remainingMs: durationMs(state.phase, settings) }
++}
++
++export function formatTime(ms: number): string {
++  const total = Math.ceil(ms / 1000)
++  const m = Math.floor(total / 60)
++  const s = total % 60
++  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
++}
++
++export function formatTitle(state: TimerState, now: number): string {
++  return `${formatTime(getRemainingMs(state, now))} - ${PHASE_LABEL[state.phase]}`
++}
++
++/** Validate a minutes value typed by the user. Returns an error message or null. */
++export function validateMinutes(raw: string): string | null {
++  const trimmed = raw.trim()
++  if (trimmed === '') return 'Required'
++  if (!/^\d+$/.test(trimmed)) return 'Whole minutes only'
++  const n = Number(trimmed)
++  if (n < MIN_MINUTES || n > MAX_MINUTES) return `Must be ${MIN_MINUTES}–${MAX_MINUTES}`
++  return null
++}
++
++export function sanitizeSettings(value: unknown): Settings {
++  const out = { ...DEFAULT_SETTINGS }
++  if (value && typeof value === 'object') {
++    for (const key of ['focus', 'short', 'long'] as const) {
++      const v = (value as Record<string, unknown>)[key]
++      if (typeof v === 'number' && Number.isInteger(v) && v >= MIN_MINUTES && v <= MAX_MINUTES) out[key] = v
++    }
++  }
++  return out
++}
++
++export function sanitizeTimer(value: unknown, settings: Settings): TimerState {
++  const fallback = initialState(settings)
++  if (!value || typeof value !== 'object') return fallback
++  const v = value as Partial<TimerState>
++  const phases: Phase[] = ['focus', 'short', 'long']
++  const statuses: Status[] = ['idle', 'running', 'paused']
++  if (!phases.includes(v.phase as Phase) || !statuses.includes(v.status as Status)) return fallback
++  const cycleCount = typeof v.cycleCount === 'number' ? Math.min(SESSIONS_PER_CYCLE, Math.max(0, Math.floor(v.cycleCount))) : 0
++  const max = durationMs(v.phase as Phase, settings)
++  if (v.status === 'running') {
++    if (typeof v.endsAt !== 'number') return { ...fallback, phase: v.phase as Phase, cycleCount, remainingMs: max }
++    const remainingMs = typeof v.remainingMs === 'number' ? v.remainingMs : max
++    return { phase: v.phase as Phase, status: 'running', endsAt: v.endsAt, remainingMs, cycleCount }
++  }
++  const remainingMs = typeof v.remainingMs === 'number' && v.remainingMs > 0 ? Math.min(v.remainingMs, max) : max
++  return { phase: v.phase as Phase, status: v.status as Status, endsAt: null, remainingMs, cycleCount }
++}
+diff --git a/src/usePomodoro.ts b/src/usePomodoro.ts
+new file mode 100644
+index 0000000..775de71
+--- /dev/null
++++ b/src/usePomodoro.ts
+@@ -0,0 +1,123 @@
++import { useCallback, useEffect, useRef, useState } from 'react'
++import {
++  applySettings, durationMs, formatTitle, getRemainingMs, reset as resetTimer,
++  sanitizeSettings, sanitizeTimer, skip as skipTimer, tick, toggle as toggleTimer,
++  type Settings, type TimerState,
++} from './lib/timer'
++import { addEntry, sanitizeLog, type LogEntry } from './lib/log'
++import { KEYS, load, save } from './lib/storage'
++import { playChime, unlockAudio } from './lib/sound'
++
++interface Boot {
++  settings: Settings
++  timer: TimerState
++  log: LogEntry[]
++  muted: boolean
++  task: string
++}
++
++/** Load persisted state and catch up on anything that finished while the page was closed. */
++function boot(): Boot {
++  const now = Date.now()
++  const settings = sanitizeSettings(load(KEYS.settings))
++  let timer = sanitizeTimer(load(KEYS.timer), settings)
++  let log = sanitizeLog(load(KEYS.log), now)
++  const task = typeof load(KEYS.task) === 'string' ? (load(KEYS.task) as string) : ''
++  const result = tick(timer, settings, now)
++  if (result.ended?.phase === 'focus') {
++    log = addEntry(log, { task: task.trim(), finishedAt: result.ended.at, minutes: settings.focus }, now)
++  }
++  timer = result.state
++  return { settings, timer, log, muted: load(KEYS.muted) === true, task }
++}
++
++export function usePomodoro() {
++  const [initial] = useState(boot)
++  const [settings, setSettingsState] = useState(initial.settings)
++  const [timer, setTimer] = useState(initial.timer)
++  const [log, setLog] = useState(initial.log)
++  const [muted, setMuted] = useState(initial.muted)
++  const [task, setTask] = useState(initial.task)
++  const [now, setNow] = useState(() => Date.now())
++
++  // Refs mirror the latest values so the interval callback can act without stale closures.
++  const ref = useRef({ settings, timer, muted, task })
++  ref.current = { settings, timer, muted, task }
++
++  // Persistence.
++  useEffect(() => save(KEYS.settings, settings), [settings])
++  useEffect(() => save(KEYS.timer, timer), [timer])
++  useEffect(() => save(KEYS.log, log), [log])
++  useEffect(() => save(KEYS.muted, muted), [muted])
++  useEffect(() => save(KEYS.task, task), [task])
++
++  const check = useCallback(() => {
++    const t = Date.now()
++    setNow(t)
++    const { settings, timer, muted, task } = ref.current
++    const result = tick(timer, settings, t)
++    if (!result.ended) return
++    ref.current.timer = result.state
++    setTimer(result.state)
++    if (result.ended.phase === 'focus') {
++      const entry = { task: task.trim(), finishedAt: result.ended.at, minutes: settings.focus }
++      setLog((prev) => addEntry(prev, entry, t))
++    } else {
++      // Day may have rolled over during a break; drop stale entries.
++      setLog((prev) => sanitizeLog(prev, t))
++    }
++    if (!muted) playChime()
++  }, [])
++
++  // Poll frequently while running, and fire exactly at the end time. Both read the clock,
++  // so throttled timers in a background tab only delay the update, never skew it.
++  useEffect(() => {
++    if (timer.status !== 'running' || timer.endsAt === null) return
++    const interval = window.setInterval(check, 250)
++    const timeout = window.setTimeout(check, Math.max(0, timer.endsAt - Date.now()) + 20)
++    return () => {
++      window.clearInterval(interval)
++      window.clearTimeout(timeout)
++    }
++  }, [timer.status, timer.endsAt, check])
++
++  useEffect(() => {
++    const onVisible = () => check()
++    document.addEventListener('visibilitychange', onVisible)
++    window.addEventListener('focus', onVisible)
++    return () => {
++      document.removeEventListener('visibilitychange', onVisible)
++      window.removeEventListener('focus', onVisible)
++    }
++  }, [check])
++
++  useEffect(() => {
++    document.title = formatTitle(timer, now)
++  }, [timer, now])
++
++  const update = (fn: (t: TimerState) => TimerState) => {
++    const t = Date.now()
++    const next = fn(ref.current.timer)
++    ref.current.timer = next
++    setTimer(next)
++    setNow(t)
++  }
++
++  const toggle = useCallback(() => {
++    unlockAudio()
++    update((t) => toggleTimer(t, Date.now()))
++  }, [])
++  const reset = useCallback(() => update((t) => resetTimer(t, ref.current.settings)), [])
++  const skip = useCallback(() => update((t) => skipTimer(t, ref.current.settings)), [])
++
++  const setSettings = useCallback((s: Settings) => {
++    ref.current.settings = s
++    setSettingsState(s)
++    update((t) => applySettings(t, s))
++  }, [])
++
++  const remainingMs = getRemainingMs(timer, now)
++  const totalMs = timer.status === 'idle' ? durationMs(timer.phase, settings) : Math.max(remainingMs, durationMs(timer.phase, settings))
++
++  return { settings, setSettings, timer, remainingMs, totalMs, log, muted, setMuted, task, setTask, toggle, reset, skip }
++}
+diff --git a/vite.config.ts b/vite.config.ts
+index 2421834..cf78d49 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -1,3 +1,4 @@
++/// <reference types="vitest/config" />
+ import react from '@vitejs/plugin-react'
+ import tailwindcss from '@tailwindcss/vite'
+ import { defineConfig } from 'vite'
+@@ -5,4 +6,5 @@ import { defineConfig } from 'vite'
+ export default defineConfig({
+   plugins: [react(), tailwindcss()],
+   server: { port: 5210, strictPort: true },
++  test: { include: ['src/**/*.test.ts'] },
+ })

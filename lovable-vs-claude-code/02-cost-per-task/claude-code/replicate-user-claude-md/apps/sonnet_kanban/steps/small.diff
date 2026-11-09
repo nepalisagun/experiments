@@ -1,0 +1,136 @@
+diff --git a/e2e/kanban.spec.ts b/e2e/kanban.spec.ts
+index b57dd07..c965dcc 100644
+--- a/e2e/kanban.spec.ts
++++ b/e2e/kanban.spec.ts
+@@ -73,8 +73,8 @@ for (const size of sizes) {
+     })
+ 
+     test('layout: three columns, no horizontal overflow, empty states', async ({ page }) => {
+-      for (const [id, name] of [['todo', 'To do'], ['doing', 'Doing'], ['done', 'Done']] as const) {
+-        await expect(col(page, id).getByRole('heading', { name })).toBeVisible()
++      for (const [id, name] of [['todo', 'To do'], ['doing', 'In progress'], ['done', 'Done']] as const) {
++        await expect(col(page, id).getByRole('heading', { name, exact: true })).toBeVisible()
+         await expect(col(page, id).getByTestId('empty')).toBeVisible()
+         await expect(col(page, id).getByTestId('count')).toContainText('0')
+       }
+@@ -147,7 +147,7 @@ for (const size of sizes) {
+     test('keyboard: move buttons and Alt+arrows change column / order, focus stays', async ({ page }) => {
+       await addCard(page, 'todo', { title: 'K1' })
+       await addCard(page, 'todo', { title: 'K2' })
+-      await page.getByRole('button', { name: 'Move "K1" to Doing' }).click()
++      await page.getByRole('button', { name: 'Move "K1" to In progress' }).click()
+       await expect(cardIn(col(page, 'doing'), 'K1')).toBeVisible()
+       await expect(col(page, 'todo').getByTestId('count')).toHaveText('1')
+ 
+@@ -170,7 +170,7 @@ for (const size of sizes) {
+       await expect(col(page, 'doing').getByTestId('card').first()).toContainText('K1')
+       // edge buttons: To do column has no left button
+       await addCard(page, 'todo', { title: 'K3' })
+-      await expect(page.getByRole('button', { name: /Move "K3" to (?!Doing)/ })).toHaveCount(0)
++      await expect(page.getByRole('button', { name: /Move "K3" to (?!In progress)/ })).toHaveCount(0)
+     })
+ 
+     test('mouse drag: between columns and reorder within a column', async ({ page }) => {
+@@ -217,7 +217,7 @@ for (const size of sizes) {
+       await expect(page.getByTestId('wip-warning')).toHaveCount(0)
+       // moving into Doing via keyboard also triggers it
+       await addCard(page, 'todo', { title: 'W5' })
+-      await page.getByRole('button', { name: 'Move "W5" to Doing' }).click()
++      await page.getByRole('button', { name: 'Move "W5" to In progress' }).click()
+       await expect(page.getByTestId('wip-warning')).toBeVisible()
+     })
+ 
+@@ -284,6 +284,31 @@ for (const size of sizes) {
+       await expect(page.getByTestId('card')).toHaveCount(2)
+     })
+ 
++    test('Done titles are struck through; other columns are not, and it follows the card', async ({ page }) => {
++      const strike = (c: Locator, t: string) =>
++        cardIn(c, t).getByTestId('card-title').evaluate((e) => getComputedStyle(e).textDecorationLine)
++      await addCard(page, 'todo', { title: 'S1' })
++      await addCard(page, 'done', { title: 'S2' })
++      expect(await strike(col(page, 'todo'), 'S1')).toBe('none')
++      expect(await strike(col(page, 'done'), 'S2')).toBe('line-through')
++      await page.getByRole('button', { name: 'Move "S1" to In progress' }).click()
++      expect(await strike(col(page, 'doing'), 'S1')).toBe('none')
++      await page.getByRole('button', { name: 'Move "S1" to Done' }).click()
++      expect(await strike(col(page, 'done'), 'S1')).toBe('line-through')
++      await page.getByRole('button', { name: 'Move "S2" to In progress' }).click()
++      expect(await strike(col(page, 'doing'), 'S2')).toBe('none')
++      await page.reload() // persists
++      expect(await strike(col(page, 'done'), 'S1')).toBe('line-through')
++      await page.screenshot({ path: `shots/${size.name}-strike.png`, fullPage: true })
++    })
++
++    test('"Doing" label is gone everywhere', async ({ page }) => {
++      for (const t of ['W1', 'W2', 'W3', 'W4']) await addCard(page, 'doing', { title: t })
++      await expect(page.getByTestId('wip-warning')).toContainText('In progress')
++      await expect(page.locator('body')).not.toContainText(/\bDoing\b/)
++      await expect(page.getByRole('button', { name: 'Add card to In progress' })).toBeVisible()
++    })
++
+     test('corrupt localStorage does not crash the app', async ({ page }) => {
+       await page.evaluate(() => localStorage.setItem('kanban.board.v1', '{broken'))
+       await page.reload()
+diff --git a/src/App.tsx b/src/App.tsx
+index d76cac2..e1935eb 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -4,7 +4,7 @@ import {
+   type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
+ } from '@dnd-kit/core'
+ import {
+-  COLUMN_IDS, PRIORITIES, PRIORITY_LABELS, addCard, deleteCard, dropCard, filtersActive, findColumn, loadBoard,
++  COLUMN_IDS, COLUMN_TITLES, PRIORITIES, PRIORITY_LABELS, addCard, deleteCard, dropCard, filtersActive, findColumn, loadBoard,
+   moveCardBy, reorderCardBy, saveBoard, updateCard, visibleIds, type Board, type CardInput, type ColumnId, type Filters, type Priority,
+ } from './board'
+ import { CardForm, CardView, Column, Modal, type CardActions } from './components'
+@@ -55,7 +55,7 @@ export default function App() {
+   const totalShown = COLUMN_IDS.reduce((n, c) => n + shown[c].length, 0)
+   const totalCards = Object.keys(board.cards).length
+ 
+-  const columnName = (c: ColumnId) => ({ todo: 'To do', doing: 'Doing', done: 'Done' })[c]
++  const columnName = (c: ColumnId) => COLUMN_TITLES[c]
+ 
+   const actions: CardActions = useMemo(() => ({
+     onEdit: (id) => setDialog({ kind: 'edit', id }),
+diff --git a/src/board.ts b/src/board.ts
+index 84a7f01..5ee8882 100644
+--- a/src/board.ts
++++ b/src/board.ts
+@@ -15,7 +15,7 @@ export interface Board {
+ }
+ 
+ export const COLUMN_IDS: ColumnId[] = ['todo', 'doing', 'done']
+-export const COLUMN_TITLES: Record<ColumnId, string> = { todo: 'To do', doing: 'Doing', done: 'Done' }
++export const COLUMN_TITLES: Record<ColumnId, string> = { todo: 'To do', doing: 'In progress', done: 'Done' }
+ export const PRIORITIES: Priority[] = ['low', 'medium', 'high']
+ export const PRIORITY_LABELS: Record<Priority, string> = { low: 'Low', medium: 'Medium', high: 'High' }
+ export const WIP_LIMIT = 3
+diff --git a/src/components.tsx b/src/components.tsx
+index 69d0b87..ea35a8f 100644
+--- a/src/components.tsx
++++ b/src/components.tsx
+@@ -49,7 +49,12 @@ export function CardView({ card, column, actions, overlay }: CardViewProps) {
+   return (
+     <>
+       <div className="flex items-start justify-between gap-2">
+-        <h3 className="min-w-0 break-words text-sm font-semibold text-slate-900">{card.title}</h3>
++        <h3
++          data-testid="card-title"
++          className={`min-w-0 break-words text-sm font-semibold ${column === 'done' ? 'text-slate-500 line-through' : 'text-slate-900'}`}
++        >
++          {card.title}
++        </h3>
+         <PriorityLabel priority={card.priority} />
+       </div>
+       {card.description && (
+@@ -167,7 +172,7 @@ export function Column({ id, total, cards, filtering, highlighted, actions, onAd
+       </header>
+       {over && (
+         <div role="alert" data-testid="wip-warning" className="mb-3 rounded-md border border-amber-400 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900">
+-          ⚠ WIP limit exceeded: {total} cards in Doing, limit is {WIP_LIMIT}. Finish something before starting more.
++          ⚠ WIP limit exceeded: {total} cards in {COLUMN_TITLES.doing}, limit is {WIP_LIMIT}. Finish something before starting more.
+         </div>
+       )}
+       <div ref={setNodeRef} className="flex flex-1 flex-col">

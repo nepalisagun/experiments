@@ -1,0 +1,918 @@
+diff --git a/e2e/budget.spec.ts b/e2e/budget.spec.ts
+new file mode 100644
+index 0000000..2c80c48
+--- /dev/null
++++ b/e2e/budget.spec.ts
+@@ -0,0 +1,182 @@
++import { expect, test, type Page } from '@playwright/test'
++import { readFileSync } from 'node:fs'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 900 },
++  { name: 'mobile', width: 375, height: 800 },
++]
++
++async function add(page: Page, o: { type?: 'income' | 'expense'; amount: string; cat?: string; date?: string; note?: string }) {
++  const form = page.getByRole('form', { name: 'Add transaction' })
++  if (o.type) await form.getByText(o.type, { exact: true }).click()
++  await form.getByLabel('Amount').fill(o.amount)
++  if (o.cat) await form.getByLabel('Category').selectOption({ label: o.cat })
++  if (o.date) await form.getByLabel('Date').fill(o.date)
++  if (o.note !== undefined) await form.getByLabel(/Note/).fill(o.note)
++  await form.getByRole('button', { name: 'Add transaction' }).click()
++}
++
++for (const s of sizes) {
++  test.describe(s.name, () => {
++    test.use({ viewport: { width: s.width, height: s.height } })
++
++    test('full walkthrough', async ({ page }) => {
++      const errors: string[] = []
++      page.on('pageerror', (e) => errors.push(e.message))
++      await page.goto('/')
++      await page.evaluate(() => localStorage.clear())
++      await page.reload()
++
++      // No horizontal overflow
++      const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
++      expect(await overflow()).toBe(false)
++
++      // Use a fixed month so assertions are stable: navigate to a known one via adding with dates.
++      await add(page, { type: 'income', amount: '1000', cat: 'Other', date: '2026-03-01', note: 'Salary' })
++      await expect(page.getByTestId('month-label')).toHaveText('March 2026')
++
++      // 10. validation
++      const form = page.getByRole('form', { name: 'Add transaction' })
++      await form.getByRole('button', { name: 'Add transaction' }).click()
++      await expect(form.getByText('Enter an amount.')).toBeVisible()
++      await form.getByLabel('Amount').fill('0')
++      await form.getByLabel('Date').fill('')
++      await form.getByRole('button', { name: 'Add transaction' }).click()
++      await expect(form.getByText('Amount must be greater than zero.')).toBeVisible()
++      await expect(form.getByText('Pick a date.')).toBeVisible()
++      await form.getByLabel('Amount').fill('-4')
++      await form.getByRole('button', { name: 'Add transaction' }).click()
++      await expect(form.getByText('Amount must be greater than zero.')).toBeVisible()
++      await form.getByLabel('Amount').fill('abc')
++      await form.getByRole('button', { name: 'Add transaction' }).click()
++      await expect(form.getByText(/at most 2 decimals/)).toBeVisible()
++      await expect(page.getByTestId('tx-row')).toHaveCount(1)
++
++      // 9. float-free: 0.1 + 0.2
++      await add(page, { amount: '0.1', cat: 'Food', date: '2026-03-02', note: 'Coffee beans' })
++      await add(page, { amount: '0.2', cat: 'Food', date: '2026-03-03', note: 'Tea' })
++      await expect(page.getByTestId('total-expenses')).toHaveText('$0.30')
++      await expect(page.getByTestId('total-balance')).toHaveText('$999.70')
++
++      // more data
++      await add(page, { amount: '200.50', cat: 'Housing', date: '2026-03-05', note: 'Rent share' })
++      await add(page, { amount: '49.99', cat: 'Fun', date: '2026-03-09', note: 'Cinema, "IMAX"' })
++      await add(page, { amount: '77', cat: 'Food', date: '2026-04-02', note: 'April only' })
++      await expect(page.getByTestId('month-label')).toHaveText('April 2026')
++
++      // 3. month switcher isolates
++      await page.getByRole('button', { name: 'Previous month' }).click()
++      await expect(page.getByTestId('month-label')).toHaveText('March 2026')
++      await expect(page.getByTestId('tx-row')).toHaveCount(5)
++      await expect(page.getByTestId('total-expenses')).toHaveText('$250.79')
++      await page.getByRole('button', { name: 'Next month' }).click()
++      await expect(page.getByTestId('total-expenses')).toHaveText('$77.00')
++      await expect(page.getByTestId('total-income')).toHaveText('$0.00')
++      await page.getByRole('button', { name: 'Previous month' }).click()
++
++      // 5. donut: slices for Food, Housing, Fun only
++      await expect(page.getByTestId('slice-food')).toBeAttached()
++      await expect(page.getByTestId('slice-housing')).toBeAttached()
++      await expect(page.getByTestId('slice-fun')).toBeAttached()
++      await expect(page.getByTestId('slice-health')).toHaveCount(0)
++
++      // 6. budgets
++      const food = page.getByTestId('budget-food')
++      await food.getByLabel('Food budget').fill('0.25')
++      await food.getByLabel('Food budget').press('Enter')
++      await expect(food.getByRole('progressbar')).toHaveAttribute('data-over', 'true')
++      await expect(food).toContainText('over by $0.05')
++      await expect(food.locator('[role=progressbar] > div')).toHaveClass(/bg-red-600/)
++      await food.getByLabel('Food budget').fill('100')
++      await food.getByLabel('Food budget').press('Enter')
++      await expect(food.getByRole('progressbar')).toHaveAttribute('data-over', 'false')
++      await expect(food.locator('[role=progressbar] > div')).toHaveClass(/bg-emerald-500/)
++      await food.getByLabel('Food budget').fill('-1')
++      await food.getByLabel('Food budget').press('Enter')
++      await expect(food.getByText('Enter an amount above zero.')).toBeVisible()
++      await food.getByLabel('Food budget').fill('0.25')
++      await food.getByLabel('Food budget').press('Enter')
++
++      // 2. custom category
++      const addCat = page.getByRole('form', { name: 'Add category' })
++      await addCat.getByRole('button', { name: 'Add' }).click()
++      await expect(addCat.getByText('Give the category a name.')).toBeVisible()
++      await addCat.getByLabel('New category').fill('food')
++      await addCat.getByRole('button', { name: 'Add' }).click()
++      await expect(addCat.getByText('That category already exists.')).toBeVisible()
++      await addCat.getByLabel('New category').fill('Pets')
++      await addCat.getByRole('button', { name: 'Add' }).click()
++      await expect(page.getByLabel('Pets budget')).toBeVisible()
++      await add(page, { amount: '12', cat: 'Pets', date: '2026-03-10', note: 'Dog food' })
++      await expect(page.getByTestId('slice-food')).toBeAttached()
++      await expect(page.locator('[data-testid^=slice-c]')).toHaveCount(1)
++
++      // 7. filters + search
++      await page.getByLabel('Filter by category').selectOption({ label: 'Food' })
++      await expect(page.getByTestId('tx-row')).toHaveCount(2)
++      await page.getByLabel('Filter by category').selectOption('all')
++      await page.getByLabel('Filter by type').selectOption('income')
++      await expect(page.getByTestId('tx-row')).toHaveCount(1)
++      await page.getByLabel('Filter by type').selectOption('all')
++      await page.getByLabel('Search notes').fill('DOG')
++      await expect(page.getByTestId('tx-row')).toHaveCount(1)
++      await page.getByLabel('Search notes').fill('zzz')
++      await expect(page.getByText('No transactions match your filters.')).toBeVisible()
++      await page.getByRole('button', { name: 'Clear filters' }).click()
++      await expect(page.getByTestId('tx-row')).toHaveCount(6)
++
++      // 8. CSV export (whole month, even when filtered)
++      await page.getByLabel('Search notes').fill('Tea')
++      const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()])
++      expect(dl.suggestedFilename()).toBe('transactions-2026-03.csv')
++      const csv = readFileSync((await dl.path())!, 'utf8')
++      expect(csv.split('\r\n')[0]).toBe('Date,Type,Category,Amount,Note')
++      expect(csv).toContain('2026-03-03,expense,Food,0.20,Tea')
++      expect(csv).toContain('2026-03-09,expense,Fun,49.99,"Cinema, ""IMAX"""')
++      expect(csv).not.toContain('April only')
++      expect(csv.trim().split('\r\n')).toHaveLength(7)
++      await page.getByLabel('Search notes').fill('')
++
++      // 1. edit
++      const row = page.getByTestId('tx-row').filter({ hasText: 'Rent share' })
++      await row.getByRole('button', { name: 'Edit transaction' }).click()
++      const edit = page.getByRole('form', { name: 'Edit transaction' })
++      await expect(edit.getByLabel('Amount')).toHaveValue('200.50')
++      await edit.getByLabel('Amount').fill('300.10')
++      await edit.getByLabel(/Note/).fill('Rent full')
++      await edit.getByRole('button', { name: 'Save changes' }).click()
++      await expect(page.getByTestId('tx-row').filter({ hasText: 'Rent full' })).toContainText('$300.10')
++      await expect(page.getByRole('form', { name: 'Add transaction' })).toBeVisible()
++      // edit validation
++      await page.getByTestId('tx-row').filter({ hasText: 'Rent full' }).getByRole('button', { name: 'Edit transaction' }).click()
++      await page.getByRole('form', { name: 'Edit transaction' }).getByLabel('Amount').fill('0')
++      await page.getByRole('form', { name: 'Edit transaction' }).getByRole('button', { name: 'Save changes' }).click()
++      await expect(page.getByText('Amount must be greater than zero.')).toBeVisible()
++      await page.getByRole('button', { name: 'Cancel' }).click()
++
++      // 11. persistence
++      await page.reload()
++      await expect(page.getByTestId('month-label')).toHaveText(/20\d\d/)
++      // reload resets to the current month; go back to March 2026
++      for (let i = 0; i < 400 && (await page.getByTestId('month-label').innerText()) !== 'March 2026'; i++)
++        await page.getByRole('button', { name: 'Previous month' }).click()
++      await expect(page.getByTestId('tx-row')).toHaveCount(6)
++      await expect(page.getByTestId('tx-row').filter({ hasText: 'Rent full' })).toBeVisible()
++      await expect(page.getByLabel('Food budget')).toHaveValue('0.25')
++      await expect(page.getByLabel('Pets budget')).toBeVisible()
++
++      // 1. delete
++      const dog = page.getByTestId('tx-row').filter({ hasText: 'Dog food' })
++      await dog.getByRole('button', { name: 'Delete transaction' }).click()
++      await dog.getByRole('button', { name: 'No' }).click()
++      await expect(page.getByTestId('tx-row')).toHaveCount(6)
++      await dog.getByRole('button', { name: 'Delete transaction' }).click()
++      await page.getByRole('button', { name: 'Confirm delete' }).click()
++      await expect(page.getByTestId('tx-row')).toHaveCount(5)
++
++      expect(await overflow()).toBe(false)
++      await page.screenshot({ path: `shots/${s.name}.png`, fullPage: true })
++      expect(errors).toEqual([])
++    })
++  })
++}
+diff --git a/index.html b/index.html
+index 3d7efb3..1c1b96b 100644
+--- a/index.html
++++ b/index.html
+@@ -4,7 +4,7 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>base</title>
++    <title>Budget Tracker</title>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/package.json b/package.json
+index ce33149..b996bda 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,7 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "oxlint",
++    "test": "vitest run src",
+     "preview": "vite preview"
+   },
+   "dependencies": {
+@@ -23,6 +24,7 @@
+     "oxlint": "^1.90.0",
+     "tailwindcss": "^4.3.5",
+     "typescript": "~7.0.2",
+-    "vite": "^8.3.6"
++    "vite": "^8.3.6",
++    "vitest": "^4.1.12"
+   }
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 7ecedb0..2fa37fc 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,139 @@
++import { useEffect, useMemo, useState } from 'react'
++import {
++  type AppData, type Filters, type Transaction, applyFilters, inMonth, loadData, monthLabel, monthOf, saveData,
++  shiftMonth, sortTx, todayISO, toCSV, totals,
++} from './lib/budget'
++import { AddCategory, BudgetList, Donut, Money, TransactionForm, TxRow, btnGhost, card, inputCls } from './components'
++
+ export default function App() {
+-  return <main className="min-h-screen grid place-items-center"><h1 className="text-2xl font-semibold">Hello</h1></main>
++  const [data, setData] = useState<AppData>(() => loadData())
++  const [month, setMonth] = useState(() => monthOf(todayISO()))
++  const [editing, setEditing] = useState<Transaction | null>(null)
++  const [filters, setFilters] = useState<Filters>({ categoryId: 'all', type: 'all', search: '' })
++
++  useEffect(() => saveData(data), [data])
++
++  const monthTxs = useMemo(() => inMonth(data.transactions, month), [data.transactions, month])
++  const t = totals(monthTxs)
++  const visible = useMemo(() => sortTx(applyFilters(monthTxs, filters)), [monthTxs, filters])
++  const defaultDate = todayISO().startsWith(month) ? todayISO() : month + '-01'
++  const catOf = (id: string) => data.categories.find((c) => c.id === id)
++  const filtering = filters.categoryId !== 'all' || filters.type !== 'all' || filters.search.trim() !== ''
++
++  function addTx(v: Omit<Transaction, 'id'>) {
++    setData((d) => ({ ...d, transactions: [...d.transactions, { ...v, id: crypto.randomUUID() }] }))
++    // Show the month the user just added to, so the new row is visible.
++    setMonth(monthOf(v.date))
++  }
++  function saveEdit(v: Omit<Transaction, 'id'>) {
++    if (!editing) return
++    setData((d) => ({ ...d, transactions: d.transactions.map((x) => (x.id === editing.id ? { ...v, id: x.id } : x)) }))
++    setMonth(monthOf(v.date))
++    setEditing(null)
++  }
++  function exportCsv() {
++    const blob = new Blob([toCSV(monthTxs, data.categories)], { type: 'text/csv;charset=utf-8' })
++    const a = document.createElement('a')
++    a.href = URL.createObjectURL(blob)
++    a.download = `transactions-${month}.csv`
++    a.click()
++    URL.revokeObjectURL(a.href)
++  }
++
++  return (
++    <div className="min-h-screen bg-slate-50 text-slate-900">
++      <header className="border-b border-slate-200 bg-white">
++        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
++          <h1 className="text-lg font-semibold">Budget Tracker</h1>
++          <div className="flex items-center gap-2">
++            <button aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))} className={btnGhost}>‹</button>
++            <span data-testid="month-label" className="min-w-36 text-center text-sm font-semibold">{monthLabel(month)}</span>
++            <button aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))} className={btnGhost}>›</button>
++            <button onClick={() => setMonth(monthOf(todayISO()))} className={btnGhost}>Today</button>
++          </div>
++        </div>
++      </header>
++
++      <main className="mx-auto max-w-6xl space-y-4 px-4 py-4">
++        <section aria-label="Month totals" className="grid grid-cols-3 gap-2 sm:gap-3">
++          <Stat label="Income" testid="total-income" tone="text-emerald-600"><Money cents={t.income} /></Stat>
++          <Stat label="Expenses" testid="total-expenses" tone="text-rose-600"><Money cents={t.expenses} /></Stat>
++          <Stat label="Balance" testid="total-balance" tone={t.balance < 0 ? 'text-red-600' : 'text-slate-900'}>
++            {t.balance < 0 && '−'}<Money cents={Math.abs(t.balance)} />
++          </Stat>
++        </section>
++
++        <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
++          <div className="space-y-4">
++            <section className={card}>
++              <h2 className="mb-3 font-semibold">{editing ? 'Edit transaction' : 'Add transaction'}</h2>
++              <TransactionForm key={editing?.id ?? 'new-' + month} categories={data.categories} initial={editing ?? undefined}
++                defaultDate={defaultDate} onSubmit={editing ? saveEdit : addTx} onCancel={editing ? () => setEditing(null) : undefined} />
++            </section>
++            <section className={card}>
++              <h2 className="mb-3 font-semibold">Expenses by category</h2>
++              <Donut txs={monthTxs} categories={data.categories} />
++            </section>
++          </div>
++
++          <div className="space-y-4">
++            <section className={card}>
++              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
++                <h2 className="font-semibold">Transactions</h2>
++                <button onClick={exportCsv} disabled={monthTxs.length === 0} className={btnGhost + ' disabled:cursor-not-allowed disabled:opacity-50'}>Export CSV</button>
++              </div>
++              <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1.5fr]">
++                <select aria-label="Filter by category" value={filters.categoryId} onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })} className={inputCls}>
++                  <option value="all">All categories</option>
++                  {data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
++                </select>
++                <select aria-label="Filter by type" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value as Filters['type'] })} className={inputCls}>
++                  <option value="all">All types</option>
++                  <option value="income">Income</option>
++                  <option value="expense">Expenses</option>
++                </select>
++                <input type="search" aria-label="Search notes" placeholder="Search notes…" value={filters.search}
++                  onChange={(e) => setFilters({ ...filters, search: e.target.value })} className={inputCls + ' col-span-2 sm:col-span-1'} />
++              </div>
++              {visible.length === 0 ? (
++                <p className="py-8 text-center text-sm text-slate-500">
++                  {filtering ? 'No transactions match your filters.' : 'No transactions in ' + monthLabel(month) + ' yet.'}
++                  {filtering && <> <button className="text-indigo-600 underline" onClick={() => setFilters({ categoryId: 'all', type: 'all', search: '' })}>Clear filters</button></>}
++                </p>
++              ) : (
++                <ul className="divide-y divide-slate-100">
++                  {visible.map((x) => (
++                    <TxRow key={x.id} t={x} cat={catOf(x.categoryId)}
++                      onEdit={() => { setEditing(x); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
++                      onDelete={() => { setData((d) => ({ ...d, transactions: d.transactions.filter((y) => y.id !== x.id) })); if (editing?.id === x.id) setEditing(null) }} />
++                  ))}
++                </ul>
++              )}
++            </section>
++
++            <section className={card}>
++              <h2 className="font-semibold">Monthly budgets</h2>
++              <p className="mb-3 text-xs text-slate-500">Set a limit per category; it applies to every month. Compared with {monthLabel(month)} spending.</p>
++              <BudgetList categories={data.categories} txs={monthTxs} budgets={data.budgets}
++                onChange={(id, c) => setData((d) => {
++                  const budgets = { ...d.budgets }
++                  if (c === null) delete budgets[id]; else budgets[id] = c
++                  return { ...d, budgets }
++                })} />
++              <AddCategory categories={data.categories} onAdd={(c) => setData((d) => ({ ...d, categories: [...d.categories, c] }))} />
++            </section>
++          </div>
++        </div>
++      </main>
++    </div>
++  )
++}
++
++function Stat({ label, testid, tone, children }: { label: string; testid: string; tone: string; children: React.ReactNode }) {
++  return (
++    <div className={card + ' !p-3 sm:!p-5'}>
++      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
++      <p data-testid={testid} className={`mt-1 break-words text-base sm:text-2xl font-semibold tabular-nums ${tone}`}>{children}</p>
++    </div>
++  )
+ }
+diff --git a/src/components.tsx b/src/components.tsx
+new file mode 100644
+index 0000000..2351158
+--- /dev/null
++++ b/src/components.tsx
+@@ -0,0 +1,249 @@
++import { useState, type FormEvent } from 'react'
++import {
++  type Budgets, type Category, type FormErrors, type FormInput, type Transaction, type TxType,
++  validateForm, expensesByCategory,
++} from './lib/budget'
++import { centsToPlain, formatCents, parseAmount } from './lib/money'
++
++export const card = 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5'
++const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200'
++const btn = 'rounded-lg px-3 py-2 text-sm font-medium transition-colors'
++const btnPrimary = btn + ' bg-indigo-600 text-white hover:bg-indigo-700'
++const btnGhost = btn + ' border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
++
++export const Money = ({ cents }: { cents: number }) => <>${formatCents(cents)}</>
++
++// ---------------- Transaction form ----------------
++export function TransactionForm({ categories, initial, defaultDate, onSubmit, onCancel }: {
++  categories: Category[]
++  initial?: Transaction
++  defaultDate: string
++  onSubmit: (v: Omit<Transaction, 'id'>) => void
++  onCancel?: () => void
++}) {
++  const blank = (): FormInput => ({ type: 'expense', amount: '', categoryId: categories[0].id, date: defaultDate, note: '' })
++  const [f, setF] = useState<FormInput>(
++    initial ? { type: initial.type, amount: centsToPlain(initial.amount), categoryId: initial.categoryId, date: initial.date, note: initial.note } : blank(),
++  )
++  const [errors, setErrors] = useState<FormErrors>({})
++  const set = <K extends keyof FormInput>(k: K, v: FormInput[K]) => setF((p) => ({ ...p, [k]: v }))
++
++  function submit(e: FormEvent) {
++    e.preventDefault()
++    const r = validateForm(f, categories)
++    if (!r.ok) return setErrors(r.errors)
++    setErrors({})
++    onSubmit(r.value)
++    if (!initial) setF({ ...blank(), type: f.type, categoryId: f.categoryId, date: f.date })
++  }
++
++  const Err = ({ id, msg }: { id: string; msg?: string }) =>
++    msg ? <p id={id} role="alert" className="mt-1 text-xs font-medium text-red-600">{msg}</p> : null
++
++  return (
++    <form onSubmit={submit} noValidate className="space-y-3" aria-label={initial ? 'Edit transaction' : 'Add transaction'}>
++      <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" role="radiogroup" aria-label="Type">
++        {(['expense', 'income'] as TxType[]).map((t) => (
++          <label key={t} className={`cursor-pointer rounded-md py-1.5 text-center text-sm font-medium capitalize ${f.type === t ? (t === 'income' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white') : 'text-slate-600'}`}>
++            <input type="radio" name="type" value={t} checked={f.type === t} onChange={() => set('type', t)} className="sr-only" />
++            {t}
++          </label>
++        ))}
++      </div>
++      <div className="grid grid-cols-2 gap-3">
++        <div>
++          <label htmlFor="tx-amount" className="mb-1 block text-xs font-medium text-slate-600">Amount</label>
++          <input id="tx-amount" inputMode="decimal" placeholder="0.00" value={f.amount} onChange={(e) => set('amount', e.target.value)}
++            aria-invalid={!!errors.amount} aria-describedby={errors.amount ? 'err-amount' : undefined} className={input} />
++          <Err id="err-amount" msg={errors.amount} />
++        </div>
++        <div>
++          <label htmlFor="tx-date" className="mb-1 block text-xs font-medium text-slate-600">Date</label>
++          <input id="tx-date" type="date" value={f.date} onChange={(e) => set('date', e.target.value)}
++            aria-invalid={!!errors.date} aria-describedby={errors.date ? 'err-date' : undefined} className={input} />
++          <Err id="err-date" msg={errors.date} />
++        </div>
++      </div>
++      <div>
++        <label htmlFor="tx-cat" className="mb-1 block text-xs font-medium text-slate-600">Category</label>
++        <select id="tx-cat" value={f.categoryId} onChange={(e) => set('categoryId', e.target.value)} className={input}>
++          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
++        </select>
++        <Err id="err-cat" msg={errors.categoryId} />
++      </div>
++      <div>
++        <label htmlFor="tx-note" className="mb-1 block text-xs font-medium text-slate-600">Note <span className="text-slate-400">(optional)</span></label>
++        <input id="tx-note" value={f.note} maxLength={200} onChange={(e) => set('note', e.target.value)} className={input} />
++      </div>
++      <div className="flex gap-2">
++        <button type="submit" className={btnPrimary + ' flex-1'}>{initial ? 'Save changes' : 'Add transaction'}</button>
++        {onCancel && <button type="button" onClick={onCancel} className={btnGhost}>Cancel</button>}
++      </div>
++    </form>
++  )
++}
++
++// ---------------- Donut chart ----------------
++export function Donut({ txs, categories }: { txs: Transaction[]; categories: Category[] }) {
++  const by = expensesByCategory(txs)
++  const slices = categories.filter((c) => by[c.id] > 0).map((c) => ({ c, v: by[c.id] }))
++  const total = slices.reduce((s, x) => s + x.v, 0)
++  const R = 15.9155 // circumference 100
++  let offset = 0
++  return (
++    <div className="flex flex-col items-center gap-4 sm:flex-row">
++      <div className="relative h-44 w-44 shrink-0">
++        <svg viewBox="0 0 42 42" className="h-full w-full -rotate-90" role="img" aria-label="Expenses by category donut chart" data-testid="donut">
++          <circle cx="21" cy="21" r={R} fill="none" stroke="#e2e8f0" strokeWidth="5" />
++          {slices.map(({ c, v }) => {
++            const pct = (v / total) * 100
++            const el = (
++              <circle key={c.id} data-testid={'slice-' + c.id} cx="21" cy="21" r={R} fill="none" stroke={c.color} strokeWidth="5"
++                strokeDasharray={`${pct} ${100 - pct}`} strokeDashoffset={-offset}>
++                <title>{c.name}: ${formatCents(v)}</title>
++              </circle>
++            )
++            offset += pct
++            return el
++          })}
++        </svg>
++        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
++          <span className="text-xs text-slate-500">Spent</span>
++          <span className="text-lg font-semibold tabular-nums">${formatCents(total)}</span>
++        </div>
++      </div>
++      {slices.length === 0 ? (
++        <p className="text-sm text-slate-500">No expenses this month yet.</p>
++      ) : (
++        <ul className="w-full space-y-1.5 text-sm">
++          {slices.map(({ c, v }) => (
++            <li key={c.id} className="flex items-center gap-2">
++              <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: c.color }} />
++              <span className="flex-1 truncate">{c.name}</span>
++              <span className="tabular-nums text-slate-500">{v * 100 < total ? '<1' : Math.round((v / total) * 100)}%</span>
++              <span className="w-24 text-right tabular-nums">${formatCents(v)}</span>
++            </li>
++          ))}
++        </ul>
++      )}
++    </div>
++  )
++}
++
++// ---------------- Budgets ----------------
++function BudgetRow({ cat, spent, budget, onChange }: { cat: Category; spent: number; budget?: number; onChange: (c: number | null) => void }) {
++  const [text, setText] = useState(budget ? centsToPlain(budget) : '')
++  const [err, setErr] = useState('')
++  const [synced, setSynced] = useState(budget)
++  if (synced !== budget) { setSynced(budget); setText(budget ? centsToPlain(budget) : '') }
++
++  function commit() {
++    if (!text.trim()) { setErr(''); return onChange(null) }
++    const c = parseAmount(text)
++    if (c === null || c <= 0) return setErr('Enter an amount above zero.')
++    setErr('')
++    onChange(c)
++  }
++  const over = budget ? spent > budget : false
++  const pct = budget ? Math.min(100, (spent / budget) * 100) : 0
++  return (
++    <li className="space-y-1.5" data-testid={'budget-' + cat.id}>
++      <div className="flex items-center gap-2 text-sm">
++        <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: cat.color }} />
++        <span className="flex-1 truncate font-medium">{cat.name}</span>
++        <label className="flex items-center gap-1 text-xs text-slate-500">
++          Budget $
++          <input aria-label={`${cat.name} budget`} inputMode="decimal" value={text} placeholder="none"
++            onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget.blur())}
++            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-sm text-slate-900 focus:border-indigo-500 focus:outline-none" />
++        </label>
++      </div>
++      {budget ? (
++        <>
++          <div role="progressbar" aria-label={`${cat.name} spending vs limit`} aria-valuemin={0} aria-valuemax={budget} aria-valuenow={Math.min(spent, budget)}
++            data-over={over} className="h-2.5 overflow-hidden rounded-full bg-slate-200">
++            <div className={`h-full rounded-full ${over ? 'bg-red-600' : 'bg-emerald-500'}`} style={{ width: pct + '%' }} />
++          </div>
++          <p className={`text-xs tabular-nums ${over ? 'font-semibold text-red-600' : 'text-slate-500'}`}>
++            ${formatCents(spent)} of ${formatCents(budget)} · {over ? `over by $${formatCents(spent - budget)}` : `$${formatCents(budget - spent)} left`}
++          </p>
++        </>
++      ) : (
++        <p className="text-xs text-slate-400 tabular-nums">${formatCents(spent)} spent · no budget set</p>
++      )}
++      {err && <p role="alert" className="text-xs font-medium text-red-600">{err}</p>}
++    </li>
++  )
++}
++
++export function BudgetList({ categories, txs, budgets, onChange }: {
++  categories: Category[]; txs: Transaction[]; budgets: Budgets; onChange: (id: string, c: number | null) => void
++}) {
++  const by = expensesByCategory(txs)
++  return (
++    <ul className="space-y-4">
++      {categories.map((c) => <BudgetRow key={c.id} cat={c} spent={by[c.id] ?? 0} budget={budgets[c.id]} onChange={(v) => onChange(c.id, v)} />)}
++    </ul>
++  )
++}
++
++// ---------------- Add category ----------------
++const PALETTE = ['#eab308', '#14b8a6', '#a855f7', '#ef4444', '#84cc16', '#06b6d4', '#f43f5e', '#8b5cf6']
++export function AddCategory({ categories, onAdd }: { categories: Category[]; onAdd: (c: Category) => void }) {
++  const [name, setName] = useState('')
++  const [color, setColor] = useState(PALETTE[categories.length % PALETTE.length])
++  const [err, setErr] = useState('')
++  function submit(e: FormEvent) {
++    e.preventDefault()
++    const n = name.trim()
++    if (!n) return setErr('Give the category a name.')
++    if (categories.some((c) => c.name.toLowerCase() === n.toLowerCase())) return setErr('That category already exists.')
++    onAdd({ id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: n, color })
++    setName(''); setErr(''); setColor(PALETTE[(categories.length + 1) % PALETTE.length])
++  }
++  return (
++    <form onSubmit={submit} noValidate aria-label="Add category" className="mt-4 border-t border-slate-100 pt-4">
++      <div className="flex items-end gap-2">
++        <div className="flex-1">
++          <label htmlFor="cat-name" className="mb-1 block text-xs font-medium text-slate-600">New category</label>
++          <input id="cat-name" value={name} maxLength={30} onChange={(e) => setName(e.target.value)} className={input} />
++        </div>
++        <input type="color" aria-label="Category colour" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-10 cursor-pointer rounded-lg border border-slate-300 bg-white p-1" />
++        <button type="submit" className={btnPrimary}>Add</button>
++      </div>
++      {err && <p role="alert" className="mt-1 text-xs font-medium text-red-600">{err}</p>}
++    </form>
++  )
++}
++
++// ---------------- Transaction row ----------------
++export function TxRow({ t, cat, onEdit, onDelete }: { t: Transaction; cat?: Category; onEdit: () => void; onDelete: () => void }) {
++  const [confirming, setConfirming] = useState(false)
++  return (
++    <li className="flex items-center gap-3 py-3" data-testid="tx-row">
++      <span className="h-9 w-1.5 shrink-0 rounded-full" style={{ background: cat?.color ?? '#94a3b8' }} />
++      <div className="min-w-0 flex-1">
++        <p className="truncate text-sm font-medium">{cat?.name ?? 'Unknown'}{t.note && <span className="font-normal text-slate-500"> · {t.note}</span>}</p>
++        <p className="text-xs text-slate-500">{t.date}</p>
++      </div>
++      <p className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-emerald-600' : 'text-slate-900'}`}>
++        {t.type === 'income' ? '+' : '−'}${formatCents(t.amount)}
++      </p>
++      <div className="flex shrink-0 gap-1">
++        {confirming ? (
++          <>
++            <button onClick={onDelete} className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white" aria-label="Confirm delete">Delete?</button>
++            <button onClick={() => setConfirming(false)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">No</button>
++          </>
++        ) : (
++          <>
++            <button onClick={onEdit} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" aria-label="Edit transaction">Edit</button>
++            <button onClick={() => setConfirming(true)} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50" aria-label="Delete transaction">Delete</button>
++          </>
++        )}
++      </div>
++    </li>
++  )
++}
++
++export { input as inputCls, btnGhost, btnPrimary }
+diff --git a/src/lib/budget.ts b/src/lib/budget.ts
+new file mode 100644
+index 0000000..3e5b1ed
+--- /dev/null
++++ b/src/lib/budget.ts
+@@ -0,0 +1,133 @@
++import { centsToPlain, parseAmount } from './money'
++
++export type TxType = 'income' | 'expense'
++export interface Category { id: string; name: string; color: string }
++export interface Transaction {
++  id: string
++  type: TxType
++  amount: number // cents, > 0
++  categoryId: string
++  date: string // YYYY-MM-DD
++  note: string
++}
++export type Budgets = Record<string, number> // categoryId -> cents per month
++export interface AppData { transactions: Transaction[]; categories: Category[]; budgets: Budgets }
++
++export const DEFAULT_CATEGORIES: Category[] = [
++  { id: 'food', name: 'Food', color: '#f97316' },
++  { id: 'housing', name: 'Housing', color: '#6366f1' },
++  { id: 'transport', name: 'Transport', color: '#0ea5e9' },
++  { id: 'fun', name: 'Fun', color: '#ec4899' },
++  { id: 'health', name: 'Health', color: '#10b981' },
++  { id: 'other', name: 'Other', color: '#64748b' },
++]
++
++// ---------- dates ----------
++export function isValidDate(s: string): boolean {
++  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
++  if (!m) return false
++  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
++  const dt = new Date(Date.UTC(y, mo - 1, d))
++  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d
++}
++export const monthOf = (date: string) => date.slice(0, 7)
++export function todayISO(now = new Date()): string {
++  const p = (n: number) => String(n).padStart(2, '0')
++  return now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate())
++}
++export function shiftMonth(month: string, delta: number): string {
++  const [y, m] = month.split('-').map(Number)
++  const idx = y * 12 + (m - 1) + delta
++  return Math.floor(idx / 12) + '-' + String((idx % 12) + 1).padStart(2, '0')
++}
++export function monthLabel(month: string): string {
++  const [y, m] = month.split('-').map(Number)
++  return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
++}
++
++// ---------- validation ----------
++export interface FormInput { type: TxType; amount: string; categoryId: string; date: string; note: string }
++export type FormErrors = Partial<Record<'amount' | 'categoryId' | 'date', string>>
++
++export function validateForm(f: FormInput, categories: Category[]):
++  { ok: true; value: Omit<Transaction, 'id'> } | { ok: false; errors: FormErrors } {
++  const errors: FormErrors = {}
++  const cents = parseAmount(f.amount)
++  if (!f.amount.trim()) errors.amount = 'Enter an amount.'
++  else if (/^-/.test(f.amount.trim()) && /\d/.test(f.amount)) errors.amount = 'Amount must be greater than zero.'
++  else if (cents === null) errors.amount = 'Amount must be a number with at most 2 decimals (e.g. 12.50).'
++  else if (cents <= 0) errors.amount = 'Amount must be greater than zero.'
++  if (!f.date) errors.date = 'Pick a date.'
++  else if (!isValidDate(f.date)) errors.date = 'That is not a valid date.'
++  if (!categories.some((c) => c.id === f.categoryId)) errors.categoryId = 'Choose a category.'
++  if (Object.keys(errors).length) return { ok: false, errors }
++  return { ok: true, value: { type: f.type, amount: cents!, categoryId: f.categoryId, date: f.date, note: f.note.trim() } }
++}
++
++// ---------- calculations ----------
++export const inMonth = (txs: Transaction[], month: string) => txs.filter((t) => monthOf(t.date) === month)
++
++export function totals(txs: Transaction[]) {
++  let income = 0
++  let expenses = 0
++  for (const t of txs) {
++    if (t.type === 'income') income += t.amount
++    else expenses += t.amount
++  }
++  return { income, expenses, balance: income - expenses }
++}
++
++export function expensesByCategory(txs: Transaction[]): Record<string, number> {
++  const out: Record<string, number> = {}
++  for (const t of txs) if (t.type === 'expense') out[t.categoryId] = (out[t.categoryId] ?? 0) + t.amount
++  return out
++}
++
++export interface Filters { categoryId: string; type: TxType | 'all'; search: string }
++export function applyFilters(txs: Transaction[], f: Filters): Transaction[] {
++  const q = f.search.trim().toLowerCase()
++  return txs.filter((t) =>
++    (f.categoryId === 'all' || t.categoryId === f.categoryId) &&
++    (f.type === 'all' || t.type === f.type) &&
++    (!q || t.note.toLowerCase().includes(q)))
++}
++
++export function sortTx(txs: Transaction[]): Transaction[] {
++  return [...txs].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
++}
++
++// ---------- CSV ----------
++function csvCell(v: string): string {
++  // Neutralise spreadsheet formula injection, then quote when needed.
++  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v
++  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v
++}
++export function toCSV(txs: Transaction[], categories: Category[]): string {
++  const name = (id: string) => categories.find((c) => c.id === id)?.name ?? id
++  const rows = [['Date', 'Type', 'Category', 'Amount', 'Note']]
++  for (const t of [...txs].sort((a, b) => a.date.localeCompare(b.date)))
++    rows.push([t.date, t.type, name(t.categoryId), centsToPlain(t.amount), t.note])
++  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
++}
++
++// ---------- persistence ----------
++export const STORAGE_KEY = 'budget-tracker:v1'
++export function emptyData(): AppData { return { transactions: [], categories: DEFAULT_CATEGORIES, budgets: {} } }
++
++export function loadData(storage: Pick<Storage, 'getItem'> = localStorage): AppData {
++  try {
++    const raw = storage.getItem(STORAGE_KEY)
++    if (!raw) return emptyData()
++    const p = JSON.parse(raw)
++    const categories: Category[] = Array.isArray(p.categories) && p.categories.length ? p.categories : DEFAULT_CATEGORIES
++    const transactions: Transaction[] = (Array.isArray(p.transactions) ? p.transactions : []).filter(
++      (t: Transaction) => t && Number.isSafeInteger(t.amount) && t.amount > 0 && isValidDate(t.date) &&
++        (t.type === 'income' || t.type === 'expense') && typeof t.id === 'string')
++    return { transactions, categories, budgets: p.budgets && typeof p.budgets === 'object' ? p.budgets : {} }
++  } catch {
++    return emptyData()
++  }
++}
++export function saveData(d: AppData, storage: Pick<Storage, 'setItem'> = localStorage) {
++  try { storage.setItem(STORAGE_KEY, JSON.stringify(d)) } catch { /* quota / private mode */ }
++}
+diff --git a/src/lib/logic.test.ts b/src/lib/logic.test.ts
+new file mode 100644
+index 0000000..aadc108
+--- /dev/null
++++ b/src/lib/logic.test.ts
+@@ -0,0 +1,108 @@
++import { describe, expect, it } from 'vitest'
++import { formatCents, parseAmount } from './money'
++import {
++  DEFAULT_CATEGORIES as CATS, applyFilters, expensesByCategory, inMonth, isValidDate, loadData,
++  saveData, shiftMonth, toCSV, totals, validateForm, STORAGE_KEY, type Transaction,
++} from './budget'
++
++const tx = (o: Partial<Transaction>): Transaction => ({ id: 'x' + Math.random(), type: 'expense', amount: 100, categoryId: 'food', date: '2026-11-05', note: '', ...o })
++
++describe('money', () => {
++  it('parses amounts to integer cents', () => {
++    expect(parseAmount('0.1')).toBe(10)
++    expect(parseAmount('12')).toBe(1200)
++    expect(parseAmount('12,5')).toBe(1250)
++    expect(parseAmount('1,234.56')).toBe(123456)
++    expect(parseAmount('1.234,56')).toBe(123456)
++    expect(parseAmount('19.99')).toBe(1999)
++    expect(parseAmount('1.005')).toBeNull()
++    expect(parseAmount('abc')).toBeNull()
++    expect(parseAmount('-5')).toBeNull()
++    expect(parseAmount('')).toBeNull()
++  })
++  it('0.1 + 0.2 shows 0.30', () => {
++    const sum = parseAmount('0.1')! + parseAmount('0.2')!
++    expect(formatCents(sum)).toBe('0.30')
++  })
++  it('formats', () => {
++    expect(formatCents(0)).toBe('0.00')
++    expect(formatCents(5)).toBe('0.05')
++    expect(formatCents(123456789)).toBe('1,234,567.89')
++    expect(formatCents(-250)).toBe('-2.50')
++  })
++})
++
++describe('validation', () => {
++  const base = { type: 'expense' as const, amount: '5', categoryId: 'food', date: '2026-11-05', note: ' hi ' }
++  it('accepts valid and trims note', () => {
++    const r = validateForm(base, CATS)
++    expect(r.ok && r.value).toMatchObject({ amount: 500, note: 'hi' })
++  })
++  it('rejects zero / negative / empty amount', () => {
++    for (const a of ['0', '0.00', '-3', '']) expect(validateForm({ ...base, amount: a }, CATS).ok).toBe(false)
++    const r = validateForm({ ...base, amount: '0' }, CATS)
++    expect(!r.ok && r.errors.amount).toBe('Amount must be greater than zero.')
++    const n = validateForm({ ...base, amount: '-4' }, CATS)
++    expect(!n.ok && n.errors.amount).toBe('Amount must be greater than zero.')
++    const j = validateForm({ ...base, amount: 'abc' }, CATS)
++    expect(!j.ok && j.errors.amount).toMatch(/at most 2 decimals/)
++  })
++  it('requires a real date', () => {
++    expect(validateForm({ ...base, date: '' }, CATS)).toMatchObject({ ok: false, errors: { date: 'Pick a date.' } })
++    expect(validateForm({ ...base, date: '2026-02-30' }, CATS).ok).toBe(false)
++    expect(isValidDate('2024-02-29')).toBe(true)
++  })
++})
++
++describe('calculations', () => {
++  const txs = [
++    tx({ type: 'income', amount: 10, categoryId: 'other' }),
++    tx({ amount: 20, note: 'Coffee' }),
++    tx({ amount: 30, categoryId: 'fun', note: 'Cinema' }),
++    tx({ amount: 999, date: '2026-12-01' }),
++  ]
++  it('month filter and totals', () => {
++    const m = inMonth(txs, '2026-11')
++    expect(m).toHaveLength(3)
++    expect(totals(m)).toEqual({ income: 10, expenses: 50, balance: -40 })
++  })
++  it('totals avoid float error', () => {
++    const t = totals([tx({ amount: 10 }), tx({ amount: 20 })])
++    expect(formatCents(t.expenses)).toBe('0.30')
++  })
++  it('expenses by category ignore income', () => {
++    expect(expensesByCategory(txs.slice(0, 3))).toEqual({ food: 20, fun: 30 })
++  })
++  it('filters by category, type, note search', () => {
++    const m = inMonth(txs, '2026-11')
++    expect(applyFilters(m, { categoryId: 'fun', type: 'all', search: '' })).toHaveLength(1)
++    expect(applyFilters(m, { categoryId: 'all', type: 'income', search: '' })).toHaveLength(1)
++    expect(applyFilters(m, { categoryId: 'all', type: 'all', search: 'COFF' })).toHaveLength(1)
++  })
++  it('shifts months across years', () => {
++    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
++    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
++  })
++})
++
++describe('csv', () => {
++  it('exports with escaping and formula guard', () => {
++    const csv = toCSV([tx({ amount: 1050, note: 'a "b", c' }), tx({ amount: 5, note: '=SUM(A1)', date: '2026-11-01' })], CATS)
++    const lines = csv.trim().split('\r\n')
++    expect(lines[0]).toBe('Date,Type,Category,Amount,Note')
++    expect(lines[1]).toBe("2026-11-01,expense,Food,0.05,'=SUM(A1)")
++    expect(lines[2]).toBe('2026-11-05,expense,Food,10.50,"a ""b"", c"')
++  })
++})
++
++describe('persistence', () => {
++  it('round-trips and survives corrupt data', () => {
++    const store: Record<string, string> = {}
++    const s = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => void (store[k] = v) }
++    const data = { transactions: [tx({ id: 'a' })], categories: CATS, budgets: { food: 5000 } }
++    saveData(data, s)
++    expect(loadData(s)).toEqual(data)
++    store[STORAGE_KEY] = '{not json'
++    expect(loadData(s).transactions).toEqual([])
++  })
++})
+diff --git a/src/lib/money.ts b/src/lib/money.ts
+new file mode 100644
+index 0000000..95da9f3
+--- /dev/null
++++ b/src/lib/money.ts
+@@ -0,0 +1,37 @@
++/** Money is stored as integer cents. Parsing is string-based so no float ever touches an amount. */
++
++/** Parse "12", "12.5", "12,50", "1,234.56" into cents. Returns null when invalid. */
++export function parseAmount(input: string): number | null {
++  let s = input.trim().replace(/\s/g, '')
++  if (!s) return null
++  // If both separators appear, the last one is the decimal separator.
++  const lastDot = s.lastIndexOf('.')
++  const lastComma = s.lastIndexOf(',')
++  if (lastDot >= 0 && lastComma >= 0) {
++    const dec = Math.max(lastDot, lastComma)
++    const thousands = dec === lastDot ? ',' : '.'
++    s = s.split(thousands).join('')
++    s = s.replace(',', '.')
++  } else if (lastComma >= 0) {
++    // A single comma followed by 1-2 digits is a decimal comma; otherwise thousands.
++    s = /^\d+,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.split(',').join('')
++  }
++  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(s)
++  if (!m) return null
++  const cents = Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0') || 0)
++  return Number.isSafeInteger(cents) ? cents : null
++}
++
++/** Cents -> "1,234.50" (no currency symbol). */
++export function formatCents(cents: number): string {
++  const neg = cents < 0
++  const abs = Math.abs(cents)
++  const whole = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
++  const frac = String(abs % 100).padStart(2, '0')
++  return (neg ? '-' : '') + whole + '.' + frac
++}
++
++/** Cents -> plain "1234.50" for CSV / editing. */
++export function centsToPlain(cents: number): string {
++  return formatCents(cents).replace(/,/g, '')
++}

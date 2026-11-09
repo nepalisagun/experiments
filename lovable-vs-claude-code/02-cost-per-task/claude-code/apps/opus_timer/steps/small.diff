@@ -1,0 +1,146 @@
+diff --git a/e2e/pomodoro.spec.ts b/e2e/pomodoro.spec.ts
+index 4f8639f..2876775 100644
+--- a/e2e/pomodoro.spec.ts
++++ b/e2e/pomodoro.spec.ts
+@@ -60,7 +60,7 @@ test('space bar starts and pauses, but not while typing a task', async ({ page }
+   await expect(startPause(page)).toHaveText('Pause') // typing a space did not pause
+ })
+ 
+-test('full cycle: 4 focus sessions → long break, dots, log, and sound', async ({ page }) => {
++test('full cycle: 4 focus sessions → Recharge, dots, log, and sound', async ({ page }) => {
+   await page.getByTestId('task').fill('Draft chapter')
+   const dots = page.getByTestId('cycle')
+   await expect(dots).toContainText('0 of 4')
+@@ -82,6 +82,10 @@ test('full cycle: 4 focus sessions → long break, dots, log, and sound', async
+   }
+   await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'long')
+   await expect(time(page)).toHaveText('15:00')
++  await expect(page).toHaveTitle('15:00 - Recharge')
++  await expect(page.getByTestId('phase').locator('[aria-current="step"]')).toHaveText('Recharge')
++  await expect(dots).toContainText('4 of 4 · Recharge earned')
++  await expect(page.getByText(/long break/i)).toHaveCount(0)
+   await expect(page.locator('[data-filled="true"]')).toHaveCount(4)
+   expect(await chimes(page)).toBe(7) // 4 focus + 3 short breaks ended
+ 
+@@ -90,7 +94,7 @@ test('full cycle: 4 focus sessions → long break, dots, log, and sound', async
+   await expect(first).toContainText(/\d{1,2}:\d{2}/)
+   await expect(page.getByTestId('log-summary')).toHaveText('4 sessions · 100 min')
+ 
+-  await page.screenshot({ path: `shots/${test.info().project.name}-long-break.png`, fullPage: true })
++  await page.screenshot({ path: `shots/${test.info().project.name}-recharge.png`, fullPage: true })
+   await startPause(page).click()
+   await finishPhase(page, 15)
+   await expect(page.getByTestId('phase')).toHaveAttribute('data-value', 'focus')
+@@ -199,6 +203,28 @@ test('counts down in real time', async ({ page }) => {
+   await expect(page).toHaveTitle(/24:5[78] - Focus/)
+ })
+ 
++test('the name "Recharge" is used in the dots label and settings, never "long break"', async ({ page }) => {
++  await expect(page.getByTestId('cycle')).toContainText('0 of 4 until Recharge')
++  await page.getByTestId('open-settings').click()
++  const dialog = page.getByTestId('settings')
++  await expect(dialog.getByText('Recharge', { exact: true })).toBeVisible()
++  await expect(dialog).toContainText('A Recharge follows every 4 focus sessions.')
++  await expect(page.locator('body')).not.toContainText(/long break/i)
++})
++
++test('countdown digits are large and fit inside the ring', async ({ page }, info) => {
++  const box = await time(page).boundingBox()
++  const ring = await time(page).locator('xpath=ancestor::div[contains(@class,"aspect-square")]').boundingBox()
++  const size = await time(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
++  // Desktop is unchanged at 5.25rem; mobile went from 18vw (67.5px) to 24vw (90px at 375px).
++  expect(size).toBeCloseTo(info.project.name === 'mobile' ? 90 : 84, 0)
++  // Widest realistic value must still sit inside the ring's inner circle (~92% of its width).
++  await time(page).evaluate((el) => (el.textContent = '88:88'))
++  const wide = (await time(page).boundingBox())!
++  expect(wide.width).toBeLessThan(ring!.width * 0.85)
++  expect(box!.x).toBeGreaterThan(ring!.x)
++})
++
+ test('layout fits the viewport without horizontal scroll', async ({ page }) => {
+   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+   expect(overflow).toBeLessThanOrEqual(0)
+diff --git a/src/App.tsx b/src/App.tsx
+index 79d0db4..7a59b90 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -58,7 +58,7 @@ export default function App() {
+               data-testid="time"
+               role="timer"
+               aria-live="off"
+-              className="font-light tabular-nums tracking-tight text-ink text-[clamp(3.5rem,18vw,5.25rem)] leading-none"
++              className="font-light tabular-nums tracking-tight text-ink text-[clamp(3.5rem,24vw,6rem)] sm:text-[5.25rem] leading-none"
+             >
+               {formatTime(p.remainingMs)}
+             </div>
+@@ -170,7 +170,7 @@ function CycleDots({ count }: { count: number }) {
+         ))}
+       </div>
+       <span className="text-xs text-muted">
+-        {filled} of {SESSIONS_PER_CYCLE} {filled === SESSIONS_PER_CYCLE ? '· long break earned' : 'until long break'}
++        {filled} of {SESSIONS_PER_CYCLE} {filled === SESSIONS_PER_CYCLE ? '· Recharge earned' : 'until Recharge'}
+       </span>
+     </div>
+   )
+@@ -205,7 +205,7 @@ function TodayLog({ entries }: { entries: LogEntry[] }) {
+ const FIELDS: { key: keyof Settings; label: string }[] = [
+   { key: 'focus', label: 'Focus' },
+   { key: 'short', label: 'Short break' },
+-  { key: 'long', label: 'Long break' },
++  { key: 'long', label: 'Recharge' },
+ ]
+ 
+ function SettingsDialog({ settings, onSave, onClose }: { settings: Settings; onSave: (s: Settings) => void; onClose: () => void }) {
+@@ -243,7 +243,7 @@ function SettingsDialog({ settings, onSave, onClose }: { settings: Settings; onS
+           <h2 id="settings-heading" className="text-base font-semibold">Durations</h2>
+           <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-sm text-muted hover:text-ink" aria-label="Close settings">✕</button>
+         </div>
+-        <p className="-mt-2 text-sm text-muted">Minutes, between 1 and 90. A long break follows every 4 focus sessions.</p>
++        <p className="-mt-2 text-sm text-muted">Minutes, between 1 and 90. A Recharge follows every 4 focus sessions.</p>
+         {FIELDS.map(({ key, label }) => (
+           <label key={key} className="flex flex-col gap-1">
+             <span className="flex items-center justify-between gap-3">
+diff --git a/src/lib/timer.test.ts b/src/lib/timer.test.ts
+index 5db30ae..8afbb09 100644
+--- a/src/lib/timer.test.ts
++++ b/src/lib/timer.test.ts
+@@ -93,7 +93,7 @@ describe('start / pause / reset / skip', () => {
+     expect(s).toMatchObject({ phase: 'short', status: 'idle', cycleCount: 0, remainingMs: 5 * MIN })
+   })
+ 
+-  it('skipping a break goes to focus; skipping a long break resets the cycle', () => {
++  it('skipping a break goes to focus; skipping a Recharge resets the cycle', () => {
+     const shortB: TimerState = { phase: 'short', status: 'running', endsAt: T0, remainingMs: 0, cycleCount: 2 }
+     expect(skip(shortB, S)).toMatchObject({ phase: 'focus', cycleCount: 2, remainingMs: 25 * MIN })
+     const longB: TimerState = { ...shortB, phase: 'long', cycleCount: 4 }
+diff --git a/src/lib/timer.ts b/src/lib/timer.ts
+index 6e06425..bf25992 100644
+--- a/src/lib/timer.ts
++++ b/src/lib/timer.ts
+@@ -30,7 +30,7 @@ export interface TimerState {
+ export const PHASE_LABEL: Record<Phase, string> = {
+   focus: 'Focus',
+   short: 'Short break',
+-  long: 'Long break',
++  long: 'Recharge',
+ }
+ 
+ export function durationMs(phase: Phase, settings: Settings): number {
+@@ -72,7 +72,7 @@ export function nextPhase(state: TimerState, completed: boolean): { phase: Phase
+     const count = state.cycleCount + 1
+     return { phase: count >= SESSIONS_PER_CYCLE ? 'long' : 'short', cycleCount: count }
+   }
+-  // After a long break a new cycle begins.
++  // After a Recharge a new cycle begins.
+   return { phase: 'focus', cycleCount: state.phase === 'long' ? 0 : state.cycleCount }
+ }
+ 
+@@ -81,7 +81,7 @@ function moveTo(state: TimerState, settings: Settings, completed: boolean): Time
+   return { phase, cycleCount, status: 'idle', endsAt: null, remainingMs: durationMs(phase, settings) }
+ }
+ 
+-/** Skip to the next phase. A skipped focus session does not count toward the long break. */
++/** Skip to the next phase. A skipped focus session does not count toward the Recharge. */
+ export function skip(state: TimerState, settings: Settings): TimerState {
+   return moveTo(state, settings, false)
+ }

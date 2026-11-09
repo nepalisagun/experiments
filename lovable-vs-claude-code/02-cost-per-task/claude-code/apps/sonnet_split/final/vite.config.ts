@@ -1,0 +1,9 @@
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: { port: 5201, strictPort: true },
+  test: { include: ['src/**/*.test.ts'] },
+})

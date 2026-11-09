@@ -1,0 +1,32 @@
+{
+ "lovable": {
+  "correctness": 8.4,
+  "completeness": 7.2,
+  "usefulness": 7.2,
+  "high_errors": 0
+ },
+ "sonnet": {
+  "correctness": 8.8,
+  "completeness": 7,
+  "usefulness": 7.4,
+  "high_errors": 0
+ },
+ "opus_default": {
+  "correctness": 9,
+  "completeness": 8.8,
+  "usefulness": 9.2,
+  "high_errors": 0
+ },
+ "opus_medium": {
+  "correctness": 8.4,
+  "completeness": 9,
+  "usefulness": 9.2,
+  "high_errors": 0
+ },
+ "opus_low": {
+  "correctness": 7.6,
+  "completeness": 7,
+  "usefulness": 6.8,
+  "high_errors": 1
+ }
+}

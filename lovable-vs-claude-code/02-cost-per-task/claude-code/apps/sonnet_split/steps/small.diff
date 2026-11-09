@@ -1,0 +1,98 @@
+diff --git a/e2e/bill.spec.ts b/e2e/bill.spec.ts
+index 34bacac..d4bac74 100644
+--- a/e2e/bill.spec.ts
++++ b/e2e/bill.spec.ts
+@@ -29,6 +29,12 @@ for (const size of sizes) {
+     await page.evaluate(() => localStorage.clear())
+     await page.reload()
+ 
++    // default tip is 18% with a preset between 15% and 20%
++    await expect(page.getByRole('group', { name: 'Tip presets' }).getByRole('button')).toHaveText(['10%', '15%', '18%', '20%'])
++    await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++    await expect(page.getByLabel('Custom %')).toHaveValue('18')
++    await page.screenshot({ path: `shots/${size.name}-default.png` })
++
+     // 1. people: add, validate, rename, remove
+     await addPerson(page, 'Ann')
+     await addPerson(page, 'Bob')
+@@ -89,6 +95,10 @@ for (const size of sizes) {
+     await expect(page.getByTestId('grand-total')).toHaveText('$39.00')
+     await page.getByRole('button', { name: '15%' }).click()
+     await expect(page.getByTestId('grand-total')).toHaveText('$37.50')
++    await page.getByRole('button', { name: '18%' }).click()
++    await expect(page.getByRole('button', { name: '18%' })).toHaveAttribute('aria-pressed', 'true')
++    await expect(page.getByLabel('Custom %')).toHaveValue('18')
++    await expect(page.getByTestId('grand-total')).toHaveText('$38.40')
+     await page.getByLabel('Custom %').fill('12.5')
+     await expect(page.getByRole('button', { name: '15%' })).toHaveAttribute('aria-pressed', 'false')
+     await expect(page.getByTestId('grand-total')).toHaveText('$36.75')
+@@ -150,6 +160,7 @@ for (const size of sizes) {
+     await page.reload()
+     await expect(page.getByTestId('person')).toHaveCount(0)
+     await expect(page.getByLabel('Currency')).toHaveValue('USD')
++    await expect(page.getByLabel('Custom %')).toHaveValue('18')
+     await ctx.close()
+   })
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 1e53115..87ab223 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -13,7 +13,7 @@ import {
+ } from './lib/bill'
+ 
+ const STORAGE_KEY = 'bill-splitter:v1'
+-const PRESETS = ['10', '15', '20']
++const PRESETS = ['10', '15', '18', '20']
+ const uid = () => Math.random().toString(36).slice(2, 10)
+ 
+ const input =
+diff --git a/src/lib/bill.test.ts b/src/lib/bill.test.ts
+index 46f3019..aff769a 100644
+--- a/src/lib/bill.test.ts
++++ b/src/lib/bill.test.ts
+@@ -3,6 +3,7 @@ import { allocate, buildSummary, calculate, emptyBill, formatMoney, loadBill, pa
+ 
+ const mk = (over: Partial<Bill> = {}): Bill => ({
+   ...emptyBill(),
++  tip: '0',
+   people: [
+     { id: 'a', name: 'Ann' },
+     { id: 'b', name: 'Bob' },
+@@ -123,6 +124,13 @@ describe('buildSummary', () => {
+   })
+ })
+ 
++describe('default tip', () => {
++  it('is 18% for a new bill and when saved data lacks a tip', () => {
++    expect(emptyBill().tip).toBe('18')
++    expect(loadBill('{}').tip).toBe('18')
++  })
++})
++
+ describe('loadBill', () => {
+   it('round-trips and survives garbage', () => {
+     const b = mk({ tax: '5', currency: 'PLN', items: [{ id: '1', name: 'A', cents: 100, people: ['a', 'gone'] }] })
+diff --git a/src/lib/bill.ts b/src/lib/bill.ts
+index 225f1dd..72de8e7 100644
+--- a/src/lib/bill.ts
++++ b/src/lib/bill.ts
+@@ -19,7 +19,8 @@ export interface Bill {
+   currency: Currency
+ }
+ 
+-export const emptyBill = (): Bill => ({ people: [], items: [], tax: '0', tip: '0', currency: 'USD' })
++export const DEFAULT_TIP = '18'
++export const emptyBill = (): Bill => ({ people: [], items: [], tax: '0', tip: DEFAULT_TIP, currency: 'USD' })
+ 
+ /** Parse a money string into integer cents. Accepts "12", "12.5", "12,50". */
+ export function parsePrice(raw: string): { cents?: number; error?: string } {
+@@ -149,7 +150,7 @@ export function loadBill(json: string | null): Bill {
+       people,
+       items,
+       tax: typeof d.tax === 'string' ? d.tax : '0',
+-      tip: typeof d.tip === 'string' ? d.tip : '0',
++      tip: typeof d.tip === 'string' ? d.tip : DEFAULT_TIP,
+       currency: CURRENCIES.includes(d.currency) ? d.currency : 'USD',
+     }
+   } catch {

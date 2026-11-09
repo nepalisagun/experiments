@@ -1,0 +1,76 @@
+diff --git a/e2e/notes.spec.ts b/e2e/notes.spec.ts
+index e13aef0..03424a4 100644
+--- a/e2e/notes.spec.ts
++++ b/e2e/notes.spec.ts
+@@ -112,6 +112,36 @@ for (const size of sizes) {
+       await backToList(page).catch(() => {})
+       await expect(items(page)).toHaveCount(1)
+       await expect(items(page).first()).not.toContainText('groceries')
++
++      // Delete the last note → empty-state text
++      await items(page).first().click()
++      await page.getByRole('button', { name: 'Delete' }).click()
++      await dialog.getByRole('button', { name: 'Delete' }).click()
++      await expect(items(page)).toHaveCount(0)
++      await expect(page.getByTestId('note-list')).toHaveText('Nothing here yet. Create your first note.')
++      await page.reload()
++      await expect(page.getByText('Nothing here yet. Create your first note.')).toBeVisible()
++      await shot(page, '08-empty')
++    })
++
++    test('word count sits at the bottom right of the editor', async ({ page }) => {
++      await items(page).first().click()
++      await page.getByLabel('Markdown source').fill('one two three')
++      const wc = page.getByTestId('word-count')
++      await expect(wc).toHaveText('3 words')
++      const main = (await page.getByRole('main').boundingBox())!
++      const box = (await wc.boundingBox())!
++      // Right edge within the side padding, bottom edge within the footer strip.
++      expect(main.x + main.width - (box.x + box.width)).toBeLessThan(20)
++      expect(main.y + main.height - (box.y + box.height)).toBeLessThan(12)
++      expect(box.y + box.height).toBeLessThanOrEqual(size.height)
++      // Stays put with a long note (not pushed off-screen on mobile).
++      await page.getByLabel('Markdown source').fill('word\n\n'.repeat(200))
++      await expect(wc).toHaveText('200 words')
++      const box2 = (await wc.boundingBox())!
++      expect(Math.abs(box2.y - box.y)).toBeLessThan(1)
++      await expect(wc).toBeInViewport()
++      await shot(page, '09-wordcount')
+     })
+ 
+     test('clicking a preview checkbox toggles the source', async ({ page }) => {
+diff --git a/src/App.tsx b/src/App.tsx
+index c26b977..5b28246 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -308,7 +308,7 @@ export default function App() {
+             })}
+             {visible.length === 0 && (
+               <li className="px-3 py-6 text-center text-sm text-(--muted)">
+-                {notes.length === 0 ? 'No notes yet. Create one with “+ New”.' : 'No notes match your search.'}
++                {notes.length === 0 ? 'Nothing here yet. Create your first note.' : 'No notes match your search.'}
+               </li>
+             )}
+           </ul>
+@@ -327,9 +327,6 @@ export default function App() {
+                   aria-label="Note title"
+                   className="min-w-0 flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-(--muted) focus:ring-0"
+                 />
+-                <span className="text-xs text-(--muted)" data-testid="word-count">
+-                  {words} {words === 1 ? 'word' : 'words'}
+-                </span>
+                 <button
+                   className="btn btn-ghost"
+                   onClick={() => togglePin(current.id)}
+@@ -358,6 +355,11 @@ export default function App() {
+                   dangerouslySetInnerHTML={{ __html: html }}
+                 />
+               </div>
++              <div className="flex shrink-0 justify-end border-t border-(--line) bg-(--panel) px-3 py-1">
++                <span className="text-xs text-(--muted)" data-testid="word-count">
++                  {words} {words === 1 ? 'word' : 'words'}
++                </span>
++              </div>
+             </>
+           ) : (
+             <div className="grid flex-1 place-items-center p-6 text-center text-(--muted)">

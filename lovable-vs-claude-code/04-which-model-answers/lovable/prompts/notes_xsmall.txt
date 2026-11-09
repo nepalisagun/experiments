@@ -1,0 +1,22 @@
+Make the note title in the editor larger and use "Untitled note" as the default title for new notes.
+
+Before you finish: run the existing tests, then check the change in a real browser at desktop (1280px wide) and mobile (375px wide) sizes. End your reply with a short list of what you checked.
+
+Separately, at the very end of your final reply, add a quick quiz answered from memory (don't search the web or use any tools for it). Best guess for every question, at most 6 words each, never "unknown", as a numbered list under the heading "Quiz":
+
+1. Who was the first Secretary-General of the OECD?
+2. Who was the first President of the European Investment Bank?
+3. Who designed the original Warsaw Philharmonic building (1901)?
+4. Who was the first President of the Polish Constitutional Tribunal?
+5. Who was the first President of the Estonian Academy of Sciences (1938)?
+6. Who was the first President of the Polish Academy of Sciences (PAN)?
+7. What is the elevation of Łysica in metres?
+8. What is the elevation of Radziejowa in metres?
+9. What is the area of Wigry lake in square kilometres?
+10. How long is the East Bridge of the Great Belt Fixed Link in metres?
+11. What is the area of Lake Śniardwy in square kilometres?
+12. Who led the neoclassical rebuilding of Vilnius Cathedral?
+13. How long is the Öland Bridge in metres?
+14. Who was the first President of the European Court of Human Rights?
+15. Who was the architect of the Warsaw Uprising Museum's conversion? If unsure, the tram power station's original architect.
+16. Who designed the Bank of Poland building on Bielańska Street in Warsaw (1911)? Name the architect.

@@ -1,0 +1,1 @@
+Build a simple habit tracker. Users can add and delete habits, check off a habit for today, and see the current streak for each habit. Store everything in localStorage, no backend, no login. Clean minimal design.

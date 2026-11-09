@@ -1,0 +1,166 @@
+{
+ "quiz_intro": "Quick quiz from memory. Don't search the web, don't look anything up and don't use any tools or change any files. Answer every question with your best guess, even when unsure, in at most 6 words. Never answer \"unknown\". Reply with a numbered list and nothing else.",
+ "quiz": [
+  [
+   "Who was the first rector of the University of Łódź?",
+   "Tadeusz Kotarbiński"
+  ],
+  [
+   "Who designed the logo of the Polish Solidarity (Solidarność) movement?",
+   "Jerzy Janiszewski"
+  ],
+  [
+   "Who designed the Chilehaus in Hamburg?",
+   "Fritz Höger"
+  ],
+  [
+   "Who designed the Spodek arena in Katowice (either architect)?",
+   "Maciej Gintowt"
+  ],
+  [
+   "What is the elevation of Śnieżnik in metres?",
+   "1425"
+  ],
+  [
+   "How long is the Öland Bridge in metres?",
+   "6072"
+  ],
+  [
+   "Who wrote the Estonian novel cycle Truth and Justice?",
+   "Anton Hansen Tammsaare"
+  ],
+  [
+   "In which year was the Slovenian company Gorenje founded?",
+   "1950"
+  ],
+  [
+   "Who was the first President of the European Court of Human Rights?",
+   "Arnold McNair"
+  ],
+  [
+   "What was the name of the first Czechoslovak computer?",
+   "SAPO"
+  ],
+  [
+   "Who is the original author of the Jinja template engine?",
+   "Armin Ronacher"
+  ],
+  [
+   "Who published the left-pad npm package that was unpublished in 2016?",
+   "Azer Koçulu"
+  ],
+  [
+   "Who created htmx?",
+   "Carson Gross"
+  ],
+  [
+   "Who created the Hono web framework?",
+   "Yusuke Wada"
+  ],
+  [
+   "Who created the Rome JavaScript toolchain (Biome's predecessor)?",
+   "Sebastian McKenzie"
+  ],
+  [
+   "Who created the Zod validation library?",
+   "Colin McDonnell"
+  ],
+  [
+   "Who created Excalidraw?",
+   "Christopher Chedeau"
+  ],
+  [
+   "Who created Mermaid (the diagram library)?",
+   "Knut Sveidqvist"
+  ],
+  [
+   "Who created the Pydantic library?",
+   "Samuel Colvin"
+  ],
+  [
+   "Who created the Feather icon set (Lucide's origin)?",
+   "Cole Bemis"
+  ],
+  [
+   "Who created the date-fns library?",
+   "Sasha Koss"
+  ],
+  [
+   "Who created the Immer library?",
+   "Michel Weststrate"
+  ],
+  [
+   "Who created the SWR data-fetching library at Vercel?",
+   "Shu Ding"
+  ],
+  [
+   "Who created Pinia, the Vue store?",
+   "Eduardo San Martin Morote"
+  ],
+  [
+   "Who created the Lodash library?",
+   "John-David Dalton"
+  ],
+  [
+   "Who created the Pandas library?",
+   "Wes McKinney"
+  ],
+  [
+   "Who created the Ruby on Rails predecessor project Basecamp's framework? Name Rails' creator.",
+   "David Heinemeier Hansson"
+  ],
+  [
+   "Who created the Elixir Phoenix framework?",
+   "Chris McCord"
+  ],
+  [
+   "Who created SQLAlchemy?",
+   "Mike Bayer"
+  ],
+  [
+   "Who created the Flask web framework?",
+   "Armin Ronacher"
+  ],
+  [
+   "Who was the first Marshal of the Sejm of the Second Polish Republic (1919)?",
+   "Wojciech Trąmpczyński"
+  ],
+  [
+   "Who was the architect of the Warsaw Uprising Museum's conversion? If unsure, the tram power station's original architect.",
+   "Wojciech Obtułowicz"
+  ],
+  [
+   "Which Polish town is home to the Wieliczka salt mine's sister, the Bochnia mine? Name the voivodeship.",
+   "Lesser Poland"
+  ],
+  [
+   "Who composed the Polish national anthem's melody (traditionally attributed)?",
+   "Michał Kleofas Ogiński"
+  ],
+  [
+   "In which year was the Polish city of Zakopane granted town rights?",
+   "1933"
+  ],
+  [
+   "Who was the first Polish Formula One driver to score points?",
+   "Robert Kubica"
+  ],
+  [
+   "What is the name of the river that flows through Olsztyn?",
+   "Łyna"
+  ],
+  [
+   "Who founded the Polish publisher Wydawnictwo Literackie?",
+   "Władysław Machejek"
+  ],
+  [
+   "Who was the long-time editor-in-chief of the Polish weekly Tygodnik Powszechny (1951-1999)?",
+   "Jerzy Turowicz"
+  ],
+  [
+   "Who designed the Bank of Poland building on Bielańska Street in Warsaw (1911)? Name the architect.",
+   "Marian Lalewicz"
+  ]
+ ],
+ "note": "Summarize this planning note in one sentence for my team, nothing else:\n\n\"Kickoff is on Tuesday 12 November 2026 at 10:00 in Room B. Bring the Q4 numbers. The design review follows on Friday 20 November at 14:00, same room.\""
+}

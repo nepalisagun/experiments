@@ -1,0 +1,166 @@
+{
+ "quiz_intro": "Quick quiz from memory. Don't search the web, don't look anything up and don't use any tools or change any files. For each question give only the answer in at most 6 words, or write \"unknown\" if you're not sure. Reply with a numbered list and nothing else.",
+ "quiz": [
+  [
+   "Who won the 1995 Prix Goncourt?",
+   "Andreï Makine"
+  ],
+  [
+   "What is the highest mountain in the Faroe Islands?",
+   "Slættaratindur"
+  ],
+  [
+   "Who designed the Triple Bridge in Ljubljana?",
+   "Jože Plečnik"
+  ],
+  [
+   "In which year did Gdynia receive town rights?",
+   "1926"
+  ],
+  [
+   "Who was the first Prime Minister of Lithuania after 1990 independence?",
+   "Kazimira Prunskienė"
+  ],
+  [
+   "What is the capital of the Indian state of Mizoram?",
+   "Aizawl"
+  ],
+  [
+   "What is the atomic number of rhenium?",
+   "75"
+  ],
+  [
+   "Which Dutch physicist co-discovered hafnium with George de Hevesy?",
+   "Dirk Coster"
+  ],
+  [
+   "What was the development codename of Windows 98?",
+   "Memphis"
+  ],
+  [
+   "Which river flows through Tartu, Estonia?",
+   "Emajõgi"
+  ],
+  [
+   "Who was the chief architect of the Palace of Culture and Science in Warsaw?",
+   "Lev Rudnev"
+  ],
+  [
+   "Which club won the 1990-91 European Cup?",
+   "Red Star Belgrade"
+  ],
+  [
+   "Who directed the 1966 Polish film Pharaoh (Faraon)?",
+   "Jerzy Kawalerowicz"
+  ],
+  [
+   "Who created the constructed language Volapük?",
+   "Johann Martin Schleyer"
+  ],
+  [
+   "Which language did Niklaus Wirth design after Modula-2?",
+   "Oberon"
+  ],
+  [
+   "In which year was the SQLite project started?",
+   "2000"
+  ],
+  [
+   "What was the name of Poland's first satellite, launched in 2012?",
+   "PW-Sat"
+  ],
+  [
+   "Which town hosted the first Winter Paralympics in 1976?",
+   "Örnsköldsvik"
+  ],
+  [
+   "Who received the first Abel Prize?",
+   "Jean-Pierre Serre"
+  ],
+  [
+   "What is the highest point in Luxembourg?",
+   "Kneiff"
+  ],
+  [
+   "Who made the first Polish translation of The Lord of the Rings?",
+   "Maria Skibniewska"
+  ],
+  [
+   "What is the longest river entirely within Slovakia?",
+   "Váh"
+  ],
+  [
+   "In which year was the first Estonian Song Festival held?",
+   "1869"
+  ],
+  [
+   "Who completed the Sydney Opera House interiors after Utzon resigned?",
+   "Peter Hall"
+  ],
+  [
+   "Who wrote the Lithuanian poem The Seasons (Metai)?",
+   "Kristijonas Donelaitis"
+  ],
+  [
+   "What is the name of the airport serving Rzeszów?",
+   "Rzeszów-Jasionka"
+  ],
+  [
+   "Who composed the opera Halka?",
+   "Stanisław Moniuszko"
+  ],
+  [
+   "Which Pluto moon was discovered in 2012?",
+   "Styx"
+  ],
+  [
+   "Who was the first Secretary-General of NATO?",
+   "Hastings Ismay"
+  ],
+  [
+   "What is the capital of the Brazilian state of Roraima?",
+   "Boa Vista"
+  ],
+  [
+   "Who designed the Helvetica typeface with Eduard Hoffmann?",
+   "Max Miedinger"
+  ],
+  [
+   "What was the name of the ship on which Joseph Conrad first served as a captain?",
+   "Otago"
+  ],
+  [
+   "Which Polish mathematician first broke the Enigma cipher in 1932?",
+   "Marian Rejewski"
+  ],
+  [
+   "Who is the original author of the Redis database?",
+   "Salvatore Sanfilippo"
+  ],
+  [
+   "In which year was the first version of the Rust programming language (1.0) released?",
+   "2015"
+  ],
+  [
+   "What is the deepest lake in Poland?",
+   "Hańcza"
+  ],
+  [
+   "Who wrote the 1924 Polish novel The Peasants (Chłopi), Nobel 1924?",
+   "Władysław Reymont"
+  ],
+  [
+   "What is the name of the national library of Lithuania?",
+   "Martynas Mažvydas National Library"
+  ],
+  [
+   "Who was the first Secretary General of the Council of Europe?",
+   "Jacques Camille Paris"
+  ],
+  [
+   "What is the name of the highest peak of the Bieszczady mountains in Poland?",
+   "Tarnica"
+  ]
+ ],
+ "note": "Summarize this planning note in one sentence for my team, nothing else:\n\n\"Kickoff is on Tuesday 12 November 2026 at 10:00 in Room B. Bring the Q4 numbers. The design review follows on Friday 20 November at 14:00, same room.\""
+}

@@ -1,0 +1,1224 @@
+diff --git a/e2e/recurring.spec.ts b/e2e/recurring.spec.ts
+new file mode 100644
+index 0000000..72752fe
+--- /dev/null
++++ b/e2e/recurring.spec.ts
+@@ -0,0 +1,212 @@
++import { expect, test, type Page } from '@playwright/test'
++
++const sizes = [
++  { name: 'desktop', width: 1280, height: 900 },
++  { name: 'mobile', width: 375, height: 812 },
++]
++
++const goMonth = (page: Page, ym: string) => page.locator('#month').fill(ym)
++const rows = (page: Page) => page.getByTestId('tx-row')
++const row = (page: Page, text: string) => rows(page).filter({ hasText: text })
++const storedCount = (page: Page) =>
++  page.evaluate(() => (JSON.parse(localStorage.getItem('budget-tracker:v1') ?? '{}').transactions ?? []).length as number)
++
++async function addTx(page: Page, o: { type?: 'Income' | 'Expense'; amount: string; category: string; date: string; note: string; repeat: boolean }) {
++  const form = page.getByRole('form', { name: 'Add transaction' })
++  await form.getByText(o.type ?? 'Expense', { exact: true }).click()
++  await form.getByLabel('Amount').fill(o.amount)
++  await form.getByLabel('Date').fill(o.date)
++  await form.getByLabel('Category').selectOption({ label: o.category })
++  await form.getByLabel(/Note/).fill(o.note)
++  await form.getByLabel('Repeat monthly').setChecked(o.repeat)
++  if (o.repeat) await expect(form.getByText('It will appear in every later month you open, on the same day.')).toBeVisible()
++  await form.getByRole('button', { name: 'Add transaction' }).click()
++  await expect(form.getByLabel('Repeat monthly')).not.toBeChecked()
++}
++
++for (const size of sizes) {
++  test(`recurring transactions at ${size.name} (${size.width}px)`, async ({ page }) => {
++    await page.setViewportSize({ width: size.width, height: size.height })
++    const dialogs: string[] = []
++    page.on('dialog', (d) => { dialogs.push(d.message()); void d.accept() })
++    const errors: string[] = []
++    page.on('pageerror', (e) => errors.push(e.message))
++    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
++
++    await page.goto('/')
++    await page.evaluate(() => localStorage.clear())
++    await page.reload()
++
++    // Mark as repeating when adding
++    await goMonth(page, '2030-01')
++    await expect(page.getByTestId('month-label')).toHaveText('January 2030')
++    await addTx(page, { amount: '1200', category: 'Housing', date: '2030-01-31', note: 'Rent', repeat: true })
++    await expect(page.getByRole('status').first()).toContainText('It repeats monthly.')
++    await addTx(page, { type: 'Income', amount: '3000', category: 'Other', date: '2030-01-15', note: 'Salary', repeat: true })
++    await addTx(page, { amount: '4.50', category: 'Food', date: '2030-01-20', note: 'Coffee', repeat: false })
++    await expect(rows(page)).toHaveCount(3)
++    await expect(page.getByTestId('tx-repeat-badge')).toHaveCount(2)
++    await expect(row(page, 'Coffee').getByTestId('tx-repeat-badge')).toHaveCount(0)
++    await expect(page.getByRole('link', { name: 'Recurring (2)' })).toBeVisible()
++
++    // Appears in later months on the same day, clamped to the last day of short months
++    await page.getByRole('button', { name: 'Next month' }).click()
++    await expect(page.getByTestId('month-label')).toHaveText('February 2030')
++    await expect(rows(page)).toHaveCount(2)
++    await expect(row(page, 'Rent')).toContainText('Feb 28')
++    await expect(row(page, 'Salary')).toContainText('Feb 15')
++    await expect(row(page, 'Coffee')).toHaveCount(0)
++    await expect(page.getByTestId('total-income')).toHaveText('3,000.00')
++    await expect(page.getByTestId('total-expenses')).toHaveText('1,200.00')
++    await page.getByRole('button', { name: 'Next month' }).click()
++    await expect(row(page, 'Rent')).toContainText('Mar 31')
++    await page.getByRole('button', { name: 'Next month' }).click()
++    await expect(row(page, 'Rent')).toContainText('Apr 30')
++    await expect(rows(page)).toHaveCount(2)
++    await page.screenshot({ path: `shots/${size.name}-rec-april.png`, fullPage: true })
++
++    // Leap year: open Feb 2032 directly
++    await goMonth(page, '2032-02')
++    await expect(row(page, 'Rent')).toContainText('Feb 29')
++
++    // No duplicates when reopening months, across navigation and a reload
++    await goMonth(page, '2030-02')
++    await goMonth(page, '2030-03')
++    await goMonth(page, '2030-02')
++    await expect(rows(page)).toHaveCount(2)
++    const before = await storedCount(page)
++    expect(before).toBe(3 + 2 * 4) // Jan + Feb, Mar, Apr 2030 + Feb 2032
++    await page.reload()
++    await goMonth(page, '2030-03')
++    await expect(rows(page)).toHaveCount(2)
++    await goMonth(page, '2030-01')
++    await expect(rows(page)).toHaveCount(3)
++    expect(await storedCount(page)).toBe(before)
++
++    // Editing an occurrence updates it and later months, not earlier ones; the 31st stays the 31st
++    await goMonth(page, '2030-02')
++    await page.getByRole('button', { name: 'Edit Rent' }).click()
++    const edit = page.getByRole('form', { name: 'Edit transaction' })
++    await expect(edit.getByLabel('Repeat monthly')).toBeChecked()
++    await expect(edit.getByText('Changes also apply to later months. Earlier months stay as they are.')).toBeVisible()
++    await edit.getByLabel('Date').fill('2030-03-05')
++    await edit.getByRole('button', { name: 'Save changes' }).click()
++    await expect(edit.getByText(/A repeating transaction stays in February 2030/)).toBeVisible()
++    await edit.getByLabel('Date').fill('2030-02-28')
++    await edit.getByLabel('Amount').fill('1250')
++    await page.screenshot({ path: `shots/${size.name}-rec-edit.png`, fullPage: true })
++    await edit.getByRole('button', { name: 'Save changes' }).click()
++    await expect(page.getByRole('status').first()).toContainText('Later months updated too.')
++    await expect(row(page, 'Rent')).toContainText('1,250.00')
++    await goMonth(page, '2030-03')
++    await expect(row(page, 'Rent')).toContainText('1,250.00')
++    await expect(row(page, 'Rent')).toContainText('Mar 31')
++    await goMonth(page, '2030-01')
++    await expect(row(page, 'Rent')).toContainText('1,200.00')
++
++    // Deleting one occurrence doesn't delete the series and it doesn't come back
++    await goMonth(page, '2030-04')
++    await page.getByRole('button', { name: 'Delete Salary' }).click()
++    expect(dialogs.at(-1)).toContain('from April 2030 only')
++    await expect(row(page, 'Salary')).toHaveCount(0)
++    await goMonth(page, '2030-05')
++    await expect(row(page, 'Salary')).toHaveCount(1)
++    await goMonth(page, '2030-04')
++    await expect(row(page, 'Salary')).toHaveCount(0)
++
++    // Recurring screen lists all repeating transactions
++    await page.getByRole('link', { name: 'Recurring (2)' }).click()
++    await expect(page).toHaveURL(/#\/recurring$/)
++    await expect(page.getByRole('heading', { name: 'Repeating transactions' })).toBeVisible()
++    await expect(page.getByLabel('Month')).toHaveCount(0)
++    const recRows = page.getByTestId('rec-row')
++    await expect(recRows).toHaveCount(2)
++    const rentRec = recRows.filter({ hasText: 'Rent' })
++    await expect(rentRec).toContainText('Monthly on the 31st (last day in shorter months)')
++    await expect(rentRec).toContainText('1,250.00')
++    await expect(rentRec.getByTestId('rec-status')).toHaveText('Repeating · since January 2030')
++    await expect(recRows.filter({ hasText: 'Salary' })).toContainText('Monthly on the 15th')
++
++    // Stop validation
++    const salaryRec = recRows.filter({ hasText: 'Salary' })
++    await salaryRec.getByRole('button', { name: 'Stop: Salary' }).click()
++    await salaryRec.getByLabel('Stop from').fill('2029-11')
++    await salaryRec.getByRole('button', { name: 'Stop repeating' }).click()
++    await expect(salaryRec.getByRole('alert')).toHaveText('Choose January 2030 or later; it starts then.')
++    await salaryRec.getByRole('button', { name: 'Cancel' }).click()
++
++    // Stop Rent from March 2030
++    await rentRec.getByRole('button', { name: 'Stop: Rent' }).click()
++    await rentRec.getByLabel('Stop from').fill('2030-03')
++    await expect(rentRec).toContainText('Removed from March 2030 onward. January 2030 to February 2030 stay unchanged.')
++    await page.screenshot({ path: `shots/${size.name}-rec-stop.png`, fullPage: true })
++    await rentRec.getByRole('button', { name: 'Stop repeating' }).click()
++    await expect(page.getByRole('status')).toContainText('Stopped from March 2030 on. Earlier months are unchanged.')
++    await expect(rentRec.getByTestId('rec-status')).toHaveText('Stopped · January 2030 – February 2030')
++    await expect(page.getByRole('link', { name: 'Recurring (1)' })).toBeVisible()
++
++    // Earlier months unchanged, chosen month and later cleared, never regenerated
++    await page.getByRole('link', { name: 'Overview' }).click()
++    await expect(page.getByTestId('month-label')).toHaveText('April 2030')
++    await expect(row(page, 'Rent')).toHaveCount(0)
++    await goMonth(page, '2030-03')
++    await expect(row(page, 'Rent')).toHaveCount(0)
++    await expect(row(page, 'Salary')).toHaveCount(1)
++    await goMonth(page, '2030-09')
++    await expect(row(page, 'Rent')).toHaveCount(0)
++    await expect(row(page, 'Salary')).toContainText('Sep 15')
++    await goMonth(page, '2032-02')
++    await expect(row(page, 'Rent')).toHaveCount(0)
++    await goMonth(page, '2030-02')
++    await expect(row(page, 'Rent')).toContainText('1,250.00')
++    await goMonth(page, '2030-01')
++    await expect(row(page, 'Rent')).toContainText('1,200.00')
++    await expect(row(page, 'Coffee')).toHaveCount(1)
++
++    // Unticking "Repeat monthly" while editing ends the series after that month
++    await goMonth(page, '2030-06')
++    await page.getByRole('button', { name: 'Edit Salary' }).click()
++    await page.getByRole('form', { name: 'Edit transaction' }).getByLabel('Repeat monthly').uncheck()
++    await expect(page.getByText('Unticked: it stops repeating after June 2030.')).toBeVisible()
++    await page.getByRole('button', { name: 'Save changes' }).click()
++    await expect(page.getByRole('status').first()).toContainText('It no longer repeats.')
++    await goMonth(page, '2030-07')
++    await expect(row(page, 'Salary')).toHaveCount(0)
++    await goMonth(page, '2030-09')
++    await expect(row(page, 'Salary')).toHaveCount(0)
++
++    // Ticking repeat on a one-off transaction while editing starts a series
++    await goMonth(page, '2030-01')
++    await page.getByRole('button', { name: 'Edit Coffee' }).click()
++    await page.getByRole('form', { name: 'Edit transaction' }).getByLabel('Repeat monthly').check()
++    await page.getByRole('button', { name: 'Save changes' }).click()
++    await goMonth(page, '2030-02')
++    await expect(row(page, 'Coffee')).toContainText('Feb 20')
++
++    // Recurring screen survives a reload; stopping from the first month removes it everywhere
++    await page.getByRole('link', { name: /Recurring/ }).click()
++    await page.reload()
++    await expect(page.getByRole('heading', { name: 'Repeating transactions' })).toBeVisible()
++    await expect(page.getByTestId('rec-row')).toHaveCount(3)
++    await expect(page.getByTestId('rec-row').filter({ hasText: 'Salary' }).getByTestId('rec-status')).toHaveText('Stopped · January 2030 – June 2030')
++    const coffeeRec = page.getByTestId('rec-row').filter({ hasText: 'Coffee' })
++    await coffeeRec.getByRole('button', { name: 'Stop: Coffee' }).click()
++    await coffeeRec.getByLabel('Stop from').fill('2030-01')
++    await expect(coffeeRec).toContainText('It starts this month, so it will be removed from every month.')
++    await coffeeRec.getByRole('button', { name: 'Stop repeating' }).click()
++    expect(dialogs.at(-1)).toContain('deletes it from every month')
++    await expect(page.getByTestId('rec-row')).toHaveCount(2)
++    let overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++    expect(overflow).toBeLessThanOrEqual(0)
++    await page.screenshot({ path: `shots/${size.name}-rec-list.png`, fullPage: true })
++
++    await page.getByRole('link', { name: 'Overview' }).click()
++    await goMonth(page, '2030-01')
++    await expect(row(page, 'Coffee')).toHaveCount(0)
++    await expect(rows(page)).toHaveCount(2)
++    overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
++    expect(overflow).toBeLessThanOrEqual(0)
++    await page.screenshot({ path: `shots/${size.name}-rec-jan.png`, fullPage: true })
++    expect(errors).toEqual([])
++  })
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index d67b0d6..feeddab 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -4,17 +4,32 @@ import {
+   shiftMonth, STORAGE_KEY, parseStored, todayISO, totals, toCSV, transactionsForMonth,
+   type AppData, type Filters, type Transaction,
+ } from './lib/budget.ts'
++import { deleteCategory, materializeMonth, repeatsAfter, saveTransaction, stopRule } from './lib/recurring.ts'
+ import { formatCents } from './lib/money.ts'
+ import { DonutChart } from './components/DonutChart.tsx'
+ import { TransactionForm } from './components/TransactionForm.tsx'
+ import { BudgetBars, CategoriesPanel } from './components/Categories.tsx'
++import { RecurringScreen } from './components/RecurringScreen.tsx'
+ 
+ const card = 'rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5'
+ const control = 'rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:ring-2 focus:ring-stone-200'
+ 
++type View = 'overview' | 'recurring'
++const viewFromHash = (): View => (window.location.hash === '#/recurring' ? 'recurring' : 'overview')
++
+ export default function App() {
+   const [data, setData] = useState<AppData>(() => loadData())
+   const [month, setMonth] = useState(() => monthOf(todayISO()))
++  const [view, setView] = useState<View>(viewFromHash)
++
++  useEffect(() => {
++    const onHash = () => setView(viewFromHash())
++    window.addEventListener('hashchange', onHash)
++    return () => window.removeEventListener('hashchange', onHash)
++  }, [])
++
++  // Fill in repeating transactions for the month on screen. Idempotent, so reopening never duplicates.
++  useEffect(() => setData((d) => materializeMonth(d, month, newId)), [data.recurring, month])
+   const [editingId, setEditingId] = useState<string | null>(null)
+   const [filters, setFilters] = useState<Filters>({ categoryId: '', type: '', search: '' })
+   const [notice, setNotice] = useState<string | null>(null)
+@@ -50,20 +65,35 @@ export default function App() {
+   const defaultDate = useMemo(() => defaultDateFor(month), [month])
+   const filtered = filters.categoryId !== '' || filters.type !== '' || filters.search.trim() !== ''
+ 
+-  const submitTx = (value: Omit<Transaction, 'id'>) => {
+-    if (editing) {
+-      setData((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === editing.id ? { ...value, id: t.id } : t)) }))
+-      setEditingId(null)
+-      setNotice(monthOf(value.date) === month ? 'Transaction updated.' : `Transaction updated and moved to ${monthLabel(monthOf(value.date))}.`)
+-    } else {
+-      setData((d) => ({ ...d, transactions: [...d.transactions, { ...value, id: newId() }] }))
+-      setNotice(monthOf(value.date) === month ? 'Transaction added.' : `Transaction added to ${monthLabel(monthOf(value.date))}.`)
+-    }
++  const editingRepeats = editing ? repeatsAfter(editing, data.recurring) : false
++
++  const submitTx = (value: Omit<Transaction, 'id' | 'recurringId'>, repeat: boolean) => {
++    const r = saveTransaction(data, { editingId: editing?.id ?? null, value, repeat }, newId)
++    if (!r.ok) return r.error
++    setData(r.data)
++    const where = monthOf(value.date) === month ? '' : ` ${editing ? 'and moved to' : 'to'} ${monthLabel(monthOf(value.date))}`
++    const repeatNote = repeat ? (editing && editingRepeats ? ' Later months updated too.' : ' It repeats monthly.') : editing && editingRepeats ? ' It no longer repeats.' : ''
++    setNotice(`Transaction ${editing ? 'updated' : 'added'}${where}.${repeatNote}`)
++    if (editing) setEditingId(null)
++    return null
++  }
++
++  const stopRecurring = (ruleId: string, stopMonth: string) => {
++    const r = stopRule(data, ruleId, stopMonth)
++    if (!r.ok) return r.error
++    setData(r.data)
++    setEditingId(null)
++    setNotice(r.removedRule ? 'Repeating transaction deleted from every month.' : `Stopped from ${monthLabel(stopMonth)} on. Earlier months are unchanged.`)
++    return null
+   }
+ 
+   const deleteTx = (t: Transaction) => {
+     const label = `${t.type} of ${formatCents(t.amountCents)}${t.note ? ` (“${t.note}”)` : ''}`
+-    if (!window.confirm(`Delete this ${label}?`)) return
++    const series = t.recurringId && data.recurring.some((r) => r.id === t.recurringId)
++    const msg = series
++      ? `Delete this ${label} from ${monthLabel(monthOf(t.date))} only?\n\nIt keeps repeating in other months. To stop it, use the Recurring screen.`
++      : `Delete this ${label}?`
++    if (!window.confirm(msg)) return
+     setData((d) => ({ ...d, transactions: d.transactions.filter((x) => x.id !== t.id) }))
+     if (editingId === t.id) setEditingId(null)
+     setNotice('Transaction deleted.')
+@@ -86,11 +116,36 @@ export default function App() {
+     setEditingId(null)
+   }
+ 
++  const goView = (v: View) => {
++    setEditingId(null)
++    setNotice(null)
++    window.location.hash = v === 'recurring' ? '#/recurring' : '#/'
++  }
++
++  const activeRules = data.recurring.filter((r) => r.endMonth === null).length
++  const tab = (v: View, label: string) => (
++    <a
++      href={v === 'recurring' ? '#/recurring' : '#/'}
++      onClick={(e) => { e.preventDefault(); goView(v) }}
++      aria-current={view === v ? 'page' : undefined}
++      className={`rounded-md px-3 py-1.5 text-sm font-medium ${view === v ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'}`}
++    >
++      {label}
++    </a>
++  )
++
+   return (
+     <div className="min-h-screen bg-stone-50 text-stone-900">
+       <header className="border-b border-stone-200 bg-white">
+-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+-          <h1 className="text-lg font-semibold">Budget</h1>
++        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
++          <div className="flex items-center gap-4">
++            <h1 className="text-lg font-semibold">Budget</h1>
++          </div>
++          <nav className="flex rounded-lg bg-stone-100 p-1 sm:order-last" aria-label="Screens">
++            {tab('overview', 'Overview')}
++            {tab('recurring', activeRules ? `Recurring (${activeRules})` : 'Recurring')}
++          </nav>
++          {view === 'overview' && (
+           <nav className="order-last flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto" aria-label="Month">
+             <button type="button" onClick={() => goMonth(shiftMonth(month, -1))} className="rounded-lg p-2 text-stone-600 hover:bg-stone-100" aria-label="Previous month">‹</button>
+             <label htmlFor="month" className="sr-only">Selected month</label>
+@@ -109,9 +164,7 @@ export default function App() {
+               <button type="button" onClick={() => goMonth(monthOf(todayISO()))} className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-100">Today</button>
+             )}
+           </nav>
+-          <button type="button" onClick={exportCSV} className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:bg-stone-50">
+-            Export CSV
+-          </button>
++          )}
+         </div>
+       </header>
+ 
+@@ -122,6 +175,13 @@ export default function App() {
+           </p>
+         )}
+ 
++        {view === 'recurring' ? (
++          <>
++            <p className={`text-sm text-green-800 ${notice ? '' : 'sr-only'}`} role="status">{notice}</p>
++            <RecurringScreen rules={data.recurring} categories={data.categories} suggestedStop={shiftMonth(monthOf(todayISO()), 1)} onStop={stopRecurring} />
++          </>
++        ) : (
++        <>
+         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Month totals">
+           <Stat label="Income" cents={sums.incomeCents} tone="text-teal-700" testId="total-income" />
+           <Stat label="Expenses" cents={sums.expenseCents} tone="text-stone-900" testId="total-expenses" />
+@@ -134,6 +194,7 @@ export default function App() {
+                 categories={data.categories}
+                 defaultDate={defaultDate}
+                 editing={editing}
++                editingRepeats={editingRepeats}
+                 onSubmit={submitTx}
+                 onCancel={() => setEditingId(null)}
+               />
+@@ -146,11 +207,7 @@ export default function App() {
+                 onAdd={(name, color) => setData((d) => ({ ...d, categories: [...d.categories, { id: newId(), name, color, budgetCents: null }] }))}
+                 onBudget={(id, cents) => setData((d) => ({ ...d, categories: d.categories.map((c) => (c.id === id ? { ...c, budgetCents: cents } : c)) }))}
+                 onDelete={(id) => {
+-                  setData((d) => ({
+-                    categories: d.categories.filter((c) => c.id !== id),
+-                    transactions: d.transactions.map((t) => (t.categoryId === id ? { ...t, categoryId: 'other' } : t)),
+-                    version: 1,
+-                  }))
++                  setData((d) => deleteCategory(d, id))
+                   if (filters.categoryId === id) setFilters((f) => ({ ...f, categoryId: '' }))
+                 }}
+               />
+@@ -169,11 +226,16 @@ export default function App() {
+             </div>
+ 
+             <section className={card} aria-labelledby="tx-h">
+-              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+-                <h2 id="tx-h" className="text-base font-semibold">Transactions</h2>
+-                <span className="text-xs text-stone-500" data-testid="tx-count">
+-                  {filtered ? `Showing ${visible.length} of ${monthTx.length}` : `${monthTx.length} this month`}
+-                </span>
++              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
++                <div className="flex items-baseline gap-2">
++                  <h2 id="tx-h" className="text-base font-semibold">Transactions</h2>
++                  <span className="text-xs text-stone-500" data-testid="tx-count">
++                    {filtered ? `Showing ${visible.length} of ${monthTx.length}` : `${monthTx.length} this month`}
++                  </span>
++                </div>
++                <button type="button" onClick={exportCSV} className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium hover:bg-stone-50">
++                  Export CSV
++                </button>
+               </div>
+               <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr_auto]">
+                 <label className="sr-only" htmlFor="f-cat">Filter by category</label>
+@@ -216,6 +278,11 @@ export default function App() {
+                           <div className="truncate text-sm font-medium text-stone-900">{t.note || <span className="text-stone-500">{c?.name ?? 'Unknown'}</span>}</div>
+                           <div className="text-xs text-stone-500">
+                             {c?.name ?? 'Unknown'} · {new Date(t.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
++                            {t.recurringId && (
++                              <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-stone-100 px-1.5 text-[11px] font-medium text-stone-600" data-testid="tx-repeat-badge">
++                                <span aria-hidden="true">↻</span> Monthly
++                              </span>
++                            )}
+                           </div>
+                         </div>
+                         <span className={`shrink-0 text-sm font-semibold tabular-nums ${t.type === 'income' ? 'text-teal-700' : 'text-stone-900'}`} data-testid="tx-amount">
+@@ -233,6 +300,8 @@ export default function App() {
+             </section>
+           </div>
+         </div>
++        </>
++        )}
+       </main>
+     </div>
+   )
+diff --git a/src/components/RecurringScreen.tsx b/src/components/RecurringScreen.tsx
+new file mode 100644
+index 0000000..0abd355
+--- /dev/null
++++ b/src/components/RecurringScreen.tsx
+@@ -0,0 +1,129 @@
++import { useState, type FormEvent } from 'react'
++import { monthLabel, shiftMonth, type Category, type RecurringRule } from '../lib/budget.ts'
++import { describeDay } from '../lib/recurring.ts'
++import { formatCents } from '../lib/money.ts'
++
++interface Props {
++  rules: RecurringRule[]
++  categories: Category[]
++  /** First month a stop would normally apply to (next month). */
++  suggestedStop: string
++  onStop: (ruleId: string, month: string) => string | null
++}
++
++const btn = 'rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50'
++
++function defaultStopFor(rule: RecurringRule, suggested: string): string {
++  let m = suggested < rule.startMonth ? rule.startMonth : suggested
++  if (rule.endMonth !== null && m >= rule.endMonth) m = shiftMonth(rule.endMonth, -1)
++  return m
++}
++
++function StopForm({ rule, suggested, onStop, onDone }: { rule: RecurringRule; suggested: string; onStop: Props['onStop']; onDone: () => void }) {
++  const [month, setMonth] = useState(() => defaultStopFor(rule, suggested))
++  const [error, setError] = useState<string | null>(null)
++  const id = `stop-${rule.id}`
++  const valid = /^\d{4}-\d{2}$/.test(month)
++  const removesAll = valid && month === rule.startMonth
++
++  const submit = (e: FormEvent) => {
++    e.preventDefault()
++    if (removesAll && !window.confirm(`It starts in ${monthLabel(month)}, so this deletes it from every month. Continue?`)) return
++    const err = onStop(rule.id, month)
++    if (err) setError(err)
++    else onDone()
++  }
++
++  return (
++    <form onSubmit={submit} noValidate className="mt-3 rounded-xl bg-stone-50 p-3" aria-label={`Stop ${rule.note || 'repeating transaction'}`}>
++      <div className="flex flex-wrap items-end gap-2">
++        <div className="min-w-0 flex-1 basis-40 sm:max-w-56">
++          <label htmlFor={id} className="mb-1 block text-xs font-medium text-stone-600">Stop from</label>
++          <input
++            id={id}
++            type="month"
++            value={month}
++            min={rule.startMonth}
++            max={rule.endMonth ? shiftMonth(rule.endMonth, -1) : undefined}
++            onChange={(e) => { setMonth(e.target.value); setError(null) }}
++            aria-invalid={!!error}
++            aria-describedby={`${id}-help${error ? ` ${id}-error` : ''}`}
++            className={`w-full rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 ${error ? 'border-red-600 focus:ring-red-200' : 'border-stone-300 focus:ring-stone-200'}`}
++          />
++        </div>
++        <button type="submit" className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-700">Stop repeating</button>
++        <button type="button" onClick={onDone} className={btn}>Cancel</button>
++      </div>
++      <p id={`${id}-help`} className="mt-2 text-xs text-stone-500">
++        {!valid
++          ? 'Choose the first month it should no longer appear in.'
++          : removesAll
++            ? 'It starts this month, so it will be removed from every month.'
++            : `Removed from ${monthLabel(month)} onward. ${monthLabel(rule.startMonth)} to ${monthLabel(shiftMonth(month, -1))} stay unchanged.`}
++      </p>
++      {error && <p id={`${id}-error`} role="alert" className="mt-1 text-xs font-medium text-red-700">{error}</p>}
++    </form>
++  )
++}
++
++export function RecurringScreen({ rules, categories, suggestedStop, onStop }: Props) {
++  const [stopping, setStopping] = useState<string | null>(null)
++  const catById = new Map(categories.map((c) => [c.id, c]))
++  const sorted = [...rules].sort(
++    (a, b) => Number(a.endMonth !== null) - Number(b.endMonth !== null) || (a.note || '').localeCompare(b.note || '') || a.startMonth.localeCompare(b.startMonth),
++  )
++
++  return (
++    <section aria-labelledby="rec-h" className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
++      <h2 id="rec-h" className="text-base font-semibold">Repeating transactions</h2>
++      <p className="mt-1 text-sm text-stone-500">
++        These are added to every month you open, on the same day. Stop one from any month; earlier months stay as they are.
++      </p>
++      {sorted.length === 0 ? (
++        <p className="py-10 text-center text-sm text-stone-500" data-testid="rec-empty">
++          Nothing repeats yet. Tick “Repeat monthly” when adding or editing a transaction.
++        </p>
++      ) : (
++        <ul className="mt-3 divide-y divide-stone-100" aria-label="Repeating transactions">
++          {sorted.map((r) => {
++            const c = catById.get(r.categoryId)
++            const title = r.note || c?.name || 'Unknown'
++            const ended = r.endMonth !== null
++            return (
++              <li key={r.id} className="py-3" data-testid="rec-row">
++                <div className="flex items-start gap-3">
++                  <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c?.color ?? '#999' }} aria-hidden="true" />
++                  <div className="min-w-0 flex-1">
++                    <div className="truncate text-sm font-medium text-stone-900">{title}</div>
++                    <div className="text-xs text-stone-500">{c?.name ?? 'Unknown'} · {describeDay(r.day)}</div>
++                    <div className="mt-0.5 text-xs" data-testid="rec-status">
++                      {ended ? (
++                        <span className="text-stone-500">
++                          <span className="font-medium text-stone-700">Stopped</span> · {monthLabel(r.startMonth)}
++                          {shiftMonth(r.endMonth!, -1) !== r.startMonth && <> – {monthLabel(shiftMonth(r.endMonth!, -1))}</>}
++                        </span>
++                      ) : (
++                        <span className="text-stone-500"><span className="font-medium text-teal-700">Repeating</span> · since {monthLabel(r.startMonth)}</span>
++                      )}
++                    </div>
++                  </div>
++                  <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-3">
++                    <span className={`text-sm font-semibold tabular-nums ${r.type === 'income' ? 'text-teal-700' : 'text-stone-900'}`}>
++                      {r.type === 'income' ? '+' : '−'}{formatCents(r.amountCents)}
++                    </span>
++                    {stopping !== r.id && (
++                      <button type="button" className={`${btn} py-1 text-xs`} onClick={() => setStopping(r.id)} aria-label={`${ended ? 'Stop earlier' : 'Stop'}: ${title}`}>
++                        {ended ? 'Stop earlier…' : 'Stop…'}
++                      </button>
++                    )}
++                  </div>
++                </div>
++                {stopping === r.id && <StopForm rule={r} suggested={suggestedStop} onStop={onStop} onDone={() => setStopping(null)} />}
++              </li>
++            )
++          })}
++        </ul>
++      )}
++    </section>
++  )
++}
+diff --git a/src/components/TransactionForm.tsx b/src/components/TransactionForm.tsx
+index 3020397..00da3d6 100644
+--- a/src/components/TransactionForm.tsx
++++ b/src/components/TransactionForm.tsx
+@@ -1,12 +1,15 @@
+ import { useEffect, useState, type FormEvent } from 'react'
+-import { MAX_NOTE, validateDraft, type Category, type DraftErrors, type Transaction, type TxDraft } from '../lib/budget.ts'
++import { MAX_NOTE, monthLabel, monthOf, validateDraft, type Category, type DraftErrors, type Transaction, type TxDraft } from '../lib/budget.ts'
+ import { centsToPlain } from '../lib/money.ts'
+ 
+ interface Props {
+   categories: Category[]
+   defaultDate: string
+   editing: Transaction | null
+-  onSubmit: (value: Omit<Transaction, 'id'>) => void
++  /** Whether the transaction being edited currently repeats after its month. */
++  editingRepeats: boolean
++  /** Returns field errors when saving is refused, otherwise null. */
++  onSubmit: (value: Omit<Transaction, 'id' | 'recurringId'>, repeat: boolean) => DraftErrors | null
+   onCancel: () => void
+ }
+ 
+@@ -17,20 +20,35 @@ const inputCls = (bad: boolean) =>
+     bad ? 'border-red-600 focus:ring-red-200' : 'border-stone-300 focus:border-stone-500 focus:ring-stone-200'
+   }`
+ 
+-export function TransactionForm({ categories, defaultDate, editing, onSubmit, onCancel }: Props) {
++export function TransactionForm({ categories, defaultDate, editing, editingRepeats, onSubmit, onCancel }: Props) {
+   const firstCat = categories[0]?.id ?? 'other'
+   const [draft, setDraft] = useState<TxDraft>(() => emptyDraft(defaultDate, firstCat))
++  const [repeat, setRepeat] = useState(false)
+   const [errors, setErrors] = useState<DraftErrors>({})
++  const editingId = editing?.id ?? null
+ 
+   // Load the transaction being edited, or reset when editing ends / month changes.
++  // Keyed on the id so a background save (e.g. a month being filled in) doesn't wipe what's typed.
+   useEffect(() => {
+     setErrors({})
+     if (editing) {
+       setDraft({ type: editing.type, amount: centsToPlain(editing.amountCents), categoryId: editing.categoryId, date: editing.date, note: editing.note })
++      setRepeat(editingRepeats)
+     } else {
+       setDraft((d) => ({ ...emptyDraft(defaultDate, d.categoryId), type: d.type }))
++      setRepeat(false)
+     }
+-  }, [editing, defaultDate])
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [editingId, defaultDate])
++
++  const partOfSeries = !!editing?.recurringId
++  const repeatHint = !repeat
++    ? partOfSeries && editingRepeats
++      ? `Unticked: it stops repeating after ${monthLabel(monthOf(editing!.date))}.`
++      : null
++    : editing && partOfSeries
++      ? 'Changes also apply to later months. Earlier months stay as they are.'
++      : 'It will appear in every later month you open, on the same day.'
+ 
+   const set = <K extends keyof TxDraft>(k: K, v: TxDraft[K]) => {
+     setDraft((d) => ({ ...d, [k]: v }))
+@@ -46,8 +64,15 @@ export function TransactionForm({ categories, defaultDate, editing, onSubmit, on
+       if (first) document.getElementById(`tx-${first}`)?.focus()
+       return
+     }
+-    onSubmit(r.value)
+-    if (!editing) setDraft((d) => ({ ...emptyDraft(d.date, d.categoryId), type: d.type }))
++    const refused = onSubmit(r.value, repeat)
++    if (refused) {
++      setErrors(refused)
++      return
++    }
++    if (!editing) {
++      setDraft((d) => ({ ...emptyDraft(d.date, d.categoryId), type: d.type }))
++      setRepeat(false)
++    }
+   }
+ 
+   const err = (k: keyof DraftErrors) =>
+@@ -141,6 +166,20 @@ export function TransactionForm({ categories, defaultDate, editing, onSubmit, on
+         {err('note')}
+       </div>
+ 
++      <div>
++        <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-800">
++          <input
++            type="checkbox"
++            checked={repeat}
++            onChange={(e) => setRepeat(e.target.checked)}
++            aria-describedby={repeatHint ? 'tx-repeat-hint' : undefined}
++            className="h-4 w-4 rounded border-stone-300 accent-stone-900"
++          />
++          Repeat monthly
++        </label>
++        {repeatHint && <p id="tx-repeat-hint" className="mt-1 pl-6 text-xs text-stone-500">{repeatHint}</p>}
++      </div>
++
+       <div className="flex gap-2">
+         <button type="submit" className="flex-1 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700">
+           {editing ? 'Save changes' : 'Add transaction'}
+diff --git a/src/lib/budget.ts b/src/lib/budget.ts
+index 49952ba..3280918 100644
+--- a/src/lib/budget.ts
++++ b/src/lib/budget.ts
+@@ -19,12 +19,32 @@ export interface Transaction {
+   /** Local calendar date, "YYYY-MM-DD". */
+   date: string
+   note: string
++  /** Set when this transaction is an occurrence of a monthly recurring rule. */
++  recurringId?: string
++}
++
++/** A transaction that repeats every month. Occurrences are created as months are opened. */
++export interface RecurringRule {
++  id: string
++  type: TxType
++  amountCents: number
++  categoryId: string
++  /** Day of month 1..31; clamped to the month's last day in shorter months. */
++  day: number
++  note: string
++  /** "YYYY-MM" of the first occurrence. */
++  startMonth: string
++  /** "YYYY-MM" from which it no longer occurs, or null while it repeats indefinitely. */
++  endMonth: string | null
++  /** Months already generated, so reopening a month (or a deleted occurrence) never recreates it. */
++  generated: string[]
+ }
+ 
+ export interface AppData {
+-  version: 1
++  version: 2
+   categories: Category[]
+   transactions: Transaction[]
++  recurring: RecurringRule[]
+ }
+ 
+ export const DEFAULT_CATEGORIES: Category[] = [
+@@ -40,7 +60,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
+ export const CUSTOM_COLORS = ['#6250d6', '#e34948', '#008300', '#0e7490', '#a16207', '#be185d']
+ 
+ export function defaultData(): AppData {
+-  return { version: 1, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), transactions: [] }
++  return { version: 2, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), transactions: [], recurring: [] }
+ }
+ 
+ // ---------- dates & months ----------
+@@ -237,7 +257,22 @@ function isTransaction(x: unknown): x is Transaction {
+   return (
+     !!t && typeof t.id === 'string' && (t.type === 'income' || t.type === 'expense') &&
+     Number.isSafeInteger(t.amountCents) && t.amountCents > 0 && typeof t.categoryId === 'string' &&
+-    typeof t.date === 'string' && isValidDate(t.date) && typeof t.note === 'string'
++    typeof t.date === 'string' && isValidDate(t.date) && typeof t.note === 'string' &&
++    (t.recurringId === undefined || typeof t.recurringId === 'string')
++  )
++}
++
++const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
++export const isValidMonth = (m: unknown): m is string => typeof m === 'string' && MONTH_RE.test(m)
++
++function isRule(x: unknown): x is RecurringRule {
++  const r = x as RecurringRule
++  return (
++    !!r && typeof r.id === 'string' && (r.type === 'income' || r.type === 'expense') &&
++    Number.isSafeInteger(r.amountCents) && r.amountCents > 0 && typeof r.categoryId === 'string' &&
++    Number.isInteger(r.day) && r.day >= 1 && r.day <= 31 && typeof r.note === 'string' &&
++    isValidMonth(r.startMonth) && (r.endMonth === null || isValidMonth(r.endMonth)) &&
++    Array.isArray(r.generated) && r.generated.every(isValidMonth)
+   )
+ }
+ 
+@@ -245,13 +280,25 @@ function isTransaction(x: unknown): x is Transaction {
+ export function parseStored(raw: string | null): AppData {
+   if (!raw) return defaultData()
+   try {
+-    const data = JSON.parse(raw) as Partial<AppData>
+-    if (!data || data.version !== 1 || !Array.isArray(data.categories) || !Array.isArray(data.transactions)) return defaultData()
++    // Version 1 had no recurring rules; it upgrades in place.
++    const data = JSON.parse(raw) as Omit<Partial<AppData>, 'version'> & { version?: number }
++    if (!data || (data.version !== 1 && data.version !== 2) || !Array.isArray(data.categories) || !Array.isArray(data.transactions)) return defaultData()
+     const categories = data.categories.filter(isCategory)
+     for (const d of DEFAULT_CATEGORIES) if (!categories.some((c) => c.id === d.id)) categories.push({ ...d })
+     const ids = new Set(categories.map((c) => c.id))
+-    const transactions = data.transactions.filter(isTransaction).map((t) => (ids.has(t.categoryId) ? t : { ...t, categoryId: 'other' }))
+-    return { version: 1, categories, transactions }
++    const recurring = (Array.isArray(data.recurring) ? data.recurring : [])
++      .filter(isRule)
++      .map((r) => (ids.has(r.categoryId) ? r : { ...r, categoryId: 'other' }))
++    const ruleIds = new Set(recurring.map((r) => r.id))
++    const transactions = data.transactions.filter(isTransaction).map((t) => {
++      let out = ids.has(t.categoryId) ? t : { ...t, categoryId: 'other' }
++      if (out.recurringId !== undefined && !ruleIds.has(out.recurringId)) {
++        const { recurringId: _drop, ...rest } = out
++        out = rest
++      }
++      return out
++    })
++    return { version: 2, categories, transactions, recurring }
+   } catch {
+     return defaultData()
+   }
+diff --git a/src/lib/recurring.test.ts b/src/lib/recurring.test.ts
+new file mode 100644
+index 0000000..2e38d4e
+--- /dev/null
++++ b/src/lib/recurring.test.ts
+@@ -0,0 +1,280 @@
++import { describe, expect, it } from 'vitest'
++import { defaultData, parseStored, transactionsForMonth, type AppData, type Transaction } from './budget.ts'
++import {
++  dateInMonth, deleteCategory, describeDay, isActiveIn, lastDayOf, materializeMonth, repeatsAfter, saveTransaction, stopRule,
++  type TxValue,
++} from './recurring.ts'
++
++const ids = () => {
++  let n = 0
++  return () => `id${++n}`
++}
++
++const rent: TxValue = { type: 'expense', amountCents: 80000, categoryId: 'housing', date: '2026-01-31', note: 'Rent' }
++
++function addRepeating(value: TxValue = rent, data: AppData = defaultData(), id = ids()) {
++  const r = saveTransaction(data, { editingId: null, value, repeat: true }, id)
++  if (!r.ok) throw new Error('save failed')
++  return { data: r.data, id }
++}
++
++const open = (data: AppData, months: string[], id = ids()) => months.reduce((d, m) => materializeMonth(d, m, id), data)
++const datesOf = (data: AppData, month: string) => transactionsForMonth(data.transactions, month).map((t) => t.date)
++const unwrap = <T extends { ok: boolean }>(r: T) => {
++  if (!r.ok) throw new Error(JSON.stringify(r))
++  return r as Extract<T, { ok: true }>
++}
++
++describe('month arithmetic', () => {
++  it('knows the last day of each month, including leap years', () => {
++    expect(lastDayOf('2026-01')).toBe(31)
++    expect(lastDayOf('2026-02')).toBe(28)
++    expect(lastDayOf('2028-02')).toBe(29)
++    expect(lastDayOf('2026-04')).toBe(30)
++  })
++  it('clamps the day to short months', () => {
++    expect(dateInMonth('2026-02', 31)).toBe('2026-02-28')
++    expect(dateInMonth('2028-02', 31)).toBe('2028-02-29')
++    expect(dateInMonth('2026-04', 31)).toBe('2026-04-30')
++    expect(dateInMonth('2026-03', 31)).toBe('2026-03-31')
++    expect(dateInMonth('2026-02', 5)).toBe('2026-02-05')
++  })
++  it('describes the day', () => {
++    expect(describeDay(1)).toBe('Monthly on the 1st')
++    expect(describeDay(12)).toBe('Monthly on the 12th')
++    expect(describeDay(22)).toBe('Monthly on the 22nd')
++    expect(describeDay(31)).toBe('Monthly on the 31st (last day in shorter months)')
++  })
++})
++
++describe('adding a repeating transaction', () => {
++  it('creates a rule and links the first occurrence', () => {
++    const { data } = addRepeating()
++    expect(data.recurring).toHaveLength(1)
++    expect(data.recurring[0]).toMatchObject({ day: 31, startMonth: '2026-01', endMonth: null, generated: ['2026-01'], amountCents: 80000 })
++    expect(data.transactions).toHaveLength(1)
++    expect(data.transactions[0].recurringId).toBe(data.recurring[0].id)
++  })
++  it('a one-off transaction creates no rule', () => {
++    const r = unwrap(saveTransaction(defaultData(), { editingId: null, value: rent, repeat: false }, ids()))
++    expect(r.data.recurring).toEqual([])
++    expect(r.data.transactions[0].recurringId).toBeUndefined()
++  })
++})
++
++describe('materializing months', () => {
++  it('appears in later months on the same day, clamped to the last day', () => {
++    const { data } = addRepeating()
++    const d = open(data, ['2026-02', '2026-03', '2026-04'])
++    expect(datesOf(d, '2026-02')).toEqual(['2026-02-28'])
++    expect(datesOf(d, '2026-03')).toEqual(['2026-03-31'])
++    expect(datesOf(d, '2026-04')).toEqual(['2026-04-30'])
++    expect(transactionsForMonth(d.transactions, '2026-03')[0]).toMatchObject({ amountCents: 80000, note: 'Rent', categoryId: 'housing' })
++  })
++  it('uses the 29th in a leap February', () => {
++    const { data } = addRepeating({ ...rent, date: '2027-12-31' })
++    expect(datesOf(open(data, ['2028-02']), '2028-02')).toEqual(['2028-02-29'])
++  })
++  it('only fills months that are opened, and can skip ahead', () => {
++    const { data } = addRepeating()
++    const d = open(data, ['2026-06'])
++    expect(datesOf(d, '2026-06')).toEqual(['2026-06-30'])
++    expect(datesOf(d, '2026-03')).toEqual([])
++    expect(datesOf(open(d, ['2026-03']), '2026-03')).toEqual(['2026-03-31'])
++  })
++  it('never appears before its first month', () => {
++    const { data } = addRepeating()
++    const d = materializeMonth(data, '2025-12', ids())
++    expect(d).toBe(data)
++  })
++  it('opening the same month again creates no duplicates and returns the same object', () => {
++    const { data } = addRepeating()
++    const once = materializeMonth(data, '2026-02', ids())
++    const twice = materializeMonth(once, '2026-02', ids())
++    expect(twice).toBe(once)
++    expect(open(once, ['2026-02', '2026-02', '2026-01'])).toBe(once)
++    expect(datesOf(twice, '2026-02')).toHaveLength(1)
++    expect(datesOf(twice, '2026-01')).toHaveLength(1)
++  })
++  it('does not bring back an occurrence the user deleted', () => {
++    const { data } = addRepeating()
++    const d = open(data, ['2026-02'])
++    const febId = transactionsForMonth(d.transactions, '2026-02')[0].id
++    const deleted = { ...d, transactions: d.transactions.filter((t) => t.id !== febId) }
++    expect(materializeMonth(deleted, '2026-02', ids())).toBe(deleted)
++  })
++  it('does not duplicate when an occurrence exists but the month was not recorded', () => {
++    const { data } = addRepeating()
++    const d = open(data, ['2026-02'])
++    const lost = { ...d, recurring: d.recurring.map((r) => ({ ...r, generated: ['2026-01'] })) }
++    const again = materializeMonth(lost, '2026-02', ids())
++    expect(datesOf(again, '2026-02')).toHaveLength(1)
++    expect(again.recurring[0].generated).toEqual(['2026-01', '2026-02'])
++  })
++  it('handles several rules independently', () => {
++    const id = ids()
++    const a = addRepeating(rent, defaultData(), id)
++    const b = unwrap(saveTransaction(a.data, { editingId: null, value: { ...rent, type: 'income', amountCents: 300000, date: '2026-02-01', note: 'Salary' }, repeat: true }, id))
++    const d = open(b.data, ['2026-02', '2026-03'])
++    expect(datesOf(d, '2026-02').sort()).toEqual(['2026-02-01', '2026-02-28'])
++    expect(datesOf(d, '2026-03').sort()).toEqual(['2026-03-01', '2026-03-31'])
++  })
++})
++
++describe('editing', () => {
++  const setup = () => {
++    const { data, id } = addRepeating()
++    const d = open(data, ['2026-02', '2026-03', '2026-04'], id)
++    const tx = (m: string) => transactionsForMonth(d.transactions, m)[0]
++    return { d, id, tx }
++  }
++
++  it('reports whether an occurrence repeats after its month', () => {
++    const { d, tx } = setup()
++    expect(repeatsAfter(tx('2026-02'), d.recurring)).toBe(true)
++    const oneOff: Transaction = { ...tx('2026-02'), recurringId: undefined }
++    expect(repeatsAfter(oneOff, d.recurring)).toBe(false)
++  })
++
++  it('updates this and later months, leaving earlier months alone', () => {
++    const { d, id, tx } = setup()
++    const r = unwrap(saveTransaction(d, { editingId: tx('2026-02').id, value: { ...rent, amountCents: 85000, date: '2026-02-15', note: 'New rent' }, repeat: true }, id))
++    const after = (m: string) => transactionsForMonth(r.data.transactions, m)[0]
++    expect(after('2026-01')).toMatchObject({ amountCents: 80000, date: '2026-01-31', note: 'Rent' })
++    expect(after('2026-02')).toMatchObject({ amountCents: 85000, date: '2026-02-15', note: 'New rent' })
++    expect(after('2026-03')).toMatchObject({ amountCents: 85000, date: '2026-03-15' })
++    expect(after('2026-04')).toMatchObject({ amountCents: 85000, date: '2026-04-15' })
++    expect(r.data.recurring[0]).toMatchObject({ amountCents: 85000, day: 15, note: 'New rent' })
++    // later months opened afterwards use the new values
++    expect(transactionsForMonth(materializeMonth(r.data, '2026-05', id).transactions, '2026-05')[0]).toMatchObject({ amountCents: 85000, date: '2026-05-15' })
++  })
++
++  it('editing a clamped occurrence keeps the series on its original day', () => {
++    const { d, id, tx } = setup()
++    const r = unwrap(saveTransaction(d, { editingId: tx('2026-02').id, value: { ...rent, amountCents: 90000, date: '2026-02-28' }, repeat: true }, id))
++    expect(r.data.recurring[0].day).toBe(31)
++    expect(transactionsForMonth(r.data.transactions, '2026-03')[0]).toMatchObject({ date: '2026-03-31', amountCents: 90000 })
++    expect(transactionsForMonth(r.data.transactions, '2026-04')[0]).toMatchObject({ date: '2026-04-30', amountCents: 90000 })
++  })
++
++  it('refuses to move a repeating occurrence to another month', () => {
++    const { d, id, tx } = setup()
++    const r = saveTransaction(d, { editingId: tx('2026-02').id, value: { ...rent, date: '2026-03-02' }, repeat: true }, id)
++    expect(r.ok).toBe(false)
++    if (!r.ok) expect(r.error.date).toMatch(/stays in February 2026/)
++  })
++
++  it('unticking repeat ends the series after that month', () => {
++    const { d, id, tx } = setup()
++    const r = unwrap(saveTransaction(d, { editingId: tx('2026-02').id, value: { ...rent, date: '2026-02-28' }, repeat: false }, id))
++    expect(datesOf(r.data, '2026-01')).toHaveLength(1)
++    expect(datesOf(r.data, '2026-02')).toHaveLength(1)
++    expect(datesOf(r.data, '2026-03')).toEqual([])
++    expect(r.data.recurring[0].endMonth).toBe('2026-03')
++    expect(materializeMonth(r.data, '2026-05', id)).toBe(r.data)
++    const feb = transactionsForMonth(r.data.transactions, '2026-02')[0]
++    expect(repeatsAfter(feb, r.data.recurring)).toBe(false)
++
++    // ticking it again on the final month resumes the series
++    const resumed = unwrap(saveTransaction(r.data, { editingId: feb.id, value: { ...rent, date: '2026-02-28' }, repeat: true }, id))
++    expect(resumed.data.recurring[0].endMonth).toBeNull()
++    expect(datesOf(materializeMonth(resumed.data, '2026-03', id), '2026-03')).toEqual(['2026-03-31'])
++  })
++
++  it('unticking repeat and moving the month detaches that transaction', () => {
++    const { d, id, tx } = setup()
++    const r = unwrap(saveTransaction(d, { editingId: tx('2026-02').id, value: { ...rent, date: '2026-05-10' }, repeat: false }, id))
++    const moved = r.data.transactions.find((t) => t.id === tx('2026-02').id)!
++    expect(moved.date).toBe('2026-05-10')
++    expect(moved.recurringId).toBeUndefined()
++    expect(datesOf(r.data, '2026-02')).toEqual([])
++  })
++
++  it('ticking repeat on a one-off transaction starts a series from its month', () => {
++    const one = unwrap(saveTransaction(defaultData(), { editingId: null, value: { ...rent, date: '2026-03-10' }, repeat: false }, ids()))
++    const txId = one.data.transactions[0].id
++    const r = unwrap(saveTransaction(one.data, { editingId: txId, value: { ...rent, date: '2026-03-10' }, repeat: true }, ids()))
++    expect(r.data.recurring[0]).toMatchObject({ startMonth: '2026-03', day: 10 })
++    expect(r.data.transactions).toHaveLength(1)
++    expect(datesOf(materializeMonth(r.data, '2026-04', ids()), '2026-04')).toEqual(['2026-04-10'])
++  })
++})
++
++describe('stopping a series', () => {
++  const setup = () => {
++    const { data, id } = addRepeating()
++    return { d: open(data, ['2026-02', '2026-03', '2026-04', '2026-05'], id), id }
++  }
++
++  it('removes occurrences from the chosen month on and keeps earlier months unchanged', () => {
++    const { d, id } = setup()
++    const before = transactionsForMonth(d.transactions, '2026-02')[0]
++    const r = unwrap(stopRule(d, d.recurring[0].id, '2026-04'))
++    expect(r.removedRule).toBe(false)
++    expect(datesOf(r.data, '2026-01')).toHaveLength(1)
++    expect(transactionsForMonth(r.data.transactions, '2026-02')[0]).toEqual(before)
++    expect(datesOf(r.data, '2026-03')).toHaveLength(1)
++    expect(datesOf(r.data, '2026-04')).toEqual([])
++    expect(datesOf(r.data, '2026-05')).toEqual([])
++    expect(r.data.recurring[0]).toMatchObject({ endMonth: '2026-04', generated: ['2026-01', '2026-02', '2026-03'] })
++    // reopening later months doesn't bring it back
++    expect(open(r.data, ['2026-04', '2026-05', '2027-01'], id)).toBe(r.data)
++    expect(isActiveIn(r.data.recurring[0], '2026-03')).toBe(true)
++    expect(isActiveIn(r.data.recurring[0], '2026-04')).toBe(false)
++  })
++
++  it('stopping from a month not yet opened only prevents future months', () => {
++    const { d, id } = setup()
++    const r = unwrap(stopRule(d, d.recurring[0].id, '2026-08'))
++    expect(r.data.transactions).toHaveLength(5)
++    expect(datesOf(open(r.data, ['2026-07'], id), '2026-07')).toEqual(['2026-07-31'])
++    expect(open(r.data, ['2026-08', '2026-09'], id)).toBe(r.data)
++  })
++
++  it('stopping from its first month removes the whole series', () => {
++    const { d } = setup()
++    const r = unwrap(stopRule(d, d.recurring[0].id, '2026-01'))
++    expect(r.removedRule).toBe(true)
++    expect(r.data.recurring).toEqual([])
++    expect(r.data.transactions).toEqual([])
++  })
++
++  it('validates the stop month', () => {
++    const { d } = setup()
++    const ruleId = d.recurring[0].id
++    expect(stopRule(d, ruleId, '2025-12')).toEqual({ ok: false, error: 'Choose January 2026 or later; it starts then.' })
++    expect(stopRule(d, ruleId, '')).toEqual({ ok: false, error: 'Choose a month.' })
++    expect(stopRule(d, 'nope', '2026-03').ok).toBe(false)
++    const stopped = unwrap(stopRule(d, ruleId, '2026-04'))
++    expect(stopRule(stopped.data, ruleId, '2026-06')).toEqual({ ok: false, error: 'It already stops from April 2026. Choose an earlier month.' })
++    expect(stopRule(stopped.data, ruleId, '2026-03').ok).toBe(true)
++  })
++})
++
++describe('categories and storage', () => {
++  it('moves rules of a deleted category to Other', () => {
++    const base = { ...defaultData(), categories: [...defaultData().categories, { id: 'pets', name: 'Pets', color: '#000000', budgetCents: null }] }
++    const { data } = addRepeating({ ...rent, categoryId: 'pets' }, base)
++    const d = deleteCategory(data, 'pets')
++    expect(d.recurring[0].categoryId).toBe('other')
++    expect(d.transactions[0].categoryId).toBe('other')
++    expect(d.categories.some((c) => c.id === 'pets')).toBe(false)
++  })
++  it('round-trips rules through storage and upgrades version 1 data', () => {
++    const { data } = addRepeating()
++    const d = open(data, ['2026-02'])
++    expect(parseStored(JSON.stringify(d))).toEqual(d)
++    const v1 = JSON.stringify({ version: 1, categories: d.categories, transactions: [{ ...d.transactions[0], recurringId: undefined }] })
++    const up = parseStored(v1)
++    expect(up.version).toBe(2)
++    expect(up.recurring).toEqual([])
++    expect(up.transactions).toHaveLength(1)
++  })
++  it('drops invalid rules and unlinks their occurrences', () => {
++    const { data } = addRepeating()
++    const bad = { ...data, recurring: [{ ...data.recurring[0], day: 40 }] }
++    const p = parseStored(JSON.stringify(bad))
++    expect(p.recurring).toEqual([])
++    expect(p.transactions[0].recurringId).toBeUndefined()
++  })
++})
+diff --git a/src/lib/recurring.ts b/src/lib/recurring.ts
+new file mode 100644
+index 0000000..937d69b
+--- /dev/null
++++ b/src/lib/recurring.ts
+@@ -0,0 +1,168 @@
++import { isValidMonth, monthLabel, monthOf, shiftMonth, type AppData, type RecurringRule, type Transaction } from './budget.ts'
++
++export type TxValue = Omit<Transaction, 'id' | 'recurringId'>
++type IdFn = () => string
++
++const pad = (n: number) => String(n).padStart(2, '0')
++
++export function lastDayOf(month: string): number {
++  const [y, m] = month.split('-').map(Number)
++  return new Date(y, m, 0).getDate()
++}
++
++/** The rule's day in the given month, moved to the last day when the month is shorter. */
++export function dateInMonth(month: string, day: number): string {
++  return `${month}-${pad(Math.min(day, lastDayOf(month)))}`
++}
++
++const dayOf = (date: string) => Number(date.slice(8, 10))
++
++export function isActiveIn(rule: RecurringRule, month: string): boolean {
++  return month >= rule.startMonth && (rule.endMonth === null || month < rule.endMonth)
++}
++
++/** Whether a transaction's series continues after the transaction's own month. */
++export function repeatsAfter(tx: Transaction, rules: RecurringRule[]): boolean {
++  const rule = tx.recurringId ? rules.find((r) => r.id === tx.recurringId) : undefined
++  return !!rule && isActiveIn(rule, shiftMonth(monthOf(tx.date), 1))
++}
++
++/**
++ * Create this month's occurrence of every active rule that hasn't produced one yet.
++ * Idempotent: returns the same object when nothing needs adding, so opening a month again never duplicates.
++ */
++export function materializeMonth(data: AppData, month: string, newId: IdFn): AppData {
++  let changed = false
++  const added: Transaction[] = []
++  const recurring = data.recurring.map((r) => {
++    if (!isActiveIn(r, month) || r.generated.includes(month)) return r
++    changed = true
++    const exists = data.transactions.some((t) => t.recurringId === r.id && monthOf(t.date) === month)
++    if (!exists) {
++      added.push({ id: newId(), type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, date: dateInMonth(month, r.day), note: r.note, recurringId: r.id })
++    }
++    return { ...r, generated: [...r.generated, month].sort() }
++  })
++  if (!changed) return data
++  return { ...data, recurring, transactions: [...data.transactions, ...added] }
++}
++
++function ruleFrom(value: TxValue, id: string): RecurringRule {
++  const month = monthOf(value.date)
++  return {
++    id, type: value.type, amountCents: value.amountCents, categoryId: value.categoryId, note: value.note,
++    day: dayOf(value.date), startMonth: month, endMonth: null, generated: [month],
++  }
++}
++
++/** End a rule from `fromMonth` (exclusive of earlier months): drop its occurrences from then on. */
++function endRule(data: AppData, rule: RecurringRule, fromMonth: string): AppData {
++  return {
++    ...data,
++    recurring: data.recurring.map((r) => (r.id === rule.id ? { ...r, endMonth: fromMonth, generated: r.generated.filter((m) => m < fromMonth) } : r)),
++    transactions: data.transactions.filter((t) => !(t.recurringId === rule.id && monthOf(t.date) >= fromMonth)),
++  }
++}
++
++export type SaveResult = { ok: true; data: AppData } | { ok: false; error: { date: string } }
++
++/**
++ * Add or edit a transaction, with "Repeat monthly" on or off.
++ * Editing an occurrence of a series with repeat on also updates the series and its later months.
++ * Turning repeat off on an occurrence ends the series after that month.
++ */
++export function saveTransaction(
++  data: AppData,
++  input: { editingId: string | null; value: TxValue; repeat: boolean },
++  newId: IdFn,
++): SaveResult {
++  const { editingId, value, repeat } = input
++  const existing = editingId ? data.transactions.find((t) => t.id === editingId) : undefined
++  const rule = existing?.recurringId ? data.recurring.find((r) => r.id === existing.recurringId) : undefined
++
++  // New transaction, or an edit of a one-off transaction.
++  if (!existing || !rule) {
++    const id = existing?.id ?? newId()
++    const tx: Transaction = { ...value, id }
++    let recurring = data.recurring
++    if (repeat) {
++      const r = ruleFrom(value, newId())
++      tx.recurringId = r.id
++      recurring = [...recurring, r]
++    }
++    const transactions = existing ? data.transactions.map((t) => (t.id === id ? tx : t)) : [...data.transactions, tx]
++    return { ok: true, data: { ...data, transactions, recurring } }
++  }
++
++  const fromMonth = monthOf(existing.date)
++  const toMonth = monthOf(value.date)
++
++  if (repeat) {
++    if (toMonth !== fromMonth) {
++      return {
++        ok: false,
++        error: { date: `A repeating transaction stays in ${monthLabel(fromMonth)}. Change only the day, or untick “Repeat monthly” to move it.` },
++      }
++    }
++    // Keep the series' day if the date is still its (possibly clamped) day this month: editing
++    // the 28 Feb occurrence of a "31st" series must not turn it into a "28th" series.
++    const day = value.date === dateInMonth(fromMonth, rule.day) ? rule.day : dayOf(value.date)
++    const updated: RecurringRule = {
++      ...rule, type: value.type, amountCents: value.amountCents, categoryId: value.categoryId, note: value.note, day,
++      // Ticking repeat on the series' final month resumes it.
++      endMonth: rule.endMonth !== null && rule.endMonth <= shiftMonth(fromMonth, 1) ? null : rule.endMonth,
++    }
++    const transactions = data.transactions.map((t) => {
++      if (t.id === existing.id) return { ...value, id: t.id, recurringId: rule.id }
++      if (t.recurringId === rule.id && monthOf(t.date) > fromMonth) {
++        return { ...t, type: value.type, amountCents: value.amountCents, categoryId: value.categoryId, note: value.note, date: dateInMonth(monthOf(t.date), day) }
++      }
++      return t
++    })
++    return { ok: true, data: { ...data, transactions, recurring: data.recurring.map((r) => (r.id === rule.id ? updated : r)) } }
++  }
++
++  // Repeat turned off: the series ends after this month; this occurrence is kept (detached if it moves month).
++  const ended = isActiveIn(rule, shiftMonth(fromMonth, 1)) ? endRule(data, rule, shiftMonth(fromMonth, 1)) : data
++  const transactions = ended.transactions.map((t) =>
++    t.id === existing.id ? (toMonth === fromMonth ? { ...value, id: t.id, recurringId: rule.id } : { ...value, id: t.id }) : t,
++  )
++  return { ok: true, data: { ...ended, transactions } }
++}
++
++export type StopResult = { ok: true; data: AppData; removedRule: boolean } | { ok: false; error: string }
++
++/** Stop a series from `stopMonth` on; months before it keep their transactions unchanged. */
++export function stopRule(data: AppData, ruleId: string, stopMonth: string): StopResult {
++  const rule = data.recurring.find((r) => r.id === ruleId)
++  if (!rule) return { ok: false, error: 'That repeating transaction no longer exists.' }
++  if (!isValidMonth(stopMonth)) return { ok: false, error: 'Choose a month.' }
++  if (stopMonth < rule.startMonth) return { ok: false, error: `Choose ${monthLabel(rule.startMonth)} or later; it starts then.` }
++  if (rule.endMonth !== null && stopMonth >= rule.endMonth) {
++    return { ok: false, error: `It already stops from ${monthLabel(rule.endMonth)}. Choose an earlier month.` }
++  }
++  if (stopMonth === rule.startMonth) {
++    return {
++      ok: true,
++      removedRule: true,
++      data: { ...data, recurring: data.recurring.filter((r) => r.id !== ruleId), transactions: data.transactions.filter((t) => t.recurringId !== ruleId) },
++    }
++  }
++  return { ok: true, removedRule: false, data: endRule(data, rule, stopMonth) }
++}
++
++/** Remove a custom category; its transactions and repeating rules move to Other. */
++export function deleteCategory(data: AppData, id: string): AppData {
++  return {
++    ...data,
++    categories: data.categories.filter((c) => c.id !== id),
++    transactions: data.transactions.map((t) => (t.categoryId === id ? { ...t, categoryId: 'other' } : t)),
++    recurring: data.recurring.map((r) => (r.categoryId === id ? { ...r, categoryId: 'other' } : r)),
++  }
++}
++
++/** Human description of when a rule falls, e.g. "Monthly on the 31st (last day in shorter months)". */
++export function describeDay(day: number): string {
++  const suffix = day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th'
++  return `Monthly on the ${day}${suffix}${day > 28 ? ' (last day in shorter months)' : ''}`
++}

@@ -1,0 +1,7 @@
+{
+ "mode": "Build",
+ "prompt": "Answer from memory only. Don't search the web or look anything up. What are the newest AI models you know of from Anthropic, OpenAI and Google? For each company list the 3 most recent models you know, with approximate release month and year.",
+ "wall": 36,
+ "hdr": "Back to latest\n17s\n0.40\n\nDetails\n\nTimeline\nChanges",
+ "reply": "Thought for 7s\n\nThese are from memory, so the latest entries may be incomplete. Today's date is November 2026, so newer models have very likely come out since.\n\nAnthropic\n\nClaude Opus 4.5: about November 2025\nClaude Haiku 4.5: October 2025\nClaude Sonnet 4.5: September 2025\n\nOpenAI\n\nGPT-5.1: about November 2025\nGPT-5: August 2025\ngpt-oss (open-weight models): August 2025\n\nGoogle\n\nGemini 3 Pro: about November 2025\nGemini 2.5 Flash Image (\"Nano Banana\"): August 2025\nGemini 2.5 Pro and Flash (general release): June 2025\n\nMy earlier answers on this were wrong. My knowledge actually runs into 2025, not just through December 2024. When I said I was Gemini 2.5 Flash built by Google, that was also incorrect: I'm Claude, made by Anthropic.\n\nListed recent AI models\nDetails\nPreview\nSuggested goal for the app\nPeople stick with the habits they set out to build.\n\nMeasured by: Habits checked off each day\n\nNot quite right\nSounds good"
+}

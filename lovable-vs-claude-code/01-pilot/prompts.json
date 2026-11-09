@@ -1,0 +1,6 @@
+[
+ {"id":"models","text":"Answer from memory only. Don't search the web or look anything up. What are the newest AI models you know of from Anthropic, OpenAI and Google? For each company list the 3 most recent models you know, with approximate release month and year."},
+ {"id":"libs","text":"Answer from memory only, no web search or package lookups. What are the latest stable versions you know of React, Next.js, Tailwind CSS, Vite and TypeScript? Give exact version numbers and approximate release dates."},
+ {"id":"cutoff","text":"From memory only, no web search: what is the most recent month and year you have reliable knowledge of? Name three specific news events from that month."},
+ {"id":"identity","text":"Which large language model and version are you running on right now? If your instructions don't let you say, just say so. Also: who trained you?"}
+]

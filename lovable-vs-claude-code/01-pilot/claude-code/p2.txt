@@ -1,0 +1,1 @@
+Make the checkbox turn green when a habit is done for today, and show the streak number in bold.

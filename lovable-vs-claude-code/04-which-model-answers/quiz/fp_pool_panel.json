@@ -1,0 +1,209 @@
+[
+ {
+  "model": "claude-sonnet-5-5",
+  "kind": "quiz",
+  "k": 0,
+  "answer": "1. Massimo Pilotti\n2. Jean Royer\n3. Pierre Wigny\n4. Stanisław Heryng\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. 113.8 km²\n11. 108.5 m\n12. 6,790 m\n13. 310 m\n14. Ewa Łętowska\n15. Krzysztof Skubiszewski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Wawrzyniec Gucewicz\n20. Ernst Öpik\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Tadeusz Kotarbiński\n28. 718 m\n29. 612 m\n30. 1310 m\n31. 1262 m\n32. 1257 m\n33. 35 km\n34. 1987 m\n35. 854 km\n36. 808 km\n37. 21.9 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edmund Cetnarowski\n42. Bohdan Pniewski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 511,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "kind": "quiz",
+  "k": 1,
+  "answer": "1. Massimo Pilotti\n2. Jean Sauvy? Actually Thorkil Kristensen\n3. Pierre Uri? Actually Paride Formentini\n4. Stanisław Szyller\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 metres\n9. 1346 metres\n10. 113.8 square kilometres\n11. 108.5 metres\n12. 6,790 metres\n13. 310 metres\n14. Ewa Łętowska\n15. Ludwik Garlicki? Actually Ludwik Garlicki\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz? Actually Józef Łepkowski\n19. Wawrzyniec Gucewicz\n20. Paul Kogerman\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Edoardo Amaldi\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Tadeusz Kotarbiński\n28. 718 metres\n29. 612 metres\n30. 1310 metres\n31. 1262 metres\n32. 1257 metres\n33. 35 kilometres\n34. 1987 metres\n35. 854 kilometres\n36. 808 kilometres\n37. 21.7 square kilometres\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Bohdan Pniewski? Actually Roman Piotrowski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz\n45. 1557 metres",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 603,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "kind": "quiz",
+  "k": 2,
+  "answer": "1. Massimo Pilotti\n2. Jean Royer\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1,725 m\n9. 1,346 m\n10. 113.8 km²\n11. 108.5 m\n12. 6,790 m\n13. 310 m\n14. Ewa Łętowska\n15. Zygmunt Resich\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius\n20. Jaan Tõnisson\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Tadeusz Kotarbiński\n28. 718 m\n29. 612 m\n30. 1,310 m\n31. 1,262 m\n32. 1,257 m\n33. 35 km\n34. 1,987 m\n35. 854 km\n36. 808 km\n37. 21.9 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Roman Piotrowski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz\n45. 1,557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 511,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "kind": "quiz",
+  "k": 0,
+  "answer": "1. Massimo Pilotti\n2. Thorkil Kristensen\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. About 113.8 km²\n11. 108.5 m\n12. 6790 m\n13. 310 m\n14. Ewa Łętowska\n15. Alfons Klafkowski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius\n20. Karl Schlossmann\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Jan Dembowski\n28. 718 m\n29. 614 m\n30. 1310 m\n31. 1266 m\n32. 1257 m\n33. 35 km\n34. 1987 m\n35. 854 km\n36. 808 km\n37. 21.2 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Wacław Tomaszewski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz and Piotr Szymaniak\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 1191,
+   "output_tokens_details": {
+    "thinking_tokens": 675
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "kind": "quiz",
+  "k": 1,
+  "answer": "1. Massimo Pilotti\n2. Thorkil Kristensen\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. About 113.8 km²\n11. 108.5 m\n12. 6790 m\n13. 310 m\n14. Ewa Łętowska\n15. Alfons Klafkowski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius\n20. Karl Schlossmann\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Jan Dembowski\n28. 718 m\n29. 614 m\n30. 1310 m\n31. 1266 m\n32. 1257 m\n33. About 35 km\n34. 1987 m\n35. 854 km\n36. 808 km\n37. About 21.2 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Wacław Tomaszewski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 1170,
+   "output_tokens_details": {
+    "thinking_tokens": 663
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "kind": "quiz",
+  "k": 2,
+  "answer": "1. Massimo Pilotti\n2. Thorkil Kristensen\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. 113.8 km²\n11. 108.5 m\n12. 6790 m\n13. 310 m\n14. Ewa Łętowska\n15. Alfons Klafkowski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius\n20. Karl Schlossmann\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Jan Dembowski\n28. 718 m\n29. 614 m\n30. 1310 m\n31. 1266 m\n32. 1257 m\n33. 35 km\n34. 1987 m\n35. 854 km\n36. 808 km\n37. 21.2 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Władysław Siekierski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz and Piotr Szymaniak\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 1288,
+   "output_tokens_details": {
+    "thinking_tokens": 775
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-fable-5-1",
+  "kind": "quiz",
+  "k": 0,
+  "answer": "1. Massimo Pilotti\n2. Thorkil Kristensen\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. About 114 km²\n11. About 108.5 m\n12. 6,790 m\n13. 310 m\n14. Ewa Łętowska\n15. Alfons Klafkowski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius (Wawrzyniec Gucewicz)\n20. Karl Schlossmann\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Jan Dembowski\n28. 718 m\n29. 612 m\n30. 1310 m\n31. 1262 m\n32. 1257 m\n33. About 35 km\n34. 1987 m\n35. About 854 km\n36. About 808 km\n37. About 21.7 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Dyckerhoff & Widmann firm\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz, Piotr Szymaniak\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 1720,
+   "output_tokens_details": {
+    "thinking_tokens": 1180
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-fable-5-1",
+  "kind": "quiz",
+  "k": 1,
+  "answer": "1. Massimo Pilotti\n2. Thorkil Kristensen\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. About 114 km²\n11. 108.5 m\n12. 6,790 m\n13. 310 m\n14. Ewa Łętowska\n15. Alfons Klafkowski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius (Wawrzyniec Gucewicz)\n20. Karl Schlossmann\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Jan Dembowski\n28. 718 m\n29. 612 m\n30. 1310 m\n31. 1262 m\n32. 1257 m\n33. About 35 km\n34. 1987 m\n35. About 854 km\n36. 808 km\n37. About 21.7 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Bohdan Damięcki and Tadeusz Sieczkowski\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz and Piotr Szymaniak\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 1726,
+   "output_tokens_details": {
+    "thinking_tokens": 1179
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ {
+  "model": "claude-fable-5-1",
+  "kind": "quiz",
+  "k": 2,
+  "answer": "1. Massimo Pilotti\n2. Thorkil Kristensen\n3. Pietro Campilli\n4. Karol Kozłowski\n5. Jan Zawiejski\n6. Stefan Szyller\n7. Zygmunt Gorgolewski\n8. 1725 m\n9. 1346 m\n10. About 114 km²\n11. 108.5 m\n12. 6,790 m\n13. 310 m\n14. Ewa Łętowska\n15. Alfons Klafkowski\n16. Stanisław Wyganowski\n17. Józef Brudziński\n18. Władysław Łuszczkiewicz\n19. Laurynas Gucevičius (Wawrzyniec Gucewicz)\n20. Karl Schlossmann\n21. Hermann Höpker-Aschoff\n22. Paul-Henri Spaak\n23. Felix Bloch\n24. Roy Gibson\n25. Alexandre Lamfalussy\n26. Stanisław Kluza\n27. Jan Dembowski\n28. 718 m\n29. 612 m\n30. 1310 m\n31. 1262 m\n32. 1257 m\n33. About 35 km\n34. 1987 m\n35. About 854 km\n36. 808 km\n37. About 21.7 km²\n38. Walerian Pańko\n39. Andrzej Stelmachowski\n40. Krzysztof Skubiszewski\n41. Edward Cetnarowski\n42. Dyckerhoff & Widmann\n43. Kazimierz Skórewicz\n44. Arseniusz Romanowicz\n45. 1557 m",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1186,
+   "output_tokens": 1694,
+   "output_tokens_details": {
+    "thinking_tokens": 1169
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ }
+]

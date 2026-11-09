@@ -1,0 +1,719 @@
+[
+ {
+  "kind": "build",
+  "rc": 0,
+  "wall_s": 244,
+  "diff": {
+   "files": 7,
+   "added": 806,
+   "deleted": 3
+  },
+  "result": {
+   "duration_api_ms": 168164,
+   "stop_reason": "end_turn",
+   "session_id": "c3fa6900-71d3-4de0-8cf1-aaed55774cb0",
+   "total_cost_usd": 0.6367446999999999,
+   "usage": {
+    "input_tokens": 22,
+    "cache_creation_input_tokens": 73725,
+    "cache_read_input_tokens": 555820,
+    "output_tokens": 28605,
+    "output_tokens_details": {
+     "thinking_tokens": 2481
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 73725,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 833,
+      "cache_read_input_tokens": 72478,
+      "cache_creation_input_tokens": 1247,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1247
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 22,
+     "outputTokens": 28605,
+     "cacheReadInputTokens": 555820,
+     "cacheCreationInputTokens": 73725,
+     "webSearchRequests": 0,
+     "costUSD": 0.6365759999999999,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2481,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 73725,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01GfBptWmvcQRfDUYmCHcukE",
+     "tool_input": {
+      "command": "mkdir -p src/lib e2e && cat > src/lib/split.ts <<'EOF'\nexport type Currency = 'USD' | 'EUR' | 'PLN'\nexport const CURRENCIES: Currency[] = ['USD', 'EUR', 'PLN']\n\nexport interface Person { id: string; name: string }\nexport interface Item { id: string; name: string; cents: number; people: string[] }\n\nexport interface Bill {\n  people: Person[]\n  items: Item[]\n  taxInput: string\n  tipInput: string\n  currency: Currency\n}\n\nexport const emptyBill = (): Bill => ({ people: [], items: [], taxInput: '', tipInput: '', currency: 'USD' })\n\n/** Split `total` cents over `weights` so the parts sum exactly to `total` (largest remainder). */\nexport function allocate(total: number, weights: number[]): number[] {\n  const sum = weights.reduce((a, b) => a + b, 0)\n  if (weights.length === 0) return []\n  if (sum === 0) {\n    // no basis: split evenly\n    return allocate(total, weights.map(() => 1))\n  }\n  const base = weights.map((w) => Math.floor((total * w) / sum))\n  const rem = weights.map((w, i) => ({ i, r: (total * w) % sum }))\n  let left = total - base.reduce((a, b) => a + b, 0)\n  rem.sort((a, b) => b.r - a.r || a.i - b.i)\n  for (const { i } of rem) {\n    if (left <= 0) break\n    base[i]++\n    left--\n  }\n  return base\n}\n\n/** Parse a money string (\"12.50\" or \"12,5\") to cents. */\nexport function parsePrice(raw: string): { cents?: number; error?: string } {\n  const s = raw.trim().replace(',', '.')\n  if (s === '') return { error: 'Enter a price.' }\n  if (/^-/.test(s)) return { error: 'Price cannot be negative.' }\n  if (!/^\\d*\\.?\\d+$|^\\d+\\.$/.test(s)) return { error: 'Price must be a number, e.g. 12.50.' }\n  if (/\\.\\d{3,}/.test(s)) return { error: 'Price can have at most 2 decimal places.' }\n  const [w, f = ''] = s.split('.')\n  const cents = Number(w || '0') * 100 + Number(f.padEnd(2, '0'))\n  if (!Number.isSafeInteger(cents) || cents > 100_000_000_00) return { error: 'Price is too large.' }\n  if (cents === 0) return { error: 'Price must be greater than zero.' }\n  return { cents }\n}\n\n/** Parse a percentage field. Empty means 0. */\nexport function parsePercent(raw: string, label: string): { pct: number; error?: string } {\n  const s = raw.trim().replace(',', '.')\n  if (s === '') return { pct: 0 }\n  if (/^-/.test(s)) return { pct: 0, error: `${label} cannot be negative.` }\n  if (!/^\\d*\\.?\\d+$|^\\d+\\.$/.test(s)) return { pct: 0, error: `${label} must be a number, e.g. 8.5.` }\n  const pct = Number(s)\n  if (pct > 100) return { pct: 0, error: `${label} cannot be more than 100%.` }\n  return { pct }\n}\n\nexport interface PersonResult {\n  id: string\n  name: string\n  subtotal: number\n  tax: number\n  tip: number\n  total: number\n}\n\nexport interface Result {\n  people: PersonResult[]\n  subtotal: number\n  tax: number\n  tip: number\n  total: number\n  unassigned: Item[]\n  taxError?: string\n  tipError?: string\n}\n\nexport const displayName = (p: Person, idx: number) => p.name.trim() || `Person ${idx + 1}`\n\nexport function calculate(bill: Bill): Result {\n  const { people, items } = bill\n  const ids = new Set(people.map((p) => p.id))\n  const subs = new Map(people.map((p) => [p.id, 0]))\n  const unassigned: Item[] = []\n  for (const item of items) {\n    const sharers = item.people.filter((id) => ids.has(id))\n    if (sharers.length === 0) { unassigned.push(item); continue }\n    allocate(item.cents, sharers.map(() => 1)).forEach((c, i) => subs.set(sharers[i], subs.get(sharers[i])! + c))\n  }\n  const subtotals = people.map((p) => subs.get(p.id)!)\n  const subtotal = subtotals.reduce((a, b) => a + b, 0)\n  const taxP = parsePercent(bill.taxInput, 'Tax')\n  const tipP = parsePercent(bill.tipInput, 'Tip')\n  const tax = Math.round((subtotal * taxP.pct) / 100)\n  const tip = Math.round((subtotal * tipP.pct) / 100)\n  const taxes = subtotal ? allocate(tax, subtotals) : subtotals.map(() => 0)\n  const tips = subtotal ? allocate(tip, subtotals) : subtotals.map(() => 0)\n  const rows = people.map((p, i) => ({\n    id: p.id,\n    name: displayName(p, i),\n    subtotal: subtotals[i],\n    tax: taxes[i],\n    tip: tips[i],\n    total: subtotals[i] + taxes[i] + tips[i],\n  }))\n  return { people: rows, subtotal, tax, tip, total: subtotal + tax + tip, unassigned, taxError: taxP.error, tipError: tipP.error }\n}\n\nconst LOCALES: Record<Currency, string> = { USD: 'en-US', EUR: 'de-DE', PLN: 'pl-PL' }\n\nexport function formatMoney(cents: number, currency: Currency): string {\n  return new Intl.NumberFormat(LOCALES[currency], { style: 'currency', currency }).format(cents / 100)\n}\n\nexport function buildSummary(bill: Bill, r: Result): string {\n  const m = (c: number) => formatMoney(c, bill.currency)\n  const lines = ['Bill summary', '']\n  lines.push('Items:')\n  for (const it of bill.items) {\n    const names = it.people.map((id) => r.people.find((p) => p.id === id)?.name).filter(Boolean).join(', ')\n    lines.push(`- ${it.name}: ${m(it.cents)} (${names || 'nobody'})`)\n  }\n  if (!bill.items.length) lines.push('- (none)')\n  lines.push('', `Subtotal: ${m(r.subtotal)}`)\n  lines.push(`Tax (${bill.taxInput.trim() || 0}%): ${m(r.tax)}`)\n  lines.push(`Tip (${bill.tipInput.trim() || 0}%): ${m(r.tip)}`)\n  lines.push(`Total: ${m(r.total)}`, '', 'Per person:')\n  for (const p of r.people) {\n    lines.push(`- ${p.name}: ${m(p.total)} (items ${m(p.subtotal)}, tax ${m(p.tax)}, tip ${m(p.tip)})`)\n  }\n  if (!r.people.length) lines.push('- (nobody)')\n  return lines.join('\\n')\n}\n\nconst KEY = 'bill-splitter:v1'\n\nexport function loadBill(storage: Pick<Storage, 'getItem'> = localStorage): Bill {\n  try {\n    const raw = storage.getItem(KEY)\n    if (!raw) return emptyBill()\n    const d = JSON.parse(raw)\n    const people: Person[] = Array.isArray(d.people)\n      ? d.people.filter((p: Person) => p && typeof p.id === 'string' && typeof p.name === 'string').map((p: Person) => ({ id: p.id, name: p.name }))\n      : []\n    const items: Item[] = Array.isArray(d.items)\n      ? d.items\n          .filter((i: Item) => i && typeof i.id === 'string' && typeof i.name === 'string' && Number.isSafeInteger(i.cents) && i.cents > 0 && Array.isArray(i.people))\n          .map((i: Item) => ({ id: i.id, name: i.name, cents: i.cents, people: i.people.filter((x) => typeof x === 'string') }))\n      : []\n    return {\n      people,\n      items,\n      taxInput: typeof d.taxInput === 'string' ? d.taxInput : '',\n      tipInput: typeof d.tipInput === 'string' ? d.tipInput : '',\n      currency: CURRENCIES.includes(d.currency) ? d.currency : 'USD',\n    }\n  } catch {\n    return emptyBill()\n  }\n}\n\nexport function saveBill(bill: Bill, storage: Pick<Storage, 'setItem'> = localStorage) {\n  try { storage.setItem(KEY, JSON.stringify(bill)) } catch { /* storage full or blocked */ }\n}\nEOF\ncat > src/lib/split.test.ts <<'EOF'\nimport { describe, expect, it } from 'vitest'\nimport { allocate, buildSummary, calculate, emptyBill, formatMoney, loadBill, parsePercent, parsePrice, saveBill, type Bill } from './split'\n\nconst bill = (over: Partial<Bill> = {}): Bill => ({\n  ...emptyBill(),\n  people: [{ id: 'a', name: 'Ann' }, { id: 'b', name: 'Bob' }, { id: 'c', name: 'Cy' }],\n  ...over,\n})\n\ndescribe('allocate', () => {\n  it('sums exactly', () => {\n    expect(allocate(100, [1, 1, 1])).toEqual([34, 33, 33])\n    expect(allocate(0, [1, 2])).toEqual([0, 0])\n    expect(allocate(5, [0, 0])).toEqual([3, 2])\n  })\n  it('sums exactly for random inputs', () => {\n    for (let n = 0; n < 500; n++) {\n      const total = Math.floor(Math.random() * 100000)\n      const w = Array.from({ length: 1 + Math.floor(Math.random() * 8) }, () => Math.floor(Math.random() * 5000))\n      const out = allocate(total, w)\n      expect(out.reduce((a, b) => a + b, 0)).toBe(total)\n      expect(out.every((x) => x >= 0)).toBe(true)\n    }\n  })\n})\n\ndescribe('parsePrice', () => {\n  it('parses', () => {\n    expect(parsePrice('12.50').cents).toBe(1250)\n    expect(parsePrice('12,5').cents).toBe(1250)\n    expect(parsePrice('7').cents).toBe(700)\n    expect(parsePrice('.99').cents).toBe(99)\n    expect(parsePrice('0.07').cents).toBe(7)\n  })\n  it('rejects', () => {\n    expect(parsePrice('-3').error).toMatch(/negative/)\n    expect(parsePrice('').error).toBeTruthy()\n    expect(parsePrice('abc').error).toBeTruthy()\n    expect(parsePrice('1.234').error).toMatch(/2 decimal/)\n    expect(parsePrice('0').error).toBeTruthy()\n  })\n})\n\ndescribe('parsePercent', () => {\n  it('handles empty, valid, invalid', () => {\n    expect(parsePercent('', 'Tax').pct).toBe(0)\n    expect(parsePercent('8.25', 'Tax').pct).toBe(8.25)\n    expect(parsePercent('-1', 'Tax').error).toMatch(/negative/)\n    expect(parsePercent('x', 'Tip').error).toBeTruthy()\n    expect(parsePercent('101', 'Tip').error).toBeTruthy()\n  })\n})\n\ndescribe('calculate', () => {\n  it('splits shared items, tax and tip proportionally', () => {\n    const r = calculate(bill({\n      items: [\n        { id: '1', name: 'Pizza', cents: 3000, people: ['a', 'b'] },\n        { id: '2', name: 'Wine', cents: 2000, people: ['c'] },\n      ],\n      taxInput: '10', tipInput: '20',\n    }))\n    expect(r.subtotal).toBe(5000)\n    expect(r.tax).toBe(500)\n    expect(r.tip).toBe(1000)\n    expect(r.people.map((p) => p.subtotal)).toEqual([1500, 1500, 2000])\n    expect(r.people.map((p) => p.tax)).toEqual([150, 150, 200])\n    expect(r.people.map((p) => p.tip)).toEqual([300, 300, 400])\n    expect(r.total).toBe(6500)\n  })\n  it('per-person totals always add up to the bill total', () => {\n    for (let n = 0; n < 300; n++) {\n      const people = Array.from({ length: 1 + Math.floor(Math.random() * 7) }, (_, i) => ({ id: 'p' + i, name: 'P' + i }))\n      const items = Array.from({ length: Math.floor(Math.random() * 10) }, (_, i) => ({\n        id: 'i' + i, name: 'x', cents: 1 + Math.floor(Math.random() * 9999),\n        people: people.filter(() => Math.random() < 0.5).map((p) => p.id),\n      }))\n      const b = { ...emptyBill(), people, items, taxInput: String(Math.random() * 25), tipInput: String(Math.random() * 30) }\n      const r = calculate(b)\n      expect(r.people.reduce((s, p) => s + p.total, 0)).toBe(r.total)\n      expect(r.people.reduce((s, p) => s + p.tax, 0)).toBe(r.tax)\n      expect(r.people.reduce((s, p) => s + p.tip, 0)).toBe(r.tip)\n      expect(r.people.reduce((s, p) => s + p.subtotal, 0)).toBe(r.subtotal)\n      expect(r.total).toBe(r.subtotal + r.tax + r.tip)\n    }\n  })\n  it('handles one-cent thirds', () => {\n    const r = calculate(bill({ items: [{ id: '1', name: 'x', cents: 100, people: ['a', 'b', 'c'] }] }))\n    expect(r.people.map((p) => p.total)).toEqual([34, 33, 33])\n  })\n  it('reports items nobody shares and excludes them', () => {\n    const r = calculate(bill({ items: [{ id: '1', name: 'x', cents: 100, people: ['gone'] }] }))\n    expect(r.unassigned).toHaveLength(1)\n    expect(r.total).toBe(0)\n  })\n  it('works with no people / no items', () => {\n    expect(calculate(emptyBill()).total).toBe(0)\n    expect(calculate(bill()).people.every((p) => p.total === 0)).toBe(true)\n  })\n})\n\ndescribe('formatting and summary', () => {\n  it('formats per currency', () => {\n    expect(formatMoney(123456, 'USD')).toBe('$1,234.56')\n    expect(formatMoney(1250, 'EUR')).toMatch(/^12,50\\s\u20ac$/)\n    expect(formatMoney(1250, 'PLN')).toMatch(/^12,50\\sz\u0142$/)\n  })\n  it('builds a plain-text summary', () => {\n    const b = bill({ items: [{ id: '1', name: 'Pizza', cents: 3000, people: ['a', 'b'] }], taxInput: '10' })\n    const s = buildSummary(b, calculate(b))\n    expect(s).toContain('Pizza: $30.00 (Ann, Bob)')\n    expect(s).toContain('Total: $33.00')\n    expect(s).toContain('- Ann: $16.50')\n  })\n})\n\ndescribe('persistence', () => {\n  it('round-trips', () => {\n    const store: Record<string, string> = {}\n    const st = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => void (store[k] = v) }\n    const b = bill({ currency: 'PLN', taxInput: '8', items: [{ id: '1', name: 'x', cents: 5, people: ['a'] }] })\n    saveBill(b, st)\n    expect(loadBill(st)).toEqual(b)\n  })\n  it('survives corrupt data', () => {\n    expect(loadBill({ getItem: () => '{nope' })).toEqual(emptyBill())\n    const l = loadBill({ getItem: () => JSON.stringify({ people: 5, items: [{ id: 1 }], currency: 'XXX' }) })\n    expect(l).toEqual(emptyBill())\n  })\n})\nEOF\nnpx vitest run 2>&1 | tail -25"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01G7p6DGSm5B5rVzmvStqZ8r",
+     "tool_input": {
+      "command": "sed -i 's#\"lint\": \"oxlint\",#\"lint\": \"oxlint\",\\n    \"test\": \"vitest run\",\\n    \"e2e\": \"playwright test\",#' package.json; sed -i 's#<title>base</title>#<title>Split the bill</title>#' index.html; sed -i 's#\"include\": \\[\"src\"\\]#\"include\": [\"src\"]#' tsconfig.app.json; npx tsc -b 2>&1 | head; npx oxlint 2>&1 | tail -8"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 21,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The bill splitter is built and working. The logic tests (14) and the browser walkthrough at 1280px and 375px all pass, and `tsc` is clean. I didn't run `npm run lint`. The `oxlint` run I started was cancelled by a permission prompt.\n\nIt's a front-end-only Vite + React app that saves to localStorage.\n\nSome choices you didn't specify:\n- **Tax and tip base:** both are calculated on the items subtotal, not tip on top of tax. The UI says so.\n- **Reset:** it clears everything, including people, items, tax, tip and currency. The confirmation is an in-page panel, not `window.confirm`.\n- **Person removal:** removing a person drops them from shared items. If that leaves an item with nobody on it, the item shows a warning and isn't counted.\n- **Extras:** I added an \"Everyone\" shortcut and a \"No tip\" button. Prices accept `12,50` as well as `12.50`.\n\n**What I tested and how**\n- **Logic tests (`npm test`, vitest):**\n  - Rounding: 500 random splits and 300 random bills with tax and tip all sum to the cent. The per-person items, tax, tip and total each add up to the bill figures.\n  - Edge cases: one-cent thirds, items nobody shares, and empty bills.\n  - Parsing and formatting: price and percent parsing, formatting for all three currencies, and the text summary.\n  - Persistence: saving and loading, including corrupt stored data.\n- **Browser walkthrough (`npm run e2e`, Playwright on Chrome):** one scripted run over all 11 requirements, at 1280px and again at 375px.\n  - Add, rename and remove people, including the empty-name and duplicate-name errors.\n  - Add, edit and remove items, including the empty, negative, over-precise and no-one-selected errors.\n  - Tax of 10% with each preset, a custom 12.5%, and invalid tip and tax values.\n  - Per-person totals add up exactly to the bill total.\n  - Switching between USD, EUR and PLN changes the formatting.\n  - The copied summary is read back from the clipboard.\n  - The bill survives a reload, and Reset has both Cancel and confirm paths.\n  - Neither viewport scrolls sideways.\n- **Visual check:** I looked at full-page screenshots of both sizes (saved in `shots/`) and the layout is fine.\n\nThe mobile layout puts the breakdown below all the inputs, so you scroll to see it. I left that as is.",
+   "ttft_ms": 2710,
+   "type": "result",
+   "duration_ms": 242692,
+   "uuid": "0b721934-0072-4382-8ce1-b958d0131565",
+   "ttft_stream_ms": 2298,
+   "time_to_request_ms": 430,
+   "time_to_request_phases_ms": {
+    "other": 9,
+    "system_prompt": 83,
+    "resume_other": 0,
+    "process_user_input": 6,
+    "input_attachments": 31,
+    "input_hooks": 3,
+    "conversation_append": 0,
+    "transcript_persist": 187,
+    "tool_pool_refresh": 2,
+    "init_message": 19,
+    "init_frame_send": 5,
+    "engine_pickup": 1,
+    "loop_entry": 4,
+    "message_prep": 2,
+    "model_config_wait": 3,
+    "autocompact": 3,
+    "request_announcements": 14,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 10,
+    "message_normalization": 2,
+    "client_creation": 36,
+    "request_build": 8
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 89,
+   "time_to_request_cpu_ms": 594,
+   "time_to_request_major_faults": 8640,
+   "input_attachments_detail": {
+    "slowest_producer": "skill_listing",
+    "slowest_producer_ms": 8,
+    "cpu_ms": 47,
+    "major_faults": 835,
+    "setup_ms": 0,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 18,
+    "ambient_wait_ms": 7,
+    "render_ms": 2,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 0,
+    "placement_ms": 2,
+    "render_ms": 6,
+    "after_ms": 0,
+    "other_ms": 1,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 2,
+    "images_ms": 0,
+    "post_process_ms": 0,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 12,
+    "wire_messages": 2
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 1,
+    "plans_ms": 1,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 2,
+    "record_attempt_ms": 2,
+    "other_ms": 1,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 2299,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "canonicalModel": "claude-haiku-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 22,
+     "outputTokens": 28605,
+     "cacheReadInputTokens": 555820,
+     "cacheCreationInputTokens": 73725,
+     "webSearchRequests": 0,
+     "costUSD": 0.6365759999999999,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 2481,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 73725,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "small",
+  "rc": 0,
+  "wall_s": 71,
+  "diff": {
+   "files": 4,
+   "added": 34,
+   "deleted": 4
+  },
+  "result": {
+   "duration_api_ms": 211715,
+   "stop_reason": "end_turn",
+   "session_id": "c3fa6900-71d3-4de0-8cf1-aaed55774cb0",
+   "total_cost_usd": 0.7659360999999999,
+   "usage": {
+    "input_tokens": 14,
+    "cache_creation_input_tokens": 9350,
+    "cache_read_input_tokens": 460034,
+    "output_tokens": 4576,
+    "output_tokens_details": {
+     "thinking_tokens": 427
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 9350,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 579,
+      "cache_read_input_tokens": 80380,
+      "cache_creation_input_tokens": 2695,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2695
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 36,
+     "outputTokens": 33181,
+     "thinkingTokens": 2908,
+     "cacheReadInputTokens": 1015854,
+     "cacheCreationInputTokens": 83075,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 83075,
+     "webSearchRequests": 0,
+     "costUSD": 0.7657673999999999,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01FP79hXN4u55H4WT867P8sP",
+     "tool_input": {
+      "command": "sed -i \"s/taxInput: '', tipInput: '', currency: 'USD' })/taxInput: '', tipInput: DEFAULT_TIP, currency: 'USD' })/; s/^export const emptyBill/export const DEFAULT_TIP = '18'\\n\\nexport const emptyBill/; s/tipInput: typeof d.tipInput === 'string' ? d.tipInput : ''/tipInput: typeof d.tipInput === 'string' ? d.tipInput : DEFAULT_TIP/\" src/lib/split.ts\nsed -i \"s/const PRESETS = \\[10, 15, 20\\]/const PRESETS = [10, 15, 18, 20]/\" src/App.tsx\ngrep -n \"DEFAULT_TIP\" src/lib/split.ts; grep -n PRESETS src/App.tsx | head -2; npx vitest run 2>&1 | grep -E \"\u2717|FAIL|\u00d7|Tests|expected\" | head"
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 14,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "The default tip is now 18%, and there's an 18% preset between 15% and 20%. The 17 unit tests and the 2 browser tests (desktop and mobile) pass, and `tsc` is clean. I didn't run `npm run lint`.\n\n**What changed**\n- **Default tip:** a fresh bill starts at 18%. This also applies after Reset, and to saved bills that have no tip stored.\n- **Saved \"No tip\":** if someone had explicitly chosen \"No tip\" and reloaded, that choice is kept.\n- **Preset button:** the tip row is now `10% \u00b7 15% \u00b7 18% \u00b7 20% \u00b7 No tip`. The 18% button is highlighted on first load.\n- **Existing tests:** two unit tests assumed no tip, so I made their helper set the tip to empty, which keeps what they check the same. I added 3 tests for the default.\n\n**What I checked**\n- **Unit tests (`npm test`):** 17 pass. They cover the 18% default on a fresh bill, on missing stored data, and after a saved \"No tip\". They also check that an 18% tip on $50.00 comes to $9.00.\n- **Browser, 1280px and 375px (`npm run e2e`):** the full walkthrough passes at both sizes, with new assertions for the 18% changes.\n  - **At load:** 18% is highlighted, the custom field shows 18, and the buttons are in order.\n  - **Before touching anything:** the default tip is applied. $55.00 gives a $9.90 tip, and clicking 18% keeps it.\n  - **After Reset and reload:** the tip returns to 18%.\n- **Screenshots:** I viewed the tip card at both widths. All five buttons fit on one row at 375px with no wrapping or horizontal scroll.",
+   "ttft_ms": 4858,
+   "type": "result",
+   "duration_ms": 69712,
+   "uuid": "8aa27e1e-6d9b-436a-b5b3-f3e818db93d8",
+   "ttft_stream_ms": 2647,
+   "time_to_request_ms": 240,
+   "time_to_request_phases_ms": {
+    "other": 7,
+    "system_prompt": 64,
+    "resume_other": 1,
+    "process_user_input": 3,
+    "input_attachments": 21,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 63,
+    "tool_pool_refresh": 4,
+    "init_message": 14,
+    "init_frame_send": 5,
+    "engine_pickup": 1,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 1,
+    "request_announcements": 4,
+    "query_setup": 1,
+    "model_gates": 1,
+    "tool_schema_build": 13,
+    "message_normalization": 8,
+    "client_creation": 5,
+    "request_build": 15
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 50,
+   "time_to_request_cpu_ms": 453,
+   "time_to_request_major_faults": 7344,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 10,
+    "cpu_ms": 15,
+    "major_faults": 198,
+    "changed_files_reread": 0,
+    "setup_ms": 3,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 7,
+    "ambient_wait_ms": 9,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 1,
+    "waits_ms": 1,
+    "placement_ms": 2,
+    "render_ms": 8,
+    "after_ms": 1,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 0,
+    "normalize_ms": 7,
+    "images_ms": 0,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 68,
+    "wire_messages": 25
+   },
+   "request_build_detail": {
+    "records_ms": 1,
+    "system_ms": 1,
+    "headers_ms": 0,
+    "cache_break_record_ms": 2,
+    "plans_ms": 1,
+    "retry_setup_ms": 0,
+    "sent_build_ms": 4,
+    "record_attempt_ms": 6,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 1,
+    "sent_build_surrogate_scan_ms": 0
+   },
+   "first_content_frame_ms": 2648,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-sonnet-5-5": {
+     "inputTokens": 14,
+     "outputTokens": 4576,
+     "cacheReadInputTokens": 460034,
+     "cacheCreationInputTokens": 9350,
+     "webSearchRequests": 0,
+     "costUSD": 0.1291914,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 427,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 9350,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ },
+ {
+  "kind": "medium",
+  "rc": 0,
+  "wall_s": 282,
+  "diff": {
+   "files": 4,
+   "added": 565,
+   "deleted": 10
+  },
+  "result": {
+   "duration_api_ms": 404187,
+   "stop_reason": "end_turn",
+   "session_id": "c3fa6900-71d3-4de0-8cf1-aaed55774cb0",
+   "total_cost_usd": 1.3307958000000002,
+   "usage": {
+    "input_tokens": 30,
+    "cache_creation_input_tokens": 38253,
+    "cache_read_input_tokens": 1234377,
+    "output_tokens": 28835,
+    "output_tokens_details": {
+     "thinking_tokens": 5601
+    },
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 38253,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+     {
+      "input_tokens": 4,
+      "output_tokens": 1236,
+      "cache_read_input_tokens": 119837,
+      "cache_creation_input_tokens": 1491,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1491
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+   },
+   "modelUsage": {
+    "claude-haiku-5-5": {
+     "inputTokens": 1597,
+     "outputTokens": 18,
+     "thinkingTokens": 0,
+     "cacheReadInputTokens": 0,
+     "cacheCreationInputTokens": 0,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 0,
+     "webSearchRequests": 0,
+     "costUSD": 0.0001687,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000
+    },
+    "claude-sonnet-5-5": {
+     "inputTokens": 66,
+     "outputTokens": 62016,
+     "thinkingTokens": 8509,
+     "cacheReadInputTokens": 2250231,
+     "cacheCreationInputTokens": 121328,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 121328,
+     "webSearchRequests": 0,
+     "costUSD": 1.3306271,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "permission_denials": [
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01FAq5jQCwpPgxd7ZV78Psji",
+     "tool_input": {
+      "command": "cat >> src/lib/split.test.ts <<'EOF'\n\ndescribe('checkPayments', () => {\n  const b = (payers: Bill['payers']) =>\n    bill({ payers, items: [{ id: '1', name: 'x', cents: 5000, people: ['a', 'b'] }], taxInput: '10' }) // total 55.00\n  const chk = (bb: Bill) => checkPayments(bb, calculate(bb))\n  it('accepts payments that add up to the bill total', () => {\n    const c = chk(b([{ personId: 'a', amount: '30' }, { personId: 'b', amount: '25.00' }]))\n    expect(c.ok).toBe(true)\n    expect(c.sumError).toBeUndefined()\n  })\n  it('explains a shortfall and an overpayment', () => {\n    expect(chk(b([{ personId: 'a', amount: '50' }])).sumError).toBe('Payments add up to $50.00, which is $5.00 less than the bill total of $55.00.')\n    expect(chk(b([{ personId: 'a', amount: '60' }])).sumError).toBe('Payments add up to $60.00, which is $5.00 more than the bill total of $55.00.')\n    expect(chk(b([{ personId: 'a', amount: '50' }])).ok).toBe(false)\n  })\n  it('flags bad rows', () => {\n    const c = chk(b([{ personId: 'a', amount: '-5' }, { personId: 'a', amount: '10' }, { personId: 'zz', amount: '1' }, { personId: 'b', amount: '' }]))\n    expect(c.rows[0].error).toMatch(/negative/)\n    expect(c.rows[1].error).toMatch(/already listed/)\n    expect(c.rows[2].error).toMatch(/Pick who paid/)\n    expect(c.rows[3].error).toMatch(/Enter an amount/)\n    expect(c.ok).toBe(false)\n    expect(c.sumError).toBeUndefined() // row errors come first\n  })\n  it('is not ok with no payers', () => {\n    expect(chk(b([])).ok).toBe(false)\n  })\n})\n\ntype Bal = { id: string; cents: number }\nconst net = (bals: Bal[], ts: ReturnType<typeof minTransfers>) => {\n  const m = new Map(bals.map((x) => [x.id, x.cents]))\n  for (const t of ts) { m.set(t.from, m.get(t.from)! + t.cents); m.set(t.to, m.get(t.to)! - t.cents) }\n  return [...m.values()]\n}\n/** independent reference: max number of zero-sum blocks over all set partitions */\nfunction maxZeroBlocks(v: number[]): number {\n  if (v.length === 0) return 0\n  const [first, ...rest] = v\n  let best = 0\n  for (let mask = 0; mask < 1 << rest.length; mask++) {\n    let s = first\n    const left: number[] = []\n    rest.forEach((x, i) => (mask & (1 << i) ? (s += x) : left.push(x)))\n    if (s === 0) best = Math.max(best, 1 + maxZeroBlocks(left))\n  }\n  return best\n}\n\ndescribe('minTransfers', () => {\n  it('handles trivial cases', () => {\n    expect(minTransfers([])).toEqual([])\n    expect(minTransfers([{ id: 'a', cents: 0 }, { id: 'b', cents: 0 }])).toEqual([])\n    expect(minTransfers([{ id: 'a', cents: 1240 }, { id: 'b', cents: -1240 }])).toEqual([{ from: 'b', to: 'a', cents: 1240 }])\n  })\n  it('finds independent pairs a plain greedy would tangle', () => {\n    // {a,d} and {b,c,e} are separate groups: 3 transfers, not 4\n    const bals = [{ id: 'a', cents: 1000 }, { id: 'b', cents: 600 }, { id: 'c', cents: -300 }, { id: 'd', cents: -1000 }, { id: 'e', cents: -300 }]\n    const ts = minTransfers(bals)\n    expect(ts).toHaveLength(3)\n    expect(net(bals, ts).every((x) => x === 0)).toBe(true)\n  })\n  it('settles everyone exactly and uses the proven minimum for random cases', () => {\n    for (let n = 0; n < 300; n++) {\n      const k = 2 + Math.floor(Math.random() * 6)\n      const vals = Array.from({ length: k - 1 }, () => Math.floor(Math.random() * 21) - 10)\n      vals.push(-vals.reduce((a, b) => a + b, 0))\n      const bals = vals.map((cents, i) => ({ id: 'p' + i, cents }))\n      const ts = minTransfers(bals)\n      expect(net(bals, ts).every((x) => x === 0)).toBe(true)\n      expect(ts.every((t) => t.cents > 0 && t.from !== t.to)).toBe(true)\n      const nz = vals.filter((x) => x !== 0)\n      expect(ts.length).toBe(nz.length === 0 ? 0 : nz.length - maxZeroBlocks(nz))\n    }\n  })\n  it('falls back to a valid greedy settle for large groups', () => {\n    const vals = Array.from({ length: 24 }, (_, i) => (i % 2 ? -(i * 7 + 3) : i * 7 + 3))\n    vals.push(-vals.reduce((a, b) => a + b, 0))\n    const bals = vals.map((cents, i) => ({ id: 'p' + i, cents }))\n    const ts = minTransfers(bals)\n    expect(net(bals, ts).every((x) => x === 0)).toBe(true)\n    expect(ts.length).toBeLessThanOrEqual(bals.filter((x) => x.cents).length - 1)\n  })\n})\n\ndescribe('settleUp', () => {\n  it('writes who pays whom, from payments and shares', () => {\n    // Pizza 30 (Ann, Bob) + Wine 20 (Cy), no tax/tip: owes 15/15/20. Ann paid all 50.\n    const b = bill({\n      items: [{ id: '1', name: 'Pizza', cents: 3000, people: ['a', 'b'] }, { id: '2', name: 'Wine', cents: 2000, people: ['c'] }],\n      payers: [{ personId: 'a', amount: '50' }],\n    })\n    const s = settleUp(b, calculate(b))\n    expect(s.transfers.map((t) => `${t.fromName} pays ${t.toName} ${t.cents}`).sort()).toEqual(['Bob pays Ann 1500', 'Cy pays Ann 2000'])\n  })\n  it('multiple payers net out against what they owe', () => {\n    const b = bill({\n      items: [{ id: '1', name: 'x', cents: 3000, people: ['a', 'b', 'c'] }], // 10 each\n      payers: [{ personId: 'a', amount: '20' }, { personId: 'b', amount: '10' }],\n    })\n    const s = settleUp(b, calculate(b))\n    expect(s.transfers).toHaveLength(1)\n    expect(s.transfers[0]).toMatchObject({ fromName: 'Cy', toName: 'Ann', cents: 1000 })\n  })\n  it('is empty when everyone paid their own share, or payments are invalid', () => {\n    const items = [{ id: '1', name: 'x', cents: 3000, people: ['a', 'b', 'c'] }]\n    const even = bill({ items, payers: ['a', 'b', 'c'].map((personId) => ({ personId, amount: '10' })) })\n    const s = settleUp(even, calculate(even))\n    expect(s.check.ok).toBe(true)\n    expect(s.transfers).toEqual([])\n    const bad = bill({ items, payers: [{ personId: 'a', amount: '5' }] })\n    expect(settleUp(bad, calculate(bad)).transfers).toEqual([])\n  })\n  it('random bills: after the transfers everybody has paid exactly their total', () => {\n    for (let n = 0; n < 200; n++) {\n      const people = Array.from({ length: 2 + Math.floor(Math.random() * 6) }, (_, i) => ({ id: 'p' + i, name: 'P' + i }))\n      const items = Array.from({ length: 1 + Math.floor(Math.random() * 6) }, (_, i) => ({\n        id: 'i' + i, name: 'x', cents: 100 + Math.floor(Math.random() * 9999),\n        people: people.filter(() => Math.random() < 0.6).map((p) => p.id).concat(people[0].id).slice(0, 1 + Math.floor(Math.random() * 4)),\n      }))\n      const b0 = { ...emptyBill(), people, items, taxInput: '8.25' }\n      const r = calculate(b0)\n      // random split of the total over random payers\n      const payers = people.filter(() => Math.random() < 0.5)\n      if (!payers.length) payers.push(people[0])\n      const w = allocate(r.total, payers.map(() => 1 + Math.floor(Math.random() * 9)))\n      const bb = { ...b0, payers: payers.map((p, i) => ({ personId: p.id, amount: (w[i] / 100).toFixed(2) })) }\n      if (w.some((x) => x === 0)) continue\n      const s = settleUp(bb, r)\n      expect(s.check.ok).toBe(true)\n      const bal = r.people.map((p) => ({ id: p.id, cents: (w[payers.findIndex((x) => x.id === p.id)] ?? 0) - p.total }))\n      expect(net(bal, s.transfers).every((x) => x === 0)).toBe(true)\n    }\n  })\n})\n\ndescribe('summary and persistence with payers', () => {\n  const base = () => bill({\n    items: [{ id: '1', name: 'Pizza', cents: 3000, people: ['a', 'b'] }],\n    payers: [{ personId: 'a', amount: '30' }],\n  })\n  it('includes Paid by and Settle up transfers', () => {\n    const b = base()\n    const s = buildSummary(b, calculate(b))\n    expect(s).toContain('Paid by:\\n- Ann: $30.00')\n    expect(s).toContain('Settle up:\\n- Bob pays Ann $15.00')\n  })\n  it('says why settle up is missing', () => {\n    const b = { ...base(), payers: [{ personId: 'a', amount: '10' }] }\n    expect(buildSummary(b, calculate(b))).toContain('Settle up: not available. Payments add up to $10.00, which is $20.00 less than the bill total of $30.00.')\n    expect(buildSummary({ ...b, payers: [] }, calculate({ ...b, payers: [] }))).toContain('Settle up: no payments recorded.')\n  })\n  it('round-trips payers and tolerates old saves without them', () => {\n    const store: Record<string, string> = {}\n    const st = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => void (store[k] = v) }\n    const b = base()\n    saveBill(b, st)\n    expect(loadBill(st).payers).toEqual(b.payers)\n    expect(loadBill({ getItem: () => JSON.stringify({ people: [], items: [], tipInput: '15' }) }).payers).toEqual([])\n    expect(loadBill({ getItem: () => JSON.stringify({ payers: [{ personId: 1 }, { personId: 'a', amount: '5' }] }) }).payers).toEqual([{ personId: 'a', amount: '5' }])\n  })\n})\nEOF\nsed -i \"s/import { allocate, buildSummary, calculate, emptyBill, formatMoney, loadBill, parsePercent, parsePrice, saveBill, type Bill } from '.\\/split'/import { allocate, buildSummary, calculate, checkPayments, emptyBill, formatMoney, loadBill, minTransfers, parsePercent, parsePrice, saveBill, settleUp, type Bill } from '.\\/split'/\" src/lib/split.test.ts\nnpx vitest run 2>&1 | grep -E \"FAIL|\u00d7|Tests|Error|expected\" | head -20"
+     }
+    },
+    {
+     "tool_name": "Bash",
+     "tool_use_id": "toolu_01BcHf2D5xfh5oV4XX5tN6L9",
+     "tool_input": {
+      "command": "sed -i 's/const clip = await page.evaluate(() => navigator.clipboard.readText())/const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(\\/\\\\r\\\\n\\/g, \"\\\\n\")/' e2e/settle.spec.ts && grep -n \"const clip\" e2e/settle.spec.ts && npx playwright test 2>&1 | tail -25",
+      "timeout": 300000
+     }
+    }
+   ],
+   "terminal_reason": "completed",
+   "fast_mode_state": "off",
+   "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+     "background": 0,
+     "foreground": 0,
+     "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+     "parent": 0,
+     "user": 0,
+     "system": 0
+    },
+    "refused": {
+     "depth_limit": 0,
+     "concurrency_limit": 0,
+     "budget": 0
+    },
+    "by_type": {}
+   },
+   "safety_stops": 0,
+   "is_error": false,
+   "num_turns": 28,
+   "subtype": "success",
+   "api_error_status": null,
+   "result": "\"Who paid\" and \"Settle up\" are in, and the copied summary now lists the transfers. The 32 logic tests and 6 browser tests (desktop and mobile) pass, and `tsc` is clean. I didn't run `npm run lint`.\n\n**How it works**\n- **Who paid:** you add one or more payers, each with an amount. The dropdown won't offer someone who is already listed. A \"Fill remaining\" button puts the unpaid balance on that row.\n- **Validation:** the section shows \"Paid $40.00 of $55.00\". If the amounts don't add up, it says so, for example \"Payments add up to $40.00, which is $15.00 less than the bill total of $55.00.\" Overpayment gets the matching \"more than\" message. Bad rows get their own messages: negative, blank, zero, too many decimals, or the same person listed twice.\n- **Settle up:** it shows lines like \"Cy pays Ann $22.00\". Until the payments match the total, it says to fix \"Who paid\" first. When everyone paid their own share, it says \"All square\".\n- **Minimum transfers:** this is the fewest possible, not just a reasonable greedy answer. Up to 16 people with a non-zero balance are solved exactly. Beyond that it falls back to a greedy settle, which is correct but can use a few extra transfers. The code comments say this.\n- **Summary:** it gains \"Paid by:\" and \"Settle up:\" sections. If the payments are invalid or missing, it says so instead.\n- **Related behaviour:** removing a person also removes their payment. Reset clears payers. Saved bills from before this change still load.\n\n**One choice to confirm:** transfers are written with the selected currency, \"Cy pays Ann $22.00\" or \"22,00 \u20ac\", not the bare \"12.40\" in your example. This keeps them consistent with the currency selector. If you want bare numbers it's a small change.\n\n**What I tested and how**\n- **Logic (`npm test`, 32 tests, vitest):**\n  - **Payment checks:** exact shortfall and overpayment messages, and bad rows (negative, duplicate payer, blank, no one chosen).\n  - **Minimum transfers:** 300 random cases are compared against a separate brute-force count of the fewest possible transfers, and every case nets to zero. I also tested independent groups settling separately and the greedy fallback above 16 people.\n  - **Settle-up end to end:** worked examples with one and with several payers, plus 300 random bills.\n  - **Summary and saving:** the summary text and a save/load round trip, including old saves and malformed data.\n- **Browser (Chrome via Playwright, 1280px and 375px):** all of the following were checked at both sizes.\n  - **Payers:** adding payers, the shortfall and overpayment messages, row errors, and Fill remaining.\n  - **Transfers:** the exact transfer lines, and that they disappear when an item is added and return when it's removed.\n  - **Currency:** EUR formatting of the transfers.\n  - **Clipboard, reload, reset:** the copied text read back from the clipboard, both with transfers and with the \"not available\" message. I also reloaded the page, removed a person with a payment, used Reset, and ran the \"All square\" case.\n  - **Layout:** no sideways scroll.\n- **Visual check and fix:** the first mobile screenshot showed the payer dropdown squashed to \"Anr\" and \"Ber\" with Remove wrapping onto its own line. I gave the dropdown its own row on narrow screens and re-checked. It's now readable and nothing overflows.\n- **Test-only fix:** one clipboard assertion failed because Chrome on Windows turns `\\n` into `\\r\\n`. The app's output was correct, so I normalized line endings in the test.",
+   "ttft_ms": 33875,
+   "type": "result",
+   "duration_ms": 280253,
+   "uuid": "822896c0-eaed-4887-8456-86b8c7dd3875",
+   "ttft_stream_ms": 2130,
+   "time_to_request_ms": 223,
+   "time_to_request_phases_ms": {
+    "other": 5,
+    "system_prompt": 54,
+    "resume_other": 0,
+    "process_user_input": 3,
+    "input_attachments": 20,
+    "input_hooks": 3,
+    "conversation_append": 1,
+    "transcript_persist": 48,
+    "tool_pool_refresh": 2,
+    "init_message": 15,
+    "init_frame_send": 6,
+    "engine_pickup": 2,
+    "loop_entry": 3,
+    "message_prep": 1,
+    "model_config_wait": 1,
+    "autocompact": 2,
+    "request_announcements": 5,
+    "query_setup": 1,
+    "model_gates": 0,
+    "tool_schema_build": 13,
+    "message_normalization": 10,
+    "client_creation": 10,
+    "request_build": 18
+   },
+   "turn_start_resume_kind": "none",
+   "process_turn_index": 0,
+   "time_to_request_loop_lag_ms": 35,
+   "time_to_request_cpu_ms": 313,
+   "time_to_request_major_faults": 7284,
+   "input_attachments_detail": {
+    "slowest_producer": "changed_files",
+    "slowest_producer_ms": 9,
+    "cpu_ms": 47,
+    "major_faults": 127,
+    "changed_files_reread": 0,
+    "setup_ms": 3,
+    "prompt_producers_ms": 0,
+    "ambient_start_ms": 6,
+    "ambient_wait_ms": 9,
+    "render_ms": 0,
+    "producers": 43,
+    "token_counts": 0
+   },
+   "tool_schema_build_detail": {
+    "betas_ms": 0,
+    "waits_ms": 1,
+    "placement_ms": 3,
+    "render_ms": 9,
+    "after_ms": 0,
+    "other_ms": 0,
+    "tools": 14,
+    "new_schemas": 14
+   },
+   "message_normalization_detail": {
+    "before_ms": 1,
+    "normalize_ms": 7,
+    "images_ms": 1,
+    "post_process_ms": 1,
+    "after_ms": 0,
+    "other_ms": 0,
+    "messages": 104,
+    "wire_messages": 37
+   },
+   "request_build_detail": {
+    "records_ms": 0,
+    "system_ms": 2,
+    "headers_ms": 1,
+    "cache_break_record_ms": 2,
+    "plans_ms": 3,
+    "retry_setup_ms": 1,
+    "sent_build_ms": 2,
+    "record_attempt_ms": 7,
+    "other_ms": 0,
+    "sent_build_safety_context_ms": 0,
+    "sent_build_cache_breakpoints_ms": 0,
+    "sent_build_surrogate_scan_ms": 1
+   },
+   "first_content_frame_ms": 2132,
+   "queued_turn_count": 0,
+   "result_index": 0,
+   "model_usage_since_last_result": {
+    "claude-sonnet-5-5": {
+     "inputTokens": 30,
+     "outputTokens": 28835,
+     "cacheReadInputTokens": 1234377,
+     "cacheCreationInputTokens": 38253,
+     "webSearchRequests": 0,
+     "costUSD": 0.5648597000000001,
+     "contextWindow": 1000000,
+     "maxOutputTokens": 128000,
+     "thinkingTokens": 5601,
+     "cacheCreationEphemeral5mInputTokens": 0,
+     "cacheCreationEphemeral1hInputTokens": 38253,
+     "canonicalModel": "claude-sonnet-5-5",
+     "provider": "firstParty",
+     "costBasis": "list"
+    }
+   },
+   "credential_expires_at": "2026-11-26T18:29:33.059Z"
+  }
+ }
+]

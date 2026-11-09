@@ -1,0 +1,186 @@
+{
+ "quiz_intro": "Quick quiz from memory. Don't search the web, don't look anything up and don't use any tools or change any files. Answer every question with your best guess, even when unsure, in at most 6 words. Never answer \"unknown\". Reply with a numbered list and nothing else.",
+ "quiz": [
+  [
+   "Who was the first President of the ECSC Court of Justice (1952)?",
+   "Massimo Pilotti"
+  ],
+  [
+   "Who was the first Secretary-General of the OECD?",
+   "Thorkil Kristensen"
+  ],
+  [
+   "Who was the first President of the European Investment Bank?",
+   "Pietro Campilli"
+  ],
+  [
+   "Who designed the original Warsaw Philharmonic building (1901)?",
+   "Karol Kozłowski"
+  ],
+  [
+   "Who designed the Juliusz Słowacki Theatre in Kraków?",
+   "Jan Zawiejski"
+  ],
+  [
+   "Who designed the Zachęta gallery building in Warsaw?",
+   "Stefan Szyller"
+  ],
+  [
+   "Who designed the Lviv Opera House?",
+   "Zygmunt Gorgolewski"
+  ],
+  [
+   "What is the elevation of Babia Góra in metres?",
+   "1725"
+  ],
+  [
+   "What is the elevation of Tarnica in metres?",
+   "1346"
+  ],
+  [
+   "What is the area of Lake Śniardwy in square kilometres?",
+   "113.8"
+  ],
+  [
+   "What is the maximum depth of Lake Hańcza in metres?",
+   "108.5"
+  ],
+  [
+   "How long is the East Bridge of the Great Belt Fixed Link in metres?",
+   "6790"
+  ],
+  [
+   "How tall is Varso Tower in Warsaw including the spire, in metres?",
+   "310"
+  ],
+  [
+   "Who was the first Polish Ombudsman (Rzecznik Praw Obywatelskich)?",
+   "Ewa Łętowska"
+  ],
+  [
+   "Who was the first President of the Polish Constitutional Tribunal?",
+   "Alfons Klafkowski"
+  ],
+  [
+   "Who was the first Mayor (Prezydent) of Warsaw after the 1990 local elections?",
+   "Stanisław Wyganowski"
+  ],
+  [
+   "Who was the first rector of the University of Warsaw after it reopened in 1915?",
+   "Józef Brudziński"
+  ],
+  [
+   "Who was the first director of the National Museum in Kraków?",
+   "Władysław Łuszczkiewicz"
+  ],
+  [
+   "Who led the neoclassical rebuilding of Vilnius Cathedral?",
+   "Laurynas Gucevičius"
+  ],
+  [
+   "Who was the first President of the Estonian Academy of Sciences (1938)?",
+   "Karl Schlossmann"
+  ],
+  [
+   "Who was the first President of Germany's Federal Constitutional Court?",
+   "Hermann Höpker-Aschoff"
+  ],
+  [
+   "Who was the first President of the ECSC Common Assembly (1952)?",
+   "Paul-Henri Spaak"
+  ],
+  [
+   "Who was the first Director-General of CERN?",
+   "Felix Bloch"
+  ],
+  [
+   "Who was the first Director General of ESA?",
+   "Roy Gibson"
+  ],
+  [
+   "Who was the first President of the European Monetary Institute?",
+   "Alexandre Lamfalussy"
+  ],
+  [
+   "Who was the first chairman of Poland's Financial Supervision Authority (KNF)?",
+   "Stanisław Kluza"
+  ],
+  [
+   "Who was the first President of the Polish Academy of Sciences (PAN)?",
+   "Jan Dembowski"
+  ],
+  [
+   "What is the elevation of Ślęża in metres?",
+   "718"
+  ],
+  [
+   "What is the elevation of Łysica in metres?",
+   "612"
+  ],
+  [
+   "What is the elevation of Turbacz in metres?",
+   "1310"
+  ],
+  [
+   "What is the elevation of Radziejowa in metres?",
+   "1266"
+  ],
+  [
+   "What is the elevation of Skrzyczne in metres?",
+   "1257"
+  ],
+  [
+   "How long is the Hel Peninsula in kilometres?",
+   "35"
+  ],
+  [
+   "What is the elevation of Kasprowy Wierch in metres?",
+   "1987"
+  ],
+  [
+   "How long is the Oder river in kilometres?",
+   "840"
+  ],
+  [
+   "How long is the Warta river in kilometres?",
+   "808"
+  ],
+  [
+   "What is the area of Wigry lake in square kilometres?",
+   "21.2"
+  ],
+  [
+   "Who was the first President of the Supreme Audit Office (NIK) after 1989?",
+   "Walerian Pańko"
+  ],
+  [
+   "Who was the first Speaker (Marshal) of the Polish Senate after 1989?",
+   "Andrzej Stelmachowski"
+  ],
+  [
+   "Who was the first Minister of Foreign Affairs of the Third Polish Republic (1989)?",
+   "Krzysztof Skubiszewski"
+  ],
+  [
+   "Who was the first President of the Polish Football Association (PZPN) in 1919?",
+   "Edward Cetnarowski"
+  ],
+  [
+   "Who designed the Gdynia Sea Station (Dworzec Morski, 1933)?",
+   "Wacław Tomaszewski"
+  ],
+  [
+   "Who designed the Polish Sejm building's assembly hall (1928)?",
+   "Kazimierz Skórewicz"
+  ],
+  [
+   "Who designed the Warsaw Central Station (1975)?",
+   "Arseniusz Romanowicz"
+  ],
+  [
+   "What is the elevation of Pilsko in metres?",
+   "1557"
+  ]
+ ],
+ "note": "Summarize this planning note in one sentence for my team, nothing else:\n\n\"Kickoff is on Tuesday 12 November 2026 at 10:00 in Room B. Bring the Q4 numbers. The design review follows on Friday 20 November at 14:00, same room.\""
+}

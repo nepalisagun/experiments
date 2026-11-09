@@ -1,0 +1,168 @@
+diff --git a/e2e/app.spec.ts b/e2e/app.spec.ts
+index 7c1bfdb..f8c8107 100644
+--- a/e2e/app.spec.ts
++++ b/e2e/app.spec.ts
+@@ -8,7 +8,7 @@ async function setDurations(page: Page, focus: string, short: string, long: stri
+   const d = page.getByRole('dialog')
+   await d.getByLabel('Focus', { exact: true }).fill(focus)
+   await d.getByLabel('Short break').fill(short)
+-  await d.getByLabel('Long break').fill(long)
++  await d.getByLabel('Recharge').fill(long)
+   await d.getByRole('button', { name: 'Save' }).click()
+   await expect(page.getByRole('dialog')).toHaveCount(0)
+ }
+@@ -25,6 +25,17 @@ test('defaults, big countdown, tab title, no horizontal scroll', async ({ page }
+   await expect(page).toHaveTitle('25:00 - Focus')
+   const box = await countdown(page).boundingBox()
+   expect(box!.height).toBeGreaterThan(50)
++  await expect(page.getByTestId('dots')).toContainText('0 of 4 until Recharge')
++  const fontPx = await countdown(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
++  expect(fontPx).toBe(info.project.name === 'mobile' ? 92 : 80) // mobile was 72px before
++  // The widest reading ("00:00" style digits) must stay inside the ring.
++  const ring = await page.getByTestId('ring').boundingBox()
++  await page.evaluate(() => { document.querySelector('[data-testid=countdown]')!.textContent = '00:00' })
++  const wide = await countdown(page).boundingBox()
++  expect(wide!.x).toBeGreaterThan(ring!.x + 8)
++  expect(wide!.x + wide!.width).toBeLessThan(ring!.x + ring!.width - 8)
++  await page.reload()
++  await expect(countdown(page)).toHaveText('25:00')
+   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+   expect(overflow).toBeLessThanOrEqual(0)
+   await page.screenshot({ path: `shots/${info.project.name}-home.png`, fullPage: true })
+@@ -74,7 +85,7 @@ test('skip moves through phases without logging', async ({ page }) => {
+   await expect(page.getByTestId('log-summary')).toHaveText('0 sessions · 0 min')
+ })
+ 
+-test('full cycle: 4 focus sessions → long break, dots, log with labels and finish times, chime', async ({ page }, info) => {
++test('full cycle: 4 focus sessions → Recharge, dots, log with labels and finish times, chime', async ({ page }, info) => {
+   await setDurations(page, '1', '1', '2')
+   await expect(countdown(page)).toHaveText('01:00')
+   const dots = page.getByTestId('dots')
+@@ -82,7 +93,7 @@ test('full cycle: 4 focus sessions → long break, dots, log with labels and fin
+     await page.getByLabel('Working on').fill(`Task ${i}`)
+     await startBtn(page).click()
+     await page.clock.runFor(60_000)
+-    await expect(dots).toHaveAttribute('aria-label', `${i} of 4 focus sessions before the long break`)
++    await expect(dots).toHaveAttribute('aria-label', `${i} of 4 focus sessions before Recharge`)
+     await expect(dots.locator('[data-filled="true"]')).toHaveCount(i)
+     if (i < 4) {
+       await expect(page.getByTestId('phase')).toHaveText('Short break')
+@@ -93,8 +104,14 @@ test('full cycle: 4 focus sessions → long break, dots, log with labels and fin
+       await expect(page.getByTestId('phase')).toHaveText('Focus')
+     }
+   }
+-  await expect(page.getByTestId('phase')).toHaveText('Long break')
++  await expect(page.getByTestId('phase')).toHaveText('Recharge')
+   await expect(countdown(page)).toHaveText('02:00')
++  await expect(page).toHaveTitle('02:00 - Recharge')
++  await expect(dots).toContainText('Recharge earned')
++  await page.getByRole('button', { name: 'Settings' }).click()
++  const html = await page.evaluate(() => document.body.innerHTML + document.title)
++  expect(html).not.toMatch(/long break/i)
++  await page.keyboard.press('Escape')
+   const items = page.getByTestId('log').locator('li')
+   await expect(items).toHaveCount(4)
+   await expect(items.first()).toContainText('Task 4') // newest first
+@@ -182,7 +199,7 @@ test('settings, log, task and a running timer survive a reload', async ({ page }
+   const d = page.getByRole('dialog')
+   await expect(d.getByLabel('Focus', { exact: true })).toHaveValue('2')
+   await expect(d.getByLabel('Short break')).toHaveValue('3')
+-  await expect(d.getByLabel('Long break')).toHaveValue('4')
++  await expect(d.getByLabel('Recharge')).toHaveValue('4')
+ })
+ 
+ test('yesterday’s log is not shown today', async ({ page }) => {
+diff --git a/src/App.tsx b/src/App.tsx
+index dc206bf..d0c6ffa 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -182,8 +182,8 @@ export default function App() {
+               {PHASE_LABEL[timer.phase]}
+             </p>
+ 
+-            <div className="relative mx-auto my-4 aspect-square w-full max-w-[17rem]">
+-              <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden="true">
++            <div className="relative mx-auto my-4 aspect-square w-full max-w-[19rem] sm:max-w-[17rem]">
++              <svg data-testid="ring" viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden="true">
+                 <circle cx="50" cy="50" r="46" fill="none" className="stroke-black/[0.06]" strokeWidth="3" />
+                 <circle
+                   key={timer.phase /* a new phase starts from an empty ring instead of animating back */}
+@@ -205,7 +205,7 @@ export default function App() {
+                   data-testid="countdown"
+                   role="timer"
+                   aria-label={`${formatTime(rem)} remaining`}
+-                  className="text-[4.5rem] font-extralight leading-none tabular-nums tracking-tight sm:text-[5rem]"
++                  className="text-[5.75rem] font-extralight leading-none tabular-nums tracking-tight sm:text-[5rem]"
+                 >
+                   {formatTime(rem)}
+                 </time>
+@@ -285,7 +285,7 @@ export default function App() {
+ function Dots({ done, phase }: { done: number; phase: Phase }) {
+   const n = Math.min(done, SESSIONS_PER_CYCLE)
+   return (
+-    <div className="flex flex-col items-center gap-1.5" data-testid="dots" aria-label={`${n} of ${SESSIONS_PER_CYCLE} focus sessions before the long break`}>
++    <div className="flex flex-col items-center gap-1.5" data-testid="dots" aria-label={`${n} of ${SESSIONS_PER_CYCLE} focus sessions before Recharge`}>
+       <div className="flex gap-2.5" aria-hidden="true">
+         {Array.from({ length: SESSIONS_PER_CYCLE }, (_, i) => (
+           <span
+@@ -296,7 +296,7 @@ function Dots({ done, phase }: { done: number; phase: Phase }) {
+         ))}
+       </div>
+       <p className="text-xs text-stone-500">
+-        {phase === 'long' ? 'Long break earned' : `${n} of ${SESSIONS_PER_CYCLE} until long break`}
++        {phase === 'long' ? 'Recharge earned' : `${n} of ${SESSIONS_PER_CYCLE} until Recharge`}
+       </p>
+     </div>
+   )
+@@ -328,7 +328,7 @@ function SettingsPanel({ initial, onSave, onClose }: { initial: Settings; onSave
+   const fields: { key: keyof Settings; label: string }[] = [
+     { key: 'focus', label: 'Focus' },
+     { key: 'short', label: 'Short break' },
+-    { key: 'long', label: 'Long break' },
++    { key: 'long', label: 'Recharge' },
+   ]
+ 
+   return (
+@@ -345,7 +345,7 @@ function SettingsPanel({ initial, onSave, onClose }: { initial: Settings; onSave
+         <h2 id="settings-title" className="text-lg font-semibold">
+           Settings
+         </h2>
+-        <p className="mt-1 text-sm text-stone-500">Durations in minutes, 1–90. A long break follows every 4 focus sessions.</p>
++        <p className="mt-1 text-sm text-stone-500">Durations in minutes, 1–90. Recharge follows every 4 focus sessions.</p>
+         <div className="mt-4 flex flex-col gap-3">
+           {fields.map(({ key, label }, i) => (
+             <div key={key}>
+diff --git a/src/timer.test.ts b/src/timer.test.ts
+index 6ec9340..009f8c9 100644
+--- a/src/timer.test.ts
++++ b/src/timer.test.ts
+@@ -145,6 +145,7 @@ describe('display', () => {
+     const st = start(initialState(S), T0)
+     expect(tabTitle(st, T0 + 25 * MIN - (12 * MIN + 4000))).toBe('12:04 - Focus')
+     expect(tabTitle(finish(initialState(S)), T0)).toBe('05:00 - Short break')
++    expect(tabTitle(finish({ ...initialState(S), completedInCycle: 3 }), T0)).toBe('15:00 - Recharge')
+   })
+ })
+ 
+diff --git a/src/timer.ts b/src/timer.ts
+index 6a9e3a6..7527922 100644
+--- a/src/timer.ts
++++ b/src/timer.ts
+@@ -36,7 +36,7 @@ export interface LogEntry {
+ export const PHASE_LABEL: Record<Phase, string> = {
+   focus: 'Focus',
+   short: 'Short break',
+-  long: 'Long break',
++  long: 'Recharge', // the long break; the key stays `long` so saved settings keep loading
+ }
+ 
+ export function phaseMs(phase: Phase, s: Settings): number {
+@@ -86,7 +86,7 @@ export function afterComplete(state: TimerState, s: Settings): TimerState {
+ 
+ /**
+  * Skip the current phase. A skipped focus session is not logged and does not count toward
+- * the long break; a skipped long break still starts a fresh cycle.
++ * Recharge; a skipped Recharge still starts a fresh cycle.
+  */
+ export function skip(state: TimerState, s: Settings): TimerState {
+   if (state.phase === 'focus') {
