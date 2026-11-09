@@ -11,13 +11,13 @@ Lovable builds apps from a chat and charges in credits. Claude Code does the sam
 | [01](01-pilot/) | Pilot | One task of each size, nobody told to test: what does it cost, and which model family answers? | Without a testing requirement the three sides did visibly different amounts of work, so the comparison needed a rerun. **Chat mode said it was Gemini 2.5 Flash; Build mode answered like Claude 5.x.** |
 | [02](02-cost-per-task/) | Cost per task | 15 identical coding tasks, all tested in a real browser: what does each cost in Lovable and in Claude Code? | **A build cost $1.26 in Lovable, $1.65 on Opus 5.5 at API prices and $0.036 on the $200 Claude plan.** Across builds, small edits and features Lovable costs 0.76–1.12× Opus's API price and 35–51× the plan's. All 10 Claude Code apps pass their own 37–94 tests when rerun. |
 | [03](03-repo-questions/) | Repo questions | 5 questions about a 604-file open-source repo: cost, and how good are the answers, graded blind? | **Same model, less work: Lovable's answers graded 7.2 for usefulness, Opus 5.5 at default effort 9.2, at low effort 6.8.** Lovable used 4–8 tools per answer, Opus at low effort 3–8, at default 10–19. Per answer: Lovable $0.60, Opus $0.68 at API prices. |
-| [04](04-which-model-answers/) | Which model answers | Which Claude tier writes the code in Lovable's Build mode? | **Opus 5.5 in 7 of 9 Build turns, including 3 of the 4 coding turns.** The other 2, both in one project, matched no model tested. No turn matched Sonnet 5.5. |
+| [04](04-which-model-answers/) | Which model answers | Which Claude tier writes the code in Lovable's Build mode? | **Opus 5.5 in 8 of 10 Build turns, across all 6 projects, including 3 of the 4 coding turns.** The other 2, both in one project, matched no model tested. No turn matched Sonnet 5.5. |
 
 ## What's confirmed, what's likely, what didn't hold
 
 | Claim | Status | Evidence |
 |---|---|---|
-| Lovable's Build mode runs Claude Opus 5.5 | **Confirmed** for 7 of 9 tested turns, including 3 coding turns | [04](04-which-model-answers/): a 16-question knowledge fingerprint, validated 12 of 12 on the API |
+| Lovable's Build mode runs Claude Opus 5.5 | **Confirmed** for 8 of 10 tested turns across all 6 projects, including 3 coding turns | [04](04-which-model-answers/): a 16-question knowledge fingerprint, validated 12 of 12 on the API |
 | Lovable costs about what Opus 5.5 costs at API prices | **Measured** | [02](02-cost-per-task/), [03](03-repo-questions/) |
 | A Claude plan runs the same work 35–51× cheaper | **Computed** from the measured API-equivalent cost and the measured 45.3× plan multiplier; holds only if you use the allowance | [02](02-cost-per-task/), [subscription-multipliers](../subscription-multipliers/) |
 | Lovable's Chat mode is a Gemini Flash-class model | **Highly likely**: it says so, and its knowledge ends in December 2024 | [01](01-pilot/) |

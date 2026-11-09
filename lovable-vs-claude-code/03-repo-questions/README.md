@@ -28,6 +28,8 @@ The first prompt began: "Clone https://github.com/phuryn/staygreen into a tempor
 | Opus 5.5, medium | Claude Code, `--effort medium` | medium |
 | Opus 5.5, low | Claude Code, `--effort low` | low |
 
+The Lovable project that answered these questions was fingerprinted afterwards with the quiz from [04](../04-which-model-answers/): Opus 5.5 (14.0 of 16, with both Opus-only answers).
+
 Each set is one session answering all five questions in order (`claude-code/runs/<set>_q<n>.jsonl`, `lovable/qa_q<n>.json`).
 
 **Blind grading** ([grading/](grading/)):

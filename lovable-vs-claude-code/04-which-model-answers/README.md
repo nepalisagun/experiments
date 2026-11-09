@@ -44,7 +44,7 @@ Lovable doesn't say which model writes your code in Build mode. Builders guess a
 
 **In Lovable** ([scripts/lov_probe.sh](../scripts/lov_probe.sh), [scripts/lov_xquiz.sh](../scripts/lov_xquiz.sh)), Build mode, one paid account:
 
-- **Quiz-only turns:** the same prompt sent once in each of the 5 app projects from [02](../02-cost-per-task/), after their three coding tasks ([lovable/probe_*.json](lovable/)).
+- **Quiz-only turns:** the same prompt sent once in each of the 5 app projects from [02](../02-cost-per-task/), after their three coding tasks, and later the same day in the project that answered the repo questions in [03](../03-repo-questions/), so that project is fingerprinted too ([lovable/probe_*.json](lovable/)).
 - **Coding turns:** to see which model writes code, the quiz was appended to 4 real coding tasks: 2 small edits and 2 medium features ([lovable/prompts/](lovable/prompts/)). The task came first; the quiz asked for the answers "at the very end of your final reply … from memory".
 - Each answer sheet is in `lovable/*_sheet.txt`, the full turn in the matching `.json`.
 
@@ -57,6 +57,7 @@ Lovable doesn't say which model writes your code in Build mode. Builders guess a
 | kanban, quiz only | 0.70 | **14.3** | 8.0 | 12.0 | 4.3 | Opus 5.5 | yes / yes |
 | budget, quiz only | 0.60 | **14.0** | 7.3 | 12.0 | 5.0 | Opus 5.5 | yes / yes |
 | notes, quiz only | 0.40 | 10.7 | 9.3 | **12.0** | 5.7 | none clearly | no / no |
+| repo questions, quiz only | 0.70 | **14.0** | 8.0 | 12.0 | 4.7 | Opus 5.5 | yes / yes |
 | split, small edit + quiz | 2.30 | **14.7** | 8.0 | 13.0 | 4.3 | Opus 5.5 | yes / yes |
 | timer, medium feature + quiz | 3.00 | **14.7** | 8.0 | 13.0 | 4.3 | Opus 5.5 | yes / yes |
 | budget, medium feature + quiz | 4.10 | **14.0** | 7.3 | 12.0 | 5.0 | Opus 5.5 | yes / yes |
@@ -72,7 +73,7 @@ Quiz-only turns took 8–15 seconds. Their credits come from each message's "Mor
 
 ## Findings
 
-1. **Lovable's Build mode is mostly Opus 5.5.** 7 of 9 Build turns matched Opus 5.5 best, at 14.0–14.7 of 16, the same range as Opus's own held-out runs (14–15) and far from Sonnet 5.5 (7.3–8.0). All 7 gave both of the numbers only Opus gives (614 m and 1,266 m).
+1. **Lovable's Build mode is mostly Opus 5.5.** 8 of 10 Build turns, across all 6 projects, matched Opus 5.5 best, at 14.0–14.7 of 16, the same range as Opus's own held-out runs (14–15) and far from Sonnet 5.5 (7.3–8.0). All 8 gave both of the numbers only Opus gives (614 m and 1,266 m).
 2. **It's Opus while it writes code, too.** The three coding turns in the Opus projects returned the same answer sheets as those projects' quiz-only turns, at 2.30–4.10 credits each.
 3. **Routing looks per project.** The notes project never matched any reference model well (9–10.7 of 16) and gave names no reference model gave ("Mario Campolongo", "Leon Jankowski"), on both its turns. It knows the deep items that Opus and Fable know, gave one of the two Opus-only numbers on one turn and neither on the other. The model behind it is unidentified.
 4. **GPT shows up rarely.** 1 of 20 benchmark turns carried a GPT-like style signal, the costliest one. Lovable says publicly that it routes different parts of a build to different models; this is consistent with that, and too thin to call a share.
@@ -80,7 +81,7 @@ Quiz-only turns took 8–15 seconds. Their credits come from each message's "Mor
 
 ## Caveats
 
-- **n = 9 Build turns on one account, one day.** Routing can change with load, plan or project, and Lovable can change it any time.
+- **n = 10 Build turns on one account, one day.** Routing can change with load, plan or project, and Lovable can change it any time.
 - **The reference panel is the raw API with no system prompt.** Lovable's own system prompt and settings can shift style and confidence, but the verdicts rest on knowledge items, including two numbers only Opus gave.
 - **Only four reference models.** A model outside the panel (another vendor's, or a Claude version not tested) can't be named, which is why the notes project stays "unidentified".
 - **The GPT signal is style, not knowledge**, so it's weaker evidence than the quiz. The quiz wasn't attached to that turn.
